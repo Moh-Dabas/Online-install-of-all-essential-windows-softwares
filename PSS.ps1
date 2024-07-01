@@ -1285,7 +1285,7 @@ $find = '$SaraScenarioArgument = ""';$replace = '$SaraScenarioArgument = "-S Off
 & "$SNIfile"
 
 # Disabled due to Antimalware issues
-@"
+$Disabled = @"
 $outputdir = "$env:TEMP\IA\office"
 $weburl = "https://github.com/OfficeDev/Office-IT-Pro-Deployment-Scripts/tree/master/Office-ProPlus-Deployment/Remove-PreviousOfficeInstalls/"
 for ($i = 1; $i -le 30; $i++){
@@ -1303,6 +1303,7 @@ $Filelinks | ForEach-Object {
 }
 & "$outputdir\Remove-PreviousOfficeInstalls.ps1"
 "@
+# $Disabled
 
 $ConfigurationFile = @"
 <Configuration ID="d66f0ad9-6e2f-47dc-a4fe-de1b73dfddff">
@@ -1400,3 +1401,4 @@ $extra = @"
 Write-Host "`r`n*** Updating Store Apps ***`r`n"
 Start-Process -WindowStyle maximize "ms-windows-store://downloadsandupdates"
 "@
+# $extra
