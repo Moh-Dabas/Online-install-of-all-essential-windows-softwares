@@ -3,7 +3,8 @@ REM Commands
 
 Echo.
 Echo "======================================================================================================================"
-Echo "************************** This file installs essential windows programms and runtimes **************************"
+Echo "*************************** This file installs essential windows programms and runtimes ***************************"
+Echo "************************** Using the code files from github repo for dynamic code update **************************"
 Echo "======================================================================================================================"
 Echo.
 
@@ -35,14 +36,9 @@ Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command
 reg add "HKCU\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /v "ExecutionPolicy" /t REG_SZ /d "Unrestricted" /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /v "ExecutionPolicy" /t REG_SZ /d "Unrestricted" /f >nul 2>&1
 
-cd /d "%~dp0"
 
-Echo.
-Echo Start installing programms
-Echo.
-Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0Choco.ps1"
-Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0PSS.ps1"
-
+Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "New-Item -Path '%tmp%\IAGit' -ItemType Directory -EA SilentlyContinue | out-null;Invoke-WebRequest -Uri 'https://github.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/archive/refs/heads/main.zip' -OutFile '%tmp%\IAGit\IAGit.zip';Expand-Archive -LiteralPath '%tmp%\IAGit\IAGit.zip' -DestinationPath '%tmp%\IAGit' -Force"
+Start "" /High "%tmp%\IAGit\Online-install-of-all-essential-windows-softwares-main\Install All.bat"
 
 REM Commands end
 goto :exit
@@ -53,11 +49,9 @@ REM Get Admin privileges
 Set "params=%*" && cd /d "%~dp0" && (if exist "%temp%\getadmin.vbs" del "%temp%\getadmin.vbs") && fsutil dirty query %systemdrive% >nul 2>nul || (Echo Set UAC = CreateObject^("Shell.Application"^) : UAC.ShellExecute "cmd.exe", "/k cd /d ""%~sdp0"" && ""%~s0"" %params%", "", "runas", 1 >> "%temp%\getadmin.vbs" && "%temp%\getadmin.vbs" && exit)
 title Installing All Essential Programs Online
 cls
-color 0B
-echo *** Script is running with Administrator privileges ***
 goto :eof
 REM ======================================================================================================================
 :exit
-Echo.& Echo All done!
+Echo.&Echo All done!
 endlocal && TIMEOUT /t 1 >NUL
 EXIT
