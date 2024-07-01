@@ -5,7 +5,7 @@ Function Check-RunAsAdministrator()
   #Get current user context
   $CurrentUser = New-Object Security.Principal.WindowsPrincipal $([Security.Principal.WindowsIdentity]::GetCurrent())
   #Check user is running the script is member of Administrator Group
-  if($CurrentUser.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {Write-host -F Green "`r`n*** Script is running with Administrator privileges ***`r`n"}
+  if($CurrentUser.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {Write-Host -F Green "`r`n*** Script is running with Administrator privileges ***`r`n"}
   else
     {
        #Create a new Elevated process to Start PowerShell
@@ -50,11 +50,11 @@ Function AddRegEntry
             String {$typeCMD = "REG_SZ"};ExpandString {$typeCMD = "REG_EXPAND_SZ"};MultiString {$typeCMD = "REG_MULTI_SZ"}
         }
         if ($typeCMD -ne $null) {Reg Add $Path /v $Name /t $typeCMD /d $Value /f | out-null}
-        else {Write-Host "Unsupported type"}
+        else {Write-Host -F Cyan "Unsupported type"}
         }
         catch
         {
-            Write-Host "Error: " + $Error # Might need takeown or runing as system or trusted installer
+            Write-Host -F Cyan "Error: " + $Error # Might need takeown or runing as system or trusted installer
         }
     }
 }
@@ -73,12 +73,12 @@ Function RmAppx
     {
     Get-AppxPackage -AllUsers | where-object{$_.name -like $PartName} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers -EA Ignore}
     }
-    catch {Write-Host "Appx Package " + $PartName + "  remove failed"}
+    catch {Write-Host -F Cyan "Appx Package " + $PartName + "  remove failed"}
     try
     {
         if ($RmProv -ne "false") {Get-appxprovisionedpackage -online | where-object {$_.packagename -like $PartName} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -EA Ignore}}
     }
-    catch {Write-Host "Appx provisioned package " + $PartName + "  remove failed"}
+    catch {Write-Host -F Cyan "Appx provisioned package " + $PartName + "  remove failed"}
 }
 
 Function Set-Hibernate
@@ -143,8 +143,8 @@ Function Repeatiwr
         }
         catch
         {
-            # Write-Host "StatusCode:" $_.Exception.Response.StatusCode.value__
-            # Write-Host "StatusDescription:" $_.Exception.Response.StatusDescription
+            # Write-Host -F Cyan "StatusCode:" $_.Exception.Response.StatusCode.value__
+            # Write-Host -F Cyan "StatusDescription:" $_.Exception.Response.StatusDescription
             $StatusCode = $_.Exception.Response.StatusCode.value__
         }
         if ($StatusCode = "200") {break}
@@ -162,23 +162,23 @@ Function AdminTakeownership
     if (Test-Path -Path $Path -PathType Leaf)
     {
         takeown /a /f $Path
-        Write-Host "y`r`n" | icacls $Path /t /c /grant "administrators:F"
+        Write-Host -F Cyan "y`r`n" | icacls $Path /t /c /grant "administrators:F"
     }
     elseif (Test-Path -Path $Path -PathType Container)
     {
         takeown /a /r /d y /f $Path
-        Write-Host "y`r`n" | icacls $Path /t /c /grant "administrators:F"
+        Write-Host -F Cyan "y`r`n" | icacls $Path /t /c /grant "administrators:F"
     }
-    else {Write-Host "Path is wrong or not supported"}
+    else {Write-Host -F Cyan "Path is wrong or not supported"}
 }
 
 #Check Script is running with Elevated Privileges
 Check-RunAsAdministrator
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Initializing *****************************"
-Write-Host "======================================================================================================================`r`n"
-Set-ExecutionPolicy Bypass -Force
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Initializing *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
+Set-ExecutionPolicy Bypass -Force -EA SilentlyContinue | out-null
 $ErrorActionPreference = 'Continue'
 $progressPreference = 'silentlyContinue'
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
@@ -186,13 +186,13 @@ $progressPreference = 'silentlyContinue'
 Set-PSRepository PSGallery -InstallationPolicy Trusted
 New-Item -Path "$env:TEMP\IA" -ItemType Directory -EA SilentlyContinue | out-null
 $CurFolder = Split-Path -Path $PSCommandPath -Parent
-Write-Host "`r`n*** Disabling proxies ***`r`n"
+Write-Host -F Cyan "`r`n*** Disabling proxies ***`r`n"
 Set HTTP_PROXY=
 Set HTTPS_PROXY=
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Activating Max Performance Power Plan *****************************"
-Write-Host "======================================================================================================================`r`n"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Activating Max Performance Power Plan *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
 # scheme_GUID
 # High Performance Power Plan GUID '8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c' - Aliase: scheme_min
 $MaxPlanGUID = '11111111-1111-1111-1111-111111111111'
@@ -326,32 +326,32 @@ powercfg /SetActive $MaxPlanGUID | out-null
 # Set Hibernate full
 Set-Hibernate 'Full'
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Installing Windows Features using DISM *****************************"
-Write-Host "======================================================================================================================`r`n"
-Write-Host "`r`n*** Installing .NetFX3 ***`r`n"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Installing Windows Features using DISM *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
+Write-Host -F Cyan "`r`n*** Installing .NetFX3 ***`r`n"
 $St1 = dism /online /get-featureinfo /featurename:NetFx3 | Select-String State | Foreach-Object { $_.ToString().split(':')[1] -replace '\s','' }
 if ($St1 -ne "Enabled" ) {DISM /Online /Enable-Feature /FeatureName:NetFx3 /NoRestart}
-else {Write-Host "Already Installed"}
-Write-Host "`r`n*** Installing DirectPlay ***`r`n"
+else {Write-Host -F Cyan "Already Installed"}
+Write-Host -F Cyan "`r`n*** Installing DirectPlay ***`r`n"
 $St2 = dism /online /get-featureinfo /featurename:DirectPlay | Select-String State | Foreach-Object { $_.ToString().split(':')[1] -replace '\s','' }
 if ($St2 -ne "Enabled" ) {DISM /Online /Enable-Feature /FeatureName:DirectPlay /All /NoRestart}
-else {Write-Host "Already Installed"}
+else {Write-Host -F Cyan "Already Installed"}
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Installing Nuget provider *****************************"
-Write-Host "======================================================================================================================`r`n"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Installing Nuget provider *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
 $NuGetInstalled = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction Ignore
 if (-not $NuGetInstalled) {
     Install-PackageProvider -Name NuGet -Confirm:$False -Force -EA silentlycontinue | out-null
-    if (get-packageprovider -Name NuGet) {Write-Host "Successfully Installed"}
+    if (get-packageprovider -Name NuGet) {Write-Host -F Cyan "Successfully Installed"}
 }
-else {Write-Host "Already Installed"}
+else {Write-Host -F Cyan "Already Installed"}
 
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Installing Winget and its dependencies *****************************"
-Write-Host "======================================================================================================================`r`n"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Installing Winget and its dependencies *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
 New-Item -Path "$env:TEMP\IA\Winget" -ItemType Directory -EA SilentlyContinue | out-null
 $VCLibsVersion = Get-AppxPackage -Name Microsoft.VCLibs* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
 if ([int]$VCLibsVersion -lt 14)
@@ -359,35 +359,35 @@ if ([int]$VCLibsVersion -lt 14)
     Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -EA SilentlyContinue | out-null
     Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -EA SilentlyContinue | out-null
 }
-else {Write-Host "VCLibs already installed"}
+else {Write-Host -F Cyan "VCLibs already installed"}
 $UIXamlVersion = Get-AppxPackage -Name Microsoft.UI.Xaml* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
 if ([int]$UIXamlVersion -lt 8)
 {
     Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -EA SilentlyContinue | out-null
     Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -EA SilentlyContinue | out-null
 }
-else {Write-Host "UI Xaml already installed"}
+else {Write-Host -F Cyan "UI Xaml already installed"}
 if (!(Test-Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe))
 {
     Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -EA SilentlyContinue | out-null
     Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -EA SilentlyContinue | out-null
 }
-else {Write-Host "winget already installed"}
+else {Write-Host -F Cyan "winget already installed"}
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Installing programs *****************************"
-Write-Host "======================================================================================================================`r`n"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Installing programs *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
 
-Write-Host "Installing Windows Terminal"
+Write-Host -F Cyan "Installing Windows Terminal"
 winget install -e --id 'Microsoft.WindowsTerminal' --silent --accept-source-agreements --accept-package-agreements
 
-Write-Host "`r`n*** Installing DirectX ***`r`n"
+Write-Host -F Cyan "`r`n*** Installing DirectX ***`r`n"
 Start-Process 'wt.exe' -Wait -Verb RunAs -WindowStyle Minimized -ArgumentList 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
 
-Write-Host "`r`n*** Installing Arabic - SA language ***`r`n"
+Write-Host -F Cyan "`r`n*** Installing Arabic - SA language ***`r`n"
 Install-Language -Language ar-SA
 
-Write-Host "`r`n*** Installing English - US language and removing GB ***`r`n"
+Write-Host -F Cyan "`r`n*** Installing English - US language and removing GB ***`r`n"
 Install-Language -Language en-US -CopyToSettings
 Uninstall-Language -Language en-GB;lpksetup.exe /u en-GB /s /r
 
@@ -406,7 +406,7 @@ AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'Show
 AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowShiftLock' '1' 'DWord'
 AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup\en-US' '0409:00000409' '1' 'DWord'
 
-Write-Host "Installing .Net Runtime All versions"
+Write-Host -F Cyan "Installing .Net Runtime All versions"
 if (choco list --lo -r -e dotnet-all) {Choco upgrade dotnet-all} else {Choco install dotnet-all}
 winget install -e --id Microsoft.DotNet.DesktopRuntime.3_1 --silent --accept-source-agreements --accept-package-agreements
 winget install -e --id Microsoft.DotNet.DesktopRuntime.5 --silent --accept-source-agreements --accept-package-agreements
@@ -428,7 +428,7 @@ winget install -e --id Microsoft.DotNet.AspNetCore.8 --silent --accept-source-ag
 winget install -e --id Microsoft.DotNet.AspNetCore.Preview --silent --accept-source-agreements --accept-package-agreements
 
 
-Write-Host "Installing Visual C++ Runtime All versions"
+Write-Host -F Cyan "Installing Visual C++ Runtime All versions"
 if (choco list --lo -r -e vcredist-all) {Choco upgrade vcredist-all} else {Choco install vcredist-all}
 winget install -e --id Microsoft.VCRedist.2005.x86 --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
 winget install -e --id Microsoft.VCRedist.2005.x64 --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
@@ -444,25 +444,25 @@ winget install -e --id Microsoft.VCRedist.2015+.x86 --silent --uninstall-previou
 winget install -e --id Microsoft.VCRedist.2015+.x64 --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
 
 
-Write-Host "Installing WhatsApp"
+Write-Host -F Cyan "Installing WhatsApp"
 winget install -e --name 'WhatsApp' --id '9NKSQGP7F2NH' --source 'msstore' --silent --accept-source-agreements --accept-package-agreements
 
-Write-Host "Installing Windows Scan"
+Write-Host -F Cyan "Installing Windows Scan"
 winget install -e --name 'Windows Scan' --silent --accept-source-agreements --accept-package-agreements
 
-Write-Host "Installing Java Runtime Environment"
+Write-Host -F Cyan "Installing Java Runtime Environment"
 winget install -e --id Oracle.JavaRuntimeEnvironment --silent --accept-source-agreements --accept-package-agreements
 if (choco list --lo -r -e javaruntime) {Choco upgrade javaruntime} else {Choco install javaruntime}
 
-Write-Host "Installing Microsoft XNA Framework Redistributable"
+Write-Host -F Cyan "Installing Microsoft XNA Framework Redistributable"
 winget install -e --id Microsoft.XNARedist --silent --accept-source-agreements --accept-package-agreements
 if (choco list --lo -r -e xna) {Choco upgrade xna} else {Choco install xna}
 
-Write-Host "Installing Notepad++"
+Write-Host -F Cyan "Installing Notepad++"
 winget install -e --name 'Notepad++' --silent --accept-source-agreements --accept-package-agreements
 if (choco list --lo -r -e notepadplusplus.install) {Choco upgrade notepadplusplus.install} else {Choco install notepadplusplus.install}
 
-Write-Host "Installing Chrome"
+Write-Host -F Cyan "Installing Chrome"
 winget install -e --id 'Google.Chrome' --silent --accept-source-agreements --accept-package-agreements
 if (choco list --lo -r -e googlechrome) {Choco upgrade googlechrome --ignore-checksums} else {Choco install googlechrome}
 # remove logon chrome
@@ -476,7 +476,7 @@ Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineCor
 Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
 Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdaterTaskSystem'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
 
-Write-Host 'Tweaking Edge'
+Write-Host -F Cyan 'Tweaking Edge'
 # edge
 AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' 'AutofillCreditCardEnabled' '0' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Browser' 'AllowAddressBarDropdown' '0' 'DWord'
@@ -494,41 +494,41 @@ Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateTaskMac
 Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -EA silentlycontinue | out-null
 Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateBrowserReplacementTask'} | Unregister-ScheduledTask -Confirm:$false -EA silentlycontinue | out-null
 
-Write-Host "Installing Adobe Acrobat Reader DC"
+Write-Host -F Cyan "Installing Adobe Acrobat Reader DC"
 $Acrobat = Get-Package -Name 'Adobe Acrobat (64-bit)'
-if ($Acrobat -ne $null) {Write-Host "Adobe Acrobat (64-bit) found installed"}
+if ($Acrobat -ne $null) {Write-Host -F Cyan "Adobe Acrobat (64-bit) found installed"}
 else
 {
     winget install -e --id 'Adobe.Acrobat.Reader.64-bit' --silent --accept-source-agreements --accept-package-agreements
     if (choco list --lo -r -e adobereader) {Choco upgrade adobereader} else {Choco install adobereader}
 }
 
-Write-Host "Installing WinRAR"
+Write-Host -F Cyan "Installing WinRAR"
 winget install -e --id 'RARLab.WinRAR' --silent --accept-source-agreements --accept-package-agreements
 if (choco list --lo -r -e winrar) {Choco upgrade winrar} else {Choco install winrar}
 
-Write-Host "Installing K-Lite Codec Pack Mega"
+Write-Host -F Cyan "Installing K-Lite Codec Pack Mega"
 winget install -e --id 'CodecGuide.K-LiteCodecPack.Mega' --silent --accept-source-agreements --accept-package-agreements
 if (choco list --lo -r -e k-litecodecpackmega) {Choco upgrade k-litecodecpackmega} else {Choco install k-litecodecpackmega}
 
-Write-Host "Installing VLC"
+Write-Host -F Cyan "Installing VLC"
 winget install -e --id 'VideoLAN.VLC' --silent --accept-source-agreements --accept-package-agreements
 winget install -e --id 'XPDM1ZW6815MQM' --silent --accept-source-agreements --accept-package-agreements
 
-Write-Host "Installing Adobe AIR Runtime"
+Write-Host -F Cyan "Installing Adobe AIR Runtime"
 if (choco list --lo -r -e adobeair) {Choco upgrade adobeair} else {Choco install adobeair}
 
-Write-Host "Installing OpenAl"
+Write-Host -F Cyan "Installing OpenAl"
 if (choco list --lo -r -e openal) {Choco upgrade openal} else {Choco install openal}
 
-Write-Host "Installing Fonts"
-if (choco list --lo -r -e dejavufonts) {Write-Host "dejavufonts already installed"} else {Choco install dejavufonts}
+Write-Host -F Cyan "Installing Fonts"
+if (choco list --lo -r -e dejavufonts) {Write-Host -F Cyan "dejavufonts already installed"} else {Choco install dejavufonts}
 if (choco list --lo -r -e victormononf) {Choco upgrade victormononf} else {Choco install victormononf}
 
-Write-Host "`r`n*** Updating all  Applications ***`r`n"
+Write-Host -F Cyan "`r`n*** Updating all  Applications ***`r`n"
 winget upgrade --all --disable-interactivity --silent --accept-source-agreements --accept-package-agreements --force
 
-Write-Host "`r`n*** Start Windows Updates ***`r`n"
+Write-Host -F Cyan "`r`n*** Start Windows Updates ***`r`n"
 Start-Service -Name "wuauserv" -EA silentlycontinue | out-null
 Start-Service -Name "UsoSvc" -EA silentlycontinue | out-null
 Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -Force -EA silentlycontinue
@@ -543,7 +543,7 @@ UsoClient StartDownload
 usoclient StartInstall
 wuauclt /detectnow /updatenow
 
-Write-Host "`r`n*** Uninstalling Microsoft Teams ***`r`n"
+Write-Host -F Cyan "`r`n*** Uninstalling Microsoft Teams ***`r`n"
 Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -Force -EA silentlycontinue | out-null
 Import-Module UninstallTeams -Force -EA silentlycontinue | out-null
 Install-Script UninstallTeams -Confirm:$False -Force -EA silentlycontinue | out-null
@@ -551,7 +551,7 @@ UninstallTeams -DisableChatWidget -AllUsers
 UninstallTeams -DisableOfficeTeamsInstall
 UninstallTeams
 
-Write-Host "`r`n*** Uninstall & disable Cortana & tweak search ***`r`n"
+Write-Host -F Cyan "`r`n*** Uninstall & disable Cortana & tweak search ***`r`n"
 RmAppx 'Microsoft.549981C3F5F10'
 winget uninstall cortana
 AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'AllowCortana' '0' 'DWord'
@@ -565,7 +565,7 @@ AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'EnableDy
 AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\SearchSettings' 'IsDynamicSearchBoxEnabled' '0' 'DWord'
 AddRegEntry 'HKCU:\Software\Policies\Microsoft\Windows\Explorer' 'DisableSearchBoxSuggestions' '0' 'DWord'
 
-Write-Host "`r`n*** Uninstall & disable Copilot ***`r`n"
+Write-Host -F Cyan "`r`n*** Uninstall & disable Copilot ***`r`n"
 RmAppx 'Ai.Copilot'
 AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
 AddRegEntry 'HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
@@ -573,7 +573,7 @@ AddRegEntry 'HKU:\.DEFAULT\Software\Policies\Microsoft\Windows\WindowsCopilot' '
 # remove copilot from taskbar
 AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowCopilotButton' '0' 'DWord'
 
-Write-Host "`r`n*** Uninstalling Xbox & Game Bar ***`r`n"
+Write-Host -F Cyan "`r`n*** Uninstalling Xbox & Game Bar ***`r`n"
 RmAppx 'Xbox'
 AddRegEntry "HKLM:\System\CurrentControlSet\Services\xbgm" "Start" '4' 'DWORD'
 Set-Service -Name XblAuthManager -StartupType Disabled -EA silentlycontinue | out-null
@@ -591,9 +591,9 @@ AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR' 'AppCaptur
 AddRegEntry 'HKCU:\Software\Microsoft\GameBar' 'AllowAutoGameMode' '0' 'DWord'
 AddRegEntry 'HKCU:\Software\Microsoft\GameBar' 'AutoGameModeEnabled' '0' 'DWord'
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Removing One Drive *****************************"
-Write-Host "======================================================================================================================`r`n"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Removing One Drive *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
 # Kill running process onedrive
 Stop-Process -Force -Name OneDrive -EA SilentlyContinue | out-null
 cmd /c '"taskkill /f /im OneDrive.exe" >nul 2>nul'
@@ -647,36 +647,36 @@ AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive' 'DisableFileSyn
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\OneDrive' 'PreventNetworkTrafficPreUserSignIn' '1' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive' 'KFMBlockOptIn' '1' 'DWord'
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Applying Tweaks *****************************"
-Write-Host "======================================================================================================================`r`n"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Applying Tweaks *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
 
-Write-Host "`r`n*** Boot Optimizations ***`r`n"
-Write-Host "`r`n*** Stop Integrity check ***`r`n"
+Write-Host -F Cyan "`r`n*** Boot Optimizations ***`r`n"
+Write-Host -F Cyan "`r`n*** Stop Integrity check ***`r`n"
 bcdedit /set nointegritychecks on
-Write-Host "`r`n*** Disable nx (DEP) ***`r`n"
+Write-Host -F Cyan "`r`n*** Disable nx (DEP) ***`r`n"
 cmd /c 'bcdedit /set {current} nx AlwaysOff'
-Write-Host "`r`n*** tsc Enhanced ***`r`n"
+Write-Host -F Cyan "`r`n*** tsc Enhanced ***`r`n"
 bcdedit /set tscsyncpolicy Enhanced
-Write-Host "`r`n*** Disable hyper virtualization ***`r`n"
+Write-Host -F Cyan "`r`n*** Disable hyper virtualization ***`r`n"
 bcdedit /set hypervisorlaunchtype off
-Write-Host "`r`n*** Disable BitLocker ***`r`n"
+Write-Host -F Cyan "`r`n*** Disable BitLocker ***`r`n"
 Get-BitLockerVolume | foreach {manage-bde -unlock $_.MountPoint -recoverypassword (Get-BitLockerVolume -MountPoint $_.MountPoint).KeyProtector.RecoveryPassword -EA SilentlyContinue} | out-null
 Clear-BitLockerAutoUnlock -EA SilentlyContinue | out-null
 Get-BitLockerVolume | foreach {Disable-BitLocker -MountPoint $_.MountPoint -EA SilentlyContinue} | out-null
 Get-BitLockerVolume | foreach {manage-bde -off $_.MountPoint} | out-null
-Write-Host "`r`n*** Activate Guest account ***`r`n"
+Write-Host -F Cyan "`r`n*** Activate Guest account ***`r`n"
 net user guest /active:yes
-Write-Host "`r`n" | net user guest *
+Write-Host -F Cyan "`r`n" | net user guest *
 net user guest /passwordreq:no
 
-Write-Host "Disabling scheduled tasks that are considered unnecessary"
+Write-Host -F Cyan "Disabling scheduled tasks that are considered unnecessary"
 Get-ScheduledTask -TaskName 'Consolidator' | Disable-ScheduledTask -EA SilentlyContinue | out-null
 Get-ScheduledTask -TaskName 'UsbCeip' | Disable-ScheduledTask -EA SilentlyContinue | out-null
 Get-ScheduledTask -TaskName 'DmClient' | Disable-ScheduledTask -EA SilentlyContinue | out-null
 Get-ScheduledTask -TaskName 'DmClientOnScenarioDownload' | Disable-ScheduledTask -EA SilentlyContinue | out-null
 
-Write-Host "Registry entries"
+Write-Host -F Cyan "Registry entries"
 # SmartScreen
 AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'EnableSmartScreen' '0' 'DWord'
 AddRegEntry 'HKCU:\Software\Policies\Microsoft\Edge' 'SmartScreenEnabled' '0' 'DWord'
@@ -967,9 +967,9 @@ AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer' 
 AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoLowDiskSpaceChecks' '1' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Speech_OneCore\Preferences' 'ModelDownloadAllowed' '0' 'DWord'
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "************************* Creating Drive D (If not found)& Creating shared Scan folder in it **************************"
-Write-Host "======================================================================================================================`r`n" 
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "************************* Creating Drive D (If not found)& Creating shared Scan folder in it **************************"
+Write-Host -F Cyan "======================================================================================================================`r`n" 
 Function ShrinkC-MakeNew
 {
     Param
@@ -977,7 +977,7 @@ Function ShrinkC-MakeNew
          [Parameter(Mandatory=$true, Position=0)]
          [string]$DriveLetter
     )
-    if (Get-Volume -DriveLetter $DriveLetter -EA SilentlyContinue) {Write-Host "Partition $DriveLetter already exist";return}
+    if (Get-Volume -DriveLetter $DriveLetter -EA SilentlyContinue) {Write-Host -F Cyan "Partition $DriveLetter already exist";return}
     $CSizeMax = (Get-PartitionSupportedSize -DriveLetter C).SizeMax
     $CSizeMin = (Get-PartitionSupportedSize -DriveLetter C).SizeMin
     $CShrink = ($CSizeMax - $CSizeMin)/1000000000 #Shrinkable amount in GB
@@ -988,13 +988,13 @@ Function ShrinkC-MakeNew
         New-Partition -DiskNumber $CDiskNumber -UseMaximumSize -DriveLetter $DriveLetter -EA SilentlyContinue | out-null
         Format-Volume -DriveLetter $DriveLetter -FileSystem NTFS -Force -EA SilentlyContinue | out-null
     }
-    else {Write-Host "Not Enough shrinkable Space on Partition C"}
+    else {Write-Host -F Cyan "Not Enough shrinkable Space on Partition C"}
 }
 if (!(Get-Volume -DriveLetter D)) {ShrinkC-MakeNew "D"}
 elseif ((Get-Volume -DriveLetter D).DriveType -ne "Fixed")
 {
     try{$successful = $true;Set-Partition -DriveLetter D -NewDriveLetter Z}
-    catch{$successful = $false;Write-Host "Busy Removable Partition D"}
+    catch{$successful = $false;Write-Host -F Cyan "Busy Removable Partition D"}
     if ($successful) {ShrinkC-MakeNew "D"}
 }
 if ((Get-Volume -DriveLetter D).DriveType -eq "Fixed")
@@ -1007,10 +1007,10 @@ $s=(New-Object -COM WScript.Shell).CreateShortcut("$($env:USERPROFILE)\Desktop\S
 }
 Remove-SmbShare -Name "Users" -Force -ErrorAction silentlycontinue | out-null
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Adjust Hosts file *****************************"
-Write-Host "======================================================================================================================`r`n"
-Write-Host "Taking ownership of hosts file"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Adjust Hosts file *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
+Write-Host -F Cyan "Taking ownership of hosts file"
 AdminTakeownership -Path "$env:WinDir\System32\drivers\etc\hosts"
 $HostsFile = @"
 #<localhost>
@@ -1272,10 +1272,10 @@ $HostsFile = @"
 "@
 Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Force -EA SilentlyContinue | out-null
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Start Installing Office 2021 Pro Plus *****************************"
-Write-Host "======================================================================================================================`r`n"
-Write-Host "Removing currently installed MS office products"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Start Installing Office 2021 Pro Plus *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
+Write-Host -F Cyan "Removing currently installed MS office products"
 # Remove MS Store Office 365
 RmAppx "Microsoft.Office.Desktop"
 # Run SaraCMD non-interactive Script
@@ -1298,7 +1298,7 @@ for ($i = 1; $i -le 30; $i++){
 }
 $Filelinks | ForEach-Object {
     $outputFile = Split-Path $_ -leaf
-    Write-Host "Downloading file '$outputFile'"
+    Write-Host -F Cyan "Downloading file '$outputFile'"
     $fileFullname = Join-Path -Path $outputdir -ChildPath $outputFile
     $fileUrl  = '{0}/{1}' -f $weburl.TrimEnd('/'), $outputFile
     $fileUrl = $fileUrl.replace("tree", "raw")
@@ -1361,16 +1361,16 @@ for ($i = 1; $i -le 30; $i++) {
 }
 if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
 if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe") {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -EA SilentlyContinue | out-null}
-Write-Host "Installing Office 2021 Pro Plus ..."
+Write-Host -F Cyan "`r`n*** Installing Office 2021 Pro Plus ... ***`r`n"
 if (Test-Path -Path "$env:TEMP\IA\office\setup.exe") {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -EA SilentlyContinue | out-null}
-else {Write-Host "Failed to download & extract Office Deployment Tool"}
+else {Write-Host -F Cyan "Failed to download & extract Office Deployment Tool"}
 
 Function ActivateofficeKMS
 {
 $Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs";$Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
 if (Test-Path -Path $Officeospp64) {$office64 = $true}
 elseif (Test-Path -Path $Officeospp32) {$office64 = $false}
-else {Write-Host "Office16 ospp.vbs not found";return}
+else {Write-Host -F Cyan "Office16 ospp.vbs not found";return}
 
 if ($office64) {$Licenses = (Get-ChildItem "$Env:Programfiles\Microsoft Office\root\Licenses16\ProPlus2021VL_KMS*.xrm-ms").fullname}
 else {$Licenses = (Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Office\root\Licenses16\ProPlus2021VL_KMS*.xrm-ms").fullname}
@@ -1390,19 +1390,19 @@ switch ($i)
 }
 cscript //nologo "$officeospp" /sethst:$KMS | out-null
 $Response = cscript //nologo "$officeospp" /act | Select-String -Pattern "successful"
-if ($Response -ne $null) {Write-Host "MS Office Successfully Activated using KMS server: $KMS";break}
+if ($Response -ne $null) {Write-Host -F Cyan "MS Office Successfully Activated using KMS server: $KMS";break}
 }
 }
 ActivateofficeKMS
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Cleaning up *****************************"
-Write-Host "======================================================================================================================`r`n"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Cleaning up *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
 Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse
 Remove-Item -LiteralPath "$env:TEMP\" -Force -Recurse -ErrorAction silentlycontinue | out-null
 
 $extra = @"
-Write-Host "`r`n*** Updating Store Apps ***`r`n"
+Write-Host -F Cyan "`r`n*** Updating Store Apps ***`r`n"
 Start-Process "ms-windows-store://downloadsandupdates"
 "@
 # $extra

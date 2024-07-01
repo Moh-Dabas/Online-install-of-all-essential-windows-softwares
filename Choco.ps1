@@ -24,16 +24,24 @@ Function Check-RunAsAdministrator()
 #Check Script is running with Elevated Privileges
 Check-RunAsAdministrator
 
-write-host "Initializing"
-Set-ExecutionPolicy Bypass -Force
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Initializing *****************************"
+Write-Host -F Cyan "======================================================================================================================`r`n"
+Set-ExecutionPolicy Bypass -Force -EA SilentlyContinue | out-null
 $ErrorActionPreference = 'Continue'
 $progressPreference = 'silentlyContinue'
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12, [Net.SecurityProtocolType]::Ssl3
+Set-PSRepository PSGallery -InstallationPolicy Trusted
+New-Item -Path "$env:TEMP\IA" -ItemType Directory -EA SilentlyContinue | out-null
+$CurFolder = Split-Path -Path $PSCommandPath -Parent
+Write-Host -F Cyan "`r`n*** Disabling proxies ***`r`n"
+Set HTTP_PROXY=
+Set HTTPS_PROXY=
 
-Write-Host "`r`n======================================================================================================================"
-Write-Host "***************************** Installing Chocolatey *****************************"
-Write-Host "======================================================================================================================"
+Write-Host -F Cyan "`r`n======================================================================================================================"
+Write-Host -F Cyan "***************************** Installing Chocolatey *****************************"
+Write-Host -F Cyan "======================================================================================================================"
 if (Get-Command -Name choco.exe) {write-host "Choco is already installed"}
 else {iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))}
 Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
