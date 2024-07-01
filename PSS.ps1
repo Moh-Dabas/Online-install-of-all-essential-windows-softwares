@@ -13,12 +13,11 @@ Install-Winget #Install Winget and its dependencies
 Write-Host -F Cyan "`r`n======================================================================================================================"
 Write-Host -F Cyan "***************************** Install programs *****************************"
 Write-Host -F Cyan "======================================================================================================================`r`n"
-
-Ins-Terminal #Install Windows Terminal
 Ins-arSAlang #Install Arabic-SA language
 Ins-enUSLang #Install en-US language
 Unins-enGBLang #remove en-GB language
 Tweak-Language
+Ins-Terminal #Install Windows Terminal
 Ins-DotNetRuntime #Install .Net Runtime All versions
 Ins-VCPPRuntime #Install Visual C++ Runtime All versions
 Ins-JavaRuntime #Install Java Runtime Environment

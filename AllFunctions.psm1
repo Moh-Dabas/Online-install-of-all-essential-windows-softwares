@@ -385,12 +385,6 @@ if (!(Test-Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe))
 else {Write-Host -F Cyan "winget already installed"}
 }
 
-Function Ins-Terminal
-{
-Write-Host -F Cyan "Installing Windows Terminal"
-winget install -e --id 'Microsoft.WindowsTerminal' --silent --accept-source-agreements --accept-package-agreements
-}
-
 Function Ins-arSALang
 {
 Write-Host -F Cyan "`r`n*** Installing Arabic-SA language ***`r`n"
@@ -424,6 +418,12 @@ AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'Show
 AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowTextPrediction' '1' 'DWord'
 AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowCasing' '1' 'DWord'
 AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowShiftLock' '1' 'DWord'
+}
+
+Function Ins-Terminal
+{
+Write-Host -F Cyan "Installing Windows Terminal"
+winget install -e --id 'Microsoft.WindowsTerminal' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-DotNetRuntime
