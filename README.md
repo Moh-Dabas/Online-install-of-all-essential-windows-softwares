@@ -7,4 +7,4 @@ How to use:
 
   Note: "Install All - Git-Online.bat" file doesn't need any other file to run it downloads everything online.
 
-  if you want you can modify the code then run "Install All.bat" instead.
+  If you want you can modify the code then run "Install All.bat" instead.
