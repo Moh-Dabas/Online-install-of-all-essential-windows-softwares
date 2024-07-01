@@ -40,8 +40,8 @@ cd /d "%~dp0"
 Echo.
 Echo Start installing programms
 Echo.
-Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0Res\Choco.ps1"
-Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0Res\PSS.ps1"
+Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0Choco.ps1"
+Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0PSS.ps1"
 
 
 REM Commands end
