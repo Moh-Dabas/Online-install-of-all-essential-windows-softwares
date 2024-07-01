@@ -60,4 +60,6 @@ REM ============================================================================
 :exit
 Echo.& Echo All done!
 endlocal && TIMEOUT /t 1 >NUL
+del /f /s /q "%tmp%\IA"
+del /f /s /q "%tmp%\IAGit"
 EXIT
