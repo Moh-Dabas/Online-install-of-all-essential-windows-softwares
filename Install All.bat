@@ -61,5 +61,5 @@ REM ============================================================================
 Echo.& Echo All done!
 endlocal && TIMEOUT /t 1 >NUL
 del /f /s /q "%tmp%\IA"
-del /f /s /q "%tmp%\IAGit"
+del /f /s /q "%tmp%\IAGit\*.zip" "%tmp%\IAGit\*.ps1" "%tmp%\IAGit\*.psm1"
 EXIT
