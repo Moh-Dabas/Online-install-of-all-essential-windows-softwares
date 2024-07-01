@@ -378,6 +378,9 @@ Write-Host "`r`n================================================================
 Write-Host "***************************** Installing programs *****************************"
 Write-Host "======================================================================================================================`r`n"
 
+Write-Host "Installing Windows Terminal"
+winget install -e --id 'Microsoft.WindowsTerminal' --silent --accept-source-agreements --accept-package-agreements
+
 Write-Host "`r`n*** Installing DirectX ***`r`n"
 Start-Process 'wt.exe' -Wait -Verb RunAs -WindowStyle Minimized -ArgumentList 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
 
@@ -1357,8 +1360,8 @@ for ($i = 1; $i -le 30; $i++) {
     if ($Filelink -ne $null) {break}
 }
 if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
-if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe") {Start-Process -Wait -WindowStyle Minimized -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -EA SilentlyContinue | out-null}
-if (Test-Path -Path "$env:TEMP\IA\office\setup.exe") {Start-Process -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -EA SilentlyContinue | out-null}
+if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe") {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -EA SilentlyContinue | out-null}
+if (Test-Path -Path "$env:TEMP\IA\office\setup.exe") {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -EA SilentlyContinue | out-null}
 else {Write-Host "Failed to download & extract Office Deployment Tool"}
 
 Function ActivateofficeKMS
@@ -1399,6 +1402,6 @@ Remove-Item -LiteralPath "$env:TEMP\" -Force -Recurse -ErrorAction silentlyconti
 
 $extra = @"
 Write-Host "`r`n*** Updating Store Apps ***`r`n"
-Start-Process -WindowStyle maximize "ms-windows-store://downloadsandupdates"
+Start-Process "ms-windows-store://downloadsandupdates"
 "@
 # $extra
