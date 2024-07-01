@@ -1361,6 +1361,7 @@ for ($i = 1; $i -le 30; $i++) {
 }
 if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
 if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe") {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -EA SilentlyContinue | out-null}
+Write-Host "Installing Office 2021 Pro Plus ..."
 if (Test-Path -Path "$env:TEMP\IA\office\setup.exe") {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -EA SilentlyContinue | out-null}
 else {Write-Host "Failed to download & extract Office Deployment Tool"}
 
