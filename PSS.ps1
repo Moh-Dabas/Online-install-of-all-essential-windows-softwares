@@ -24,7 +24,6 @@ Ins-JavaRuntime #Install Java Runtime Environment
 Ins-XNA #Install Microsoft XNA Framework Redistributable
 Ins-AdobeAIRRuntime #Install Adobe AIR Runtime
 Ins-DirectX #Install DirectX Extra files
-Ins-WhatsApp #Install WhatsApp
 Ins-WScan #Install Windows Scan
 Ins-NotepadPP #Install Notepad++
 Ins-Chrome #Install Google Chrome
@@ -35,6 +34,8 @@ Ins-KLiteMega #Install K-Lite Codec Pack Mega
 Ins-VLC #Install VLC Player
 Ins-OpenAl #Install OpenAl
 Ins-ExtraFonts #Install Extra Fonts
+Ins-WhatsApp #Install WhatsApp
+#Pin-WhatsappWebChrome # Pin Chrome whatsapp web to taskbar
 Winget-UpdateAll #Update all Installd applications use Winget
 Windows-Update #Start Install Windows Updates
 Unins-MSTeams #UnInstall Microsoft Teams

@@ -494,13 +494,6 @@ Write-Host -f C "`r`n*** Installing DirectX ***`r`n"
 Start-Process 'wt.exe' -Wait -Verb RunAs -WindowStyle Minimized -ArgumentList 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
 }
 
-Function Ins-WhatsApp
-{
-Write-Host -f C "Installing WhatsApp"
-winget install -e --name 'WhatsApp' --id '9NKSQGP7F2NH' --source 'msstore' --silent --accept-source-agreements --accept-package-agreements
-Pin-to-taskbar -IDorPath "WhatsAppDesktop" -PinType "AppUserModelID" -SearchID
-}
-
 Function Ins-WScan
 {
 Write-Host -f C "Installing Windows Scan"
@@ -596,6 +589,14 @@ Function Ins-ExtraFonts
 Write-Host -f C "Installing Extra Fonts"
 if (choco list --lo -r -e dejavufonts) {Write-Host -f C "dejavufonts already installed"} else {Choco install dejavufonts}
 if (choco list --lo -r -e victormononf) {Choco upgrade victormononf} else {Choco install victormononf}
+}
+
+Function Ins-WhatsApp
+{
+Write-Host -f C "Installing WhatsApp"
+winget install -e --name 'WhatsApp' --id '9NKSQGP7F2NH' --source 'msstore' --silent --accept-source-agreements --accept-package-agreements
+# Pin MS store Whatsapp to taskbar
+Pin-to-taskbar -IDorPath "WhatsAppDesktop" -PinType "AppUserModelID" -SearchID
 }
 
 Function Winget-UpdateAll
@@ -787,7 +788,7 @@ AddRegEntry 'HKCU:\Software\Policies\Microsoft\Edge' 'SmartScreenEnabled' '0' 'D
 AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' 'SmartScreenEnabled' '0' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\SmartScreen\EnableSmartScreenInShell' 'value' '0' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\SmartScreen\EnableAppInstallControl' 'value' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Edge\SmartScreenEnabled' ' Default' '0' 'String'
+AddRegEntry 'HKCU:\Software\Microsoft\Edge\SmartScreenEnabled' 'Default' '0' 'String'
 AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\PhishingFilter' 'EnabledV9' '0' 'DWord'
 AddRegEntry 'HKCU:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer\Storage\microsoft.microsoftedge_8wekyb3d8bbwe\MicrosoftEdge\PhishingFilter' 'EnabledV9' '0' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Internet Explorer\PhishingFilter' 'EnabledV9' '0' 'DWord'
@@ -1648,8 +1649,22 @@ Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -
 Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 }
 
-if (Test-Path 'C:\Program Files (x86)\Google\Chrome') {
-$chrome = 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
-} elseif (Test-Path 'C:\Program Files\Google\Chrome') {
-$chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+Function Pin-WhatsappWebChrome
+{
+Write-Host -f C "Pining Chrome whatsapp web to taskbar"
+$key = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe'
+$Chrome=(Get-ItemProperty -Path $key -Name '(Default)').'(default)'
+if ($chrome -eq $null)
+{
+if (Test-Path '${env:ProgramFiles(x86)}\Google\Chrome') {
+$chrome = '${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe'
+} elseif (Test-Path '$Env:Programfiles\Google\Chrome') {
+$chrome = '$Env:Programfiles\Google\Chrome\Application\chrome.exe'
 } else {Write-Host "Not Found"}
+}
+Invoke-WebRequest -Uri "https://web.whatsapp.com/favicon-64x64.ico" -OutFile "$Env:Programfiles\Google\Chrome\WhatsApp.ico"
+$Arguments1= " --new-window --force-app-mode --app=https://web.whatsapp.com/"
+$s=(New-Object -COM WScript.Shell).CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\WhatsAppWeb.lnk")
+$s.TargetPath="$chrome";$s.Arguments=$Arguments1;$s.IconLocation="$Env:Programfiles\Google\Chrome\WhatsApp.ico";$s.Save()
+Pin-to-taskbar -IDorPath "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\WhatsAppWeb.lnk" -PinType "DesktopApplicationLinkPath"
+}
