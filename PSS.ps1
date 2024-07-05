@@ -22,7 +22,6 @@ Ins-VCPPRuntime #Install Visual C++ Runtime All versions
 Ins-JavaRuntime #Install Java Runtime Environment
 Ins-XNA #Install Microsoft XNA Framework Redistributable
 Ins-AdobeAIRRuntime #Install Adobe AIR Runtime
-Ins-DirectX #Install DirectX Extra files
 Ins-WScan #Install Windows Scan
 Ins-NotepadPP #Install Notepad++
 Ins-Chrome #Install Google Chrome
@@ -50,4 +49,5 @@ D-ScanFolder #Create Drive D (If not found)& Create shared Scan folder in it
 Adj-Hosts #Adjust Hosts file
 Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions
 Ins-ExtraFonts #Install Extra Fonts
+Ins-DirectX #Install DirectX Extra files
 Clean-up

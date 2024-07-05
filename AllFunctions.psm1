@@ -508,21 +508,15 @@ if (choco list --lo -r -e javaruntime) {Choco upgrade javaruntime} else {Choco i
 Function Ins-XNA
 {
 Write-Host -f C "Installing Microsoft XNA Framework Redistributable"
-winget install -e --id Microsoft.XNARedist --silent --accept-source-agreements --accept-package-agreements
 if (choco list --lo -r -e xna) {Choco upgrade xna} else {Choco install xna}
+winget install -e --id Microsoft.XNARedist --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-AdobeAIRRuntime
 {
 Write-Host -f C "Installing Adobe AIR Runtime"
 if (choco list --lo -r -e adobeair) {Choco upgrade adobeair} else {Choco install adobeair}
-}
-
-Function Ins-DirectX
-{
-Write-Host -f C "`r`n*** Installing DirectX ***`r`n"
-# Run on windows terminal to work
-Start-Process 'wt.exe' -Wait -Verb RunAs -WindowStyle Minimized -ArgumentList 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
+winget install -e --id HARMAN.AdobeAIR --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-WScan
@@ -579,27 +573,27 @@ Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateBrowser
 Function Ins-Acrobat
 {
 Write-Host -f C "Installing Adobe Acrobat Reader DC"
-$Acrobat = Get-Package -Name 'Adobe Acrobat (64-bit)'
-if ($Acrobat -ne $null) {Write-Host -f C "Adobe Acrobat (64-bit) found installed"}
+try {$Acrobat = Get-Package -Name 'Adobe Acrobat (64-bit)'} catch {}
+if ($Acrobat) {Write-Host -f C "Adobe Acrobat (64-bit) found installed"}
 else
 {
-    winget install -e --id 'Adobe.Acrobat.Reader.64-bit' --silent --accept-source-agreements --accept-package-agreements
     if (choco list --lo -r -e adobereader) {Choco upgrade adobereader} else {Choco install adobereader}
+    winget install -e --id 'Adobe.Acrobat.Reader.64-bit' --silent --accept-source-agreements --accept-package-agreements
 }
 }
 
 Function Ins-WinRAR
 {
 Write-Host -f C "Installing WinRAR"
-winget install -e --id 'RARLab.WinRAR' --silent --accept-source-agreements --accept-package-agreements
 if (choco list --lo -r -e winrar) {Choco upgrade winrar} else {Choco install winrar}
+winget install -e --id 'RARLab.WinRAR' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-KLiteMega
 {
 Write-Host -f C "Installing K-Lite Codec Pack Mega"
-winget install -e --id 'CodecGuide.K-LiteCodecPack.Mega' --silent --accept-source-agreements --accept-package-agreements
 if (choco list --lo -r -e k-litecodecpackmega) {Choco upgrade k-litecodecpackmega} else {Choco install k-litecodecpackmega}
+winget install -e --id 'CodecGuide.K-LiteCodecPack.Mega' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-VLC
@@ -623,10 +617,24 @@ winget install -e --name 'WhatsApp' --id '9NKSQGP7F2NH' --source 'msstore' --sil
 Pin-to-taskbar -IDorPath "WhatsAppDesktop" -PinType "AppUserModelID" -SearchID
 }
 
+Function Unins-Devhome
+{
+Write-Host -f C "`r`n*** Uninstalling Dev Home ***`r`n"
+RmAppx 'Microsoft.DevHome'
+winget uninstall --id 'Microsoft.DevHome'
+}
+
 Function Winget-UpdateAll
 {
 Write-Host -f C "`r`n*** Updating all installed applications using Winget ***`r`n"
 winget upgrade --all --disable-interactivity --silent --accept-source-agreements --accept-package-agreements --force
+}
+
+Function Ins-DirectX
+{
+Write-Host -f C "`r`n*** Installing DirectX Extra Files***`r`n"
+# Run on windows terminal to work
+Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList 'try {winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements} catch {}'
 }
 
 Function Windows-Update
