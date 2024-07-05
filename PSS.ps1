@@ -32,7 +32,6 @@ Ins-WinRAR #Install WinRAR
 Ins-KLiteMega #Install K-Lite Codec Pack Mega
 Ins-VLC #Install VLC Player
 Ins-OpenAl #Install OpenAl
-Ins-ExtraFonts #Install Extra Fonts
 Ins-WhatsApp #Install WhatsApp
 #Pin-WhatsappWebChrome # Pin Chrome whatsapp web to taskbar
 Winget-UpdateAll #Update all Installd applications use Winget
@@ -50,4 +49,5 @@ Registry-Tweaks #Applye Registry Tweaks
 D-ScanFolder #Create Drive D (If not found)& Create shared Scan folder in it
 Adj-Hosts #Adjust Hosts file
 Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions
+Ins-ExtraFonts #Install Extra Fonts
 Clean-up

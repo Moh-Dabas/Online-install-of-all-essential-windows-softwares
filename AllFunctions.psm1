@@ -615,13 +615,6 @@ Write-Host -f C "Installing OpenAl"
 if (choco list --lo -r -e openal) {Choco upgrade openal} else {Choco install openal}
 }
 
-Function Ins-ExtraFonts
-{
-Write-Host -f C "Installing Extra Fonts"
-if (choco list --lo -r -e dejavufonts) {Write-Host -f C "dejavufonts already installed"} else {Choco install dejavufonts}
-if (choco list --lo -r -e victormononf) {Choco upgrade victormononf} else {Choco install victormononf}
-}
-
 Function Ins-WhatsApp
 {
 Write-Host -f C "Installing WhatsApp"
@@ -1550,15 +1543,6 @@ else {Write-Host -f C "Failed to download & extract Office Deployment Tool"}
 ActivateofficeKMS
 }
 
-Function Clean-up
-{
-Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Cleaning up *****************************"
-Write-Host -f C "======================================================================================================================`r`n"
-Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse
-Remove-Item -LiteralPath "$env:TEMP\" -Force -Recurse -ErrorAction silentlycontinue | out-null
-}
-
 Function OpenMSStoreUpdate #Not used
 {
 Write-Host -f C "`r`n*** MS Store Apps Updates ***`r`n"
@@ -1668,6 +1652,13 @@ Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -
 Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 }
 
+Function Ins-ExtraFonts
+{
+Write-Host -f C "Installing Extra Fonts"
+if (choco list --lo -r -e dejavufonts) {Write-Host -f C "dejavufonts already installed"} else {Choco install dejavufonts}
+if (choco list --lo -r -e victormononf) {Choco upgrade victormononf} else {Choco install victormononf}
+}
+
 Function Pin-WhatsappWebChrome
 {
 Write-Host -f C "Pining Chrome whatsapp web to taskbar"
@@ -1686,4 +1677,13 @@ $Arguments1= " --new-window --force-app-mode --app=https://web.whatsapp.com/"
 $s=(New-Object -COM WScript.Shell).CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\WhatsAppWeb.lnk")
 $s.TargetPath="$chrome";$s.Arguments=$Arguments1;$s.IconLocation="$Env:Programfiles\Google\Chrome\WhatsApp.ico";$s.Save()
 Pin-to-taskbar -IDorPath "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\WhatsAppWeb.lnk" -PinType "DesktopApplicationLinkPath"
+}
+
+Function Clean-up
+{
+Write-Host -f C "`r`n======================================================================================================================"
+Write-Host -f C "***************************** Cleaning up *****************************"
+Write-Host -f C "======================================================================================================================`r`n"
+Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse
+Remove-Item -LiteralPath "$env:TEMP\" -Force -Recurse -ErrorAction silentlycontinue | out-null
 }
