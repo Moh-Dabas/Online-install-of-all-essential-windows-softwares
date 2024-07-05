@@ -364,7 +364,7 @@ Function Ins-Nuget
     }
     else {Write-Host -f C "Already Installed"}
     Import-PackageProvider -Name NuGet -Force -EA silentlycontinue
-    Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -AllowPrerelease -Force -EA silentlycontinue | out-null
+    Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA silentlycontinue | out-null
 }
 
 Function Ins-Choco
@@ -398,7 +398,7 @@ Function Ins-winget-ps
 {
     Ins-Scoop-git
     if ((scoop list winget-ps).Name -eq "winget-ps") {write-host "winget-ps is already installed`r`nTrying to update winget-ps";scoop update winget-ps} else {write-host "Installing winget-ps";scoop install winget-ps}
-    Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -AllowPrerelease -Force -EA silentlycontinue | out-null
+    Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA silentlycontinue | out-null
     Import-Module Microsoft.WinGet.Client -Force -EA silentlycontinue
 }
 
@@ -641,7 +641,7 @@ Function Windows-Update
 Write-Host -f C "`r`n*** Starting Windows Updates ***`r`n"
 Start-Service -Name "wuauserv" -EA silentlycontinue | out-null
 Start-Service -Name "UsoSvc" -EA silentlycontinue | out-null
-Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -AllowPrerelease -Force -EA silentlycontinue | out-null
+Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA silentlycontinue | out-null
 Import-Module PSWindowsUpdate -Force -EA silentlycontinue
 Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -EA silentlycontinue | out-null}
 Get-WindowsUpdate -Install -ForceInstall -WithHidden -AcceptAll -IgnoreReboot -Silent -EA silentlycontinue
@@ -657,7 +657,7 @@ wuauclt /detectnow /updatenow
 Function Unins-MSTeams
 {
 Write-Host -f C "`r`n*** Uninstalling Microsoft Teams ***`r`n"
-Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -AllowPrerelease -Force -EA silentlycontinue | out-null
+Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA silentlycontinue | out-null
 Import-Module UninstallTeams -Force -EA silentlycontinue | out-null
 Install-Script UninstallTeams -Confirm:$False -Force -EA silentlycontinue | out-null
 UninstallTeams -DisableChatWidget -AllUsers
