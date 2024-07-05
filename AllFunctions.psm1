@@ -966,6 +966,7 @@ AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 
 AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Print' 'SpoolerPriority' '128' 'DWord'
 AddRegEntry 'HKCU:\Control Panel\International' 'iPaperSize' '9' 'String'
 AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\CommonGlobUserSettings\Control Panel\International' 'iPaperSize' '9' 'String'
+AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers' 'KMPrintersAreBlocked' '0' 'DWord'
 # Startup & performance
 Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -EA SilentlyContinue | out-null
 Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunNotification"  -Recurse -force -EA SilentlyContinue | out-null
