@@ -170,12 +170,12 @@ Function AdminTakeownership
     if (Test-Path -Path $Path -PathType Leaf)
     {
         takeown /a /f $Path
-        Write-Host "y" | icacls $Path /t /c /grant "administrators:F"
+        icacls $Path /t /c /grant "administrators:F"
     }
     elseif (Test-Path -Path $Path -PathType Container)
     {
         takeown /a /r /d y /f $Path
-        Write-Host "y" | icacls $Path /t /c /grant "administrators:F"
+        icacls $Path /t /c /grant "administrators:F"
     }
     else {Write-Host -f C "Path is wrong or not supported"}
 }
@@ -339,17 +339,17 @@ Set-Hibernate 'Full'
 
 Function Ins-WindowsFeatures
 {
-Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Installing Windows Features using DISM *****************************"
-Write-Host -f C "======================================================================================================================`r`n"
-Write-Host -f C "`r`n*** Installing .NetFX3 ***`r`n"
-$St1 = dism /online /get-featureinfo /featurename:NetFx3 | Select-String State | Foreach-Object { $_.ToString().split(':')[1] -replace '\s','' }
-if ($St1 -ne "Enabled" ) {DISM /Online /Enable-Feature /FeatureName:NetFx3 /NoRestart}
-else {Write-Host -f C "Already Installed"}
-Write-Host -f C "`r`n*** Installing DirectPlay ***`r`n"
-$St2 = dism /online /get-featureinfo /featurename:DirectPlay | Select-String State | Foreach-Object { $_.ToString().split(':')[1] -replace '\s','' }
-if ($St2 -ne "Enabled" ) {DISM /Online /Enable-Feature /FeatureName:DirectPlay /All /NoRestart}
-else {Write-Host -f C "Already Installed"}
+    Write-Host -f C "`r`n======================================================================================================================"
+    Write-Host -f C "***************************** Installing Windows Features using DISM *****************************"
+    Write-Host -f C "======================================================================================================================`r`n"
+    Write-Host -f C "`r`n*** Installing .NetFX3 ***`r`n"
+    $St1 = dism /online /get-featureinfo /featurename:NetFx3 | Select-String State | Foreach-Object { $_.ToString().split(':')[1] -replace '\s','' }
+    if ($St1 -ne "Enabled" ) {DISM /Online /Enable-Feature /FeatureName:NetFx3 /NoRestart}
+    else {Write-Host -f C "Already Installed"}
+    Write-Host -f C "`r`n*** Installing DirectPlay ***`r`n"
+    $St2 = dism /online /get-featureinfo /featurename:DirectPlay | Select-String State | Foreach-Object { $_.ToString().split(':')[1] -replace '\s','' }
+    if ($St2 -ne "Enabled" ) {DISM /Online /Enable-Feature /FeatureName:DirectPlay /All /NoRestart}
+    else {Write-Host -f C "Already Installed"}
 }
 
 Function Ins-Nuget
@@ -404,31 +404,31 @@ Function Ins-winget-ps
 
 Function Install-Winget
 {
-Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Installing Winget and its dependencies & scoop & git *****************************"
-Write-Host -f C "======================================================================================================================`r`n"
-New-Item -Path "$env:TEMP\IA\Winget" -ItemType Directory -EA SilentlyContinue | out-null
-$VCLibsVersion = Get-AppxPackage -Name Microsoft.VCLibs* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
-if ([int]$VCLibsVersion -lt 14)
-{
-    Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -EA SilentlyContinue | out-null
-    Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -EA SilentlyContinue | out-null
-}
-else {Write-Host -f C "VCLibs already installed"}
-$UIXamlVersion = Get-AppxPackage -Name Microsoft.UI.Xaml* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
-if ([int]$UIXamlVersion -lt 8)
-{
-    Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -EA SilentlyContinue | out-null
-    Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -EA SilentlyContinue | out-null
-}
-else {Write-Host -f C "UI Xaml already installed"}
-if (!(Test-Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe))
-{
-    Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -EA SilentlyContinue | out-null
-    Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -EA SilentlyContinue | out-null
-}
-else {Write-Host -f C "winget already installed"}
-Ins-winget-ps
+    Write-Host -f C "`r`n======================================================================================================================"
+    Write-Host -f C "***************************** Installing Winget and its dependencies & scoop & git *****************************"
+    Write-Host -f C "======================================================================================================================`r`n"
+    New-Item -Path "$env:TEMP\IA\Winget" -ItemType Directory -EA SilentlyContinue | out-null
+    $VCLibsVersion = Get-AppxPackage -Name Microsoft.VCLibs* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
+    if ([int]$VCLibsVersion -lt 14)
+    {
+        Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -EA SilentlyContinue | out-null
+        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -EA SilentlyContinue | out-null
+    }
+    else {Write-Host -f C "VCLibs already installed"}
+    $UIXamlVersion = Get-AppxPackage -Name Microsoft.UI.Xaml* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
+    if ([int]$UIXamlVersion -lt 8)
+    {
+        Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -EA SilentlyContinue | out-null
+        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -EA SilentlyContinue | out-null
+    }
+    else {Write-Host -f C "UI Xaml already installed"}
+    if (!(Test-Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe))
+    {
+        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -EA SilentlyContinue | out-null
+        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -EA SilentlyContinue | out-null
+    }
+    else {Write-Host -f C "winget already installed"}
+    Ins-winget-ps
 }
 
 Function Ins-arSALang
@@ -476,10 +476,16 @@ Function Tweak-Language
     AddRegEntry 'HKCU:\Software\Microsoft\Input\Settings' 'EnableHwkbTextPrediction' '1' 'DWord'
 }
 
+Function Ins-LatestPowershell
+{
+    Write-Host -f C "Installing Latest Stable Powershell"
+    winget install --id 'Microsoft.Powershell' --silent --accept-source-agreements --accept-package-agreements
+}
+
 Function Ins-Terminal
 {
 Write-Host -f C "Installing Windows Terminal"
-winget install -e --id 'Microsoft.WindowsTerminal' --silent --accept-source-agreements --accept-package-agreements --nowarn --disable-interactivity
+winget install -e --id 'Microsoft.WindowsTerminal' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-DotNetRuntime
@@ -620,7 +626,7 @@ Pin-to-taskbar -IDorPath "WhatsAppDesktop" -PinType "AppUserModelID" -SearchID
 Function Unins-Devhome
 {
 Write-Host -f C "`r`n*** Uninstalling Dev Home ***`r`n"
-RmAppx 'Microsoft.DevHome'
+RmAppx 'Windows.DevHome'
 winget uninstall --id 'Microsoft.DevHome'
 }
 
@@ -634,7 +640,7 @@ Function Ins-DirectX
 {
 Write-Host -f C "`r`n*** Installing DirectX Extra Files***`r`n"
 # Run on windows terminal to work
-Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList 'try {winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements} catch {}'
+Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
 }
 
 Function Windows-Update
@@ -1693,5 +1699,5 @@ Write-Host -f C "`r`n===========================================================
 Write-Host -f C "***************************** Cleaning up *****************************"
 Write-Host -f C "======================================================================================================================`r`n"
 Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse
-Remove-Item -LiteralPath "$env:TEMP\" -Force -Recurse -ErrorAction silentlycontinue | out-null
+cmd /c 'taskkill /f /im WindowsTerminal.exe  >nul 2>nul' #incase installing DirectX is stuck
 }

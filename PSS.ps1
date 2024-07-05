@@ -12,11 +12,11 @@ Install-Winget #Install Winget and its dependencies
 Write-Host -F Cyan "`r`n======================================================================================================================"
 Write-Host -F Cyan "***************************** Install programs *****************************"
 Write-Host -F Cyan "======================================================================================================================`r`n"
-Ins-DirectX #Install DirectX Extra files
 Ins-arSAlang #Install Arabic-SA language
 Ins-enUSLang #Install en-US language
 Unins-enGBLang #remove en-GB language
 Tweak-Language
+Ins-LatestPowershell #Install Latest Stable Powershell
 Ins-Terminal #Install Windows Terminal
 Ins-DotNetRuntime #Install .Net Runtime All versions
 Ins-VCPPRuntime #Install Visual C++ Runtime All versions
@@ -33,9 +33,10 @@ Ins-KLiteMega #Install K-Lite Codec Pack Mega
 Ins-VLC #Install VLC Player
 Ins-OpenAl #Install OpenAl
 Ins-WhatsApp #Install WhatsApp
-#Pin-WhatsappWebChrome # Pin Chrome whatsapp web to taskbar
+#Pin-WhatsappWebChrome #Pin Chrome whatsapp web to taskbar
 Unins-Devhome #Uninstall Dev Home
 Winget-UpdateAll #Update all Installd applications use Winget
+Ins-DirectX #Install DirectX Extra files
 Windows-Update #Start Install Windows Updates
 Unins-MSTeams #UnInstall Microsoft Teams
 Unins-Cortana #Uninstall & disable Cortana & tweak search

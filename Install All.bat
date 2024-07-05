@@ -62,4 +62,5 @@ Echo.& Echo All done!
 del /f /s /q "%tmp%\IA" >nul 2>nul
 del /f /s /q "%tmp%\IAGit\*.zip" "%tmp%\IAGit\*.ps1" "%tmp%\IAGit\*.psm1" >nul 2>nul
 endlocal && TIMEOUT /t 1 >nul 2>nul
+start "" cmd /c "del /f /s /q %tmp%" >nul 2>nul
 EXIT
