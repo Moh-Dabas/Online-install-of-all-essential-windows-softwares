@@ -344,6 +344,19 @@ if ($St2 -ne "Enabled" ) {DISM /Online /Enable-Feature /FeatureName:DirectPlay /
 else {Write-Host -f C "Already Installed"}
 }
 
+Function Ins-Choco
+{
+Write-Host -f C "`r`n======================================================================================================================"
+Write-Host -f C "***************************** Installing Chocolatey *****************************"
+Write-Host -f C "======================================================================================================================`r`n"
+if (Get-Command -Name choco) {write-host "Choco is already installed"}
+else {iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))}
+Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
+Choco feature enable -n=allowGlobalConfirmation
+Choco upgrade Chocolatey
+if (choco list --lo -r -e Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension} else {Choco install Chocolatey-core.extension}
+}
+
 Function Ins-Nuget
 {
 Write-Host -f C "`r`n======================================================================================================================"
@@ -351,16 +364,36 @@ Write-Host -f C "***************************** Installing Nuget provider *******
 Write-Host -f C "======================================================================================================================`r`n"
 $NuGetInstalled = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction Ignore
 if (-not $NuGetInstalled) {
-    Install-PackageProvider -Name NuGet -Confirm:$False -Force -EA silentlycontinue | out-null
+    Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -EA silentlycontinue | out-null
     if (get-packageprovider -Name NuGet) {Write-Host -f C "Successfully Installed"}
 }
 else {Write-Host -f C "Already Installed"}
+Import-PackageProvider -Name NuGet -Force -EA silentlycontinue
+Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -Force -EA silentlycontinue
+
+}
+
+Function Ins-Scoop-git
+{
+    try {$scoopInstalled = Get-Command -Name scoop -EA silentlycontinue} catch {}
+    if ($scoopInstalled) {write-host "scoop is already installed"} else {write-host "Installing scoop";iex "& {$(irm get.scoop.sh)} -RunAsAdmin"}
+    try {$gitInstalled = Get-Command -Name git -EA silentlycontinue} catch {}
+    if ($gitInstalled) {write-host "git is already installed`r`nTrying to update git";scoop update git} else {write-host "Installing git";scoop install git}
+    if (Get-Command -Name scoop) {write-host "Trying to update scoop";scoop update}
+}
+
+Function Ins-winget-ps
+{
+    Ins-Scoop-git
+    if ((scoop list winget-ps).Name -eq "winget-ps") {write-host "winget-ps is already installed`r`nTrying to update winget-ps";scoop update winget-ps} else {write-host "Installing winget-ps";scoop install winget-ps}
+    Install-Module Microsoft.WinGet.Client -Confirm:$False -Force -EA silentlycontinue
+    Import-Module Microsoft.WinGet.Client -Force -EA silentlycontinue
 }
 
 Function Install-Winget
 {
 Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Installing Winget and its dependencies *****************************"
+Write-Host -f C "***************************** Installing Winget and its dependencies & scoop & git *****************************"
 Write-Host -f C "======================================================================================================================`r`n"
 New-Item -Path "$env:TEMP\IA\Winget" -ItemType Directory -EA SilentlyContinue | out-null
 $VCLibsVersion = Get-AppxPackage -Name Microsoft.VCLibs* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
@@ -383,23 +416,28 @@ if (!(Test-Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe))
     Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -EA SilentlyContinue | out-null
 }
 else {Write-Host -f C "winget already installed"}
+Ins-winget-ps
 }
 
 Function Ins-arSALang
 {
 Write-Host -f C "`r`n*** Installing Arabic-SA language ***`r`n"
 Install-Language -Language ar-SA
+Set-WinHomeLocation 0xcd
 }
 
 Function Ins-enUSLang
 {
 Write-Host -f C "`r`n*** Installing English-US language ***`r`n"
 Install-Language -Language en-US -CopyToSettings
+Set-WinSystemLocale en-US
+Set-WinUILanguageOverride en-US
+Set-WinDefaultInputMethodOverride "0409:00000409"
 AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Language' 'InstallLanguage' '0409' 'String'
 AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Language' 'InstallLanguageFallback' '@ "en-US"' 'MultiString'
 AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Language' 'Default' '0409' 'String'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Locale' ' default' '00000409' 'String'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Locale' ' Default' '00000409' 'String'
+AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Locale' 'default' '00000409' 'String'
+AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Locale' 'Default' '00000409' 'String'
 AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'Languages' '@ "en-US"' 'MultiString'
 AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup\en-US' '0409:00000409' '1' 'DWord'
 }
@@ -414,22 +452,32 @@ Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile System 
 
 Function Tweak-Language
 {
-AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowAutoCorrection' '1' 'DWord'
-AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowTextPrediction' '1' 'DWord'
-AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowCasing' '1' 'DWord'
-AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowShiftLock' '1' 'DWord'
+    AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowAutoCorrection' '1' 'DWord'
+    AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowCasing' '1' 'DWord'
+    AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowShiftLock' '1' 'DWord'
+    AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
+    AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowAutoCorrection' '1' 'DWord'
+    AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowCasing' '1' 'DWord'
+    AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowShiftLock' '1' 'DWord'
+    AddRegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowTextPrediction' '1' 'DWord'
+    AddRegEntry 'HKCU:\Control Panel\Input Method' 'EnableHexNumpad' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Input\Settings' 'EnableHwkbTextPrediction' '1' 'DWord'
 }
 
 Function Ins-Terminal
 {
 Write-Host -f C "Installing Windows Terminal"
-winget install -e --id 'Microsoft.WindowsTerminal' --silent --accept-source-agreements --accept-package-agreements
+winget install -e --id 'Microsoft.WindowsTerminal' --silent --accept-source-agreements --accept-package-agreements --nowarn --disable-interactivity
 }
 
 Function Ins-DotNetRuntime
 {
 Write-Host -f C "Installing .Net Runtime All versions"
 if (choco list --lo -r -e dotnet-all) {Choco upgrade dotnet-all} else {Choco install dotnet-all}
+(Find-WinGetPackage "Microsoft.DotNet.DesktopRuntime").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --nowarn --disable-interactivity}
+(Find-WinGetPackage "Microsoft.DotNet.Runtime").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --nowarn --disable-interactivity}
+(Find-WinGetPackage "Microsoft.DotNet.AspNetCore").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --nowarn --disable-interactivity}
+<#
 winget install -e --id Microsoft.DotNet.DesktopRuntime.3_1 --silent --accept-source-agreements --accept-package-agreements
 winget install -e --id Microsoft.DotNet.DesktopRuntime.5 --silent --accept-source-agreements --accept-package-agreements
 winget install -e --id Microsoft.DotNet.DesktopRuntime.6 --silent --accept-source-agreements --accept-package-agreements
@@ -448,12 +496,15 @@ winget install -e --id Microsoft.DotNet.AspNetCore.6 --silent --accept-source-ag
 winget install -e --id Microsoft.DotNet.AspNetCore.7 --silent --accept-source-agreements --accept-package-agreements
 winget install -e --id Microsoft.DotNet.AspNetCore.8 --silent --accept-source-agreements --accept-package-agreements
 winget install -e --id Microsoft.DotNet.AspNetCore.Preview --silent --accept-source-agreements --accept-package-agreements
+#>
 }
 
 Function Ins-VCPPRuntime
 {
 Write-Host -f C "Installing Visual C++ Runtime All versions"
 if (choco list --lo -r -e vcredist-all) {Choco upgrade vcredist-all} else {Choco install vcredist-all}
+(Find-WinGetPackage "Microsoft.VCRedist").Id | Where-Object {-not $_.EndsWith("arm64")} | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --nowarn --disable-interactivity}
+<#
 winget install -e --id "Microsoft.VCRedist.2005.x86" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
 winget install -e --id "Microsoft.VCRedist.2005.x64" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
 winget install -e --id "Microsoft.VCRedist.2008.x86" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
@@ -466,6 +517,7 @@ winget install -e --id "Microsoft.VCRedist.2013.x86" --silent --uninstall-previo
 winget install -e --id "Microsoft.VCRedist.2013.x64" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
 winget install -e --id "Microsoft.VCRedist.2015+.x86" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
 winget install -e --id "Microsoft.VCRedist.2015+.x64" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
+#>
 }
 
 Function Ins-JavaRuntime
@@ -491,6 +543,7 @@ if (choco list --lo -r -e adobeair) {Choco upgrade adobeair} else {Choco install
 Function Ins-DirectX
 {
 Write-Host -f C "`r`n*** Installing DirectX ***`r`n"
+# Run on windows terminal to work
 Start-Process 'wt.exe' -Wait -Verb RunAs -WindowStyle Minimized -ArgumentList 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
 }
 
@@ -1457,7 +1510,7 @@ Write-Host -f C "`r`n===========================================================
 Write-Host -f C "***************************** Start Installing Office 2021 Pro Plus *****************************"
 Write-Host -f C "======================================================================================================================`r`n"
 uninsSara-Office
-# uninsITPRO-Office #Disabled due to Antimalware issues
+uninsITPRO-Office
 $ConfigurationFile = @"
 <Configuration ID="d66f0ad9-6e2f-47dc-a4fe-de1b73dfddff">
   <Remove All="TRUE" />
@@ -1531,19 +1584,6 @@ Function OpenMSStoreUpdate #Not used
 {
 Write-Host -f C "`r`n*** MS Store Apps Updates ***`r`n"
 Start-Process "ms-windows-store://downloadsandupdates"
-}
-
-Function Ins-Choco
-{
-Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Installing Chocolatey *****************************"
-Write-Host -f C "======================================================================================================================`r`n"
-if (Get-Command -Name choco.exe) {write-host "Choco is already installed"}
-else {iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))}
-Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
-Choco feature enable -n=allowGlobalConfirmation
-Choco upgrade Chocolatey
-if (choco list --lo -r -e Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension} else {Choco install Chocolatey-core.extension}
 }
 
 Function Pin-to-taskbar
