@@ -640,7 +640,7 @@ Function Ins-DirectX
 {
 Write-Host -f C "`r`n*** Installing DirectX Extra Files***`r`n"
 # Run on windows terminal to work
-Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
+Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '-p "Windows PowerShell"', 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
 }
 
 Function Windows-Update
@@ -1699,5 +1699,4 @@ Write-Host -f C "`r`n===========================================================
 Write-Host -f C "***************************** Cleaning up *****************************"
 Write-Host -f C "======================================================================================================================`r`n"
 Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse
-cmd /c 'taskkill /f /im WindowsTerminal.exe  >nul 2>nul' #incase installing DirectX is stuck
 }

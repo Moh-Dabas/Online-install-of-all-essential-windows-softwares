@@ -42,7 +42,7 @@ Echo Start installing programms
 Echo.
 Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0Choco.ps1"
 Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0PSS.ps1"
-
+start "" wt -p "Windows PowerShell" winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements
 
 REM Commands end
 goto :exit
@@ -59,8 +59,10 @@ goto :eof
 REM ======================================================================================================================
 :exit
 Echo.& Echo All done!
+REM cleanup
 del /f /s /q "%tmp%\IA" >nul 2>nul
 del /f /s /q "%tmp%\IAGit\*.zip" "%tmp%\IAGit\*.ps1" "%tmp%\IAGit\*.psm1" >nul 2>nul
+taskkill /f /im WindowsTerminal.exe  >nul 2>nul
 endlocal && TIMEOUT /t 1 >nul 2>nul
 start "" cmd /c "del /f /s /q %tmp%" >nul 2>nul
 EXIT
