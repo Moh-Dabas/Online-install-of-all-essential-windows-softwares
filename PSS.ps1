@@ -12,6 +12,7 @@ Install-Winget #Install Winget and its dependencies
 Write-Host -F Cyan "`r`n======================================================================================================================"
 Write-Host -F Cyan "***************************** Install programs *****************************"
 Write-Host -F Cyan "======================================================================================================================`r`n"
+Ins-DirectX #Install DirectX Extra files
 Ins-arSAlang #Install Arabic-SA language
 Ins-enUSLang #Install en-US language
 Unins-enGBLang #remove en-GB language
@@ -33,6 +34,7 @@ Ins-VLC #Install VLC Player
 Ins-OpenAl #Install OpenAl
 Ins-WhatsApp #Install WhatsApp
 #Pin-WhatsappWebChrome # Pin Chrome whatsapp web to taskbar
+Unins-Devhome #Uninstall Dev Home
 Winget-UpdateAll #Update all Installd applications use Winget
 Windows-Update #Start Install Windows Updates
 Unins-MSTeams #UnInstall Microsoft Teams
@@ -49,5 +51,4 @@ D-ScanFolder #Create Drive D (If not found)& Create shared Scan folder in it
 Adj-Hosts #Adjust Hosts file
 Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions
 Ins-ExtraFonts #Install Extra Fonts
-Ins-DirectX #Install DirectX Extra files
 Clean-up
