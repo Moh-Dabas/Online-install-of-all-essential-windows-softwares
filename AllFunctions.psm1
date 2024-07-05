@@ -1135,7 +1135,7 @@ Write-Host -f C "===============================================================
 if (!(Get-Volume -DriveLetter D)) {ShrinkC-MakeNew "D"}
 elseif ((Get-Volume -DriveLetter D).DriveType -ne "Fixed")
 {
-    try{$successful = $true;Set-Partition -DriveLetter D -NewDriveLetter Z}
+    try{$successful = $true;Set-WmiInstance -InputObject ( Get-WmiObject -Class Win32_volume -Filter "DriveLetter = 'd:'" ) -Arguments @{DriveLetter='Z:'}}
     catch{$successful = $false;Write-Host -f C "Busy Removable Partition D"}
     if ($successful) {ShrinkC-MakeNew "D"}
 }
