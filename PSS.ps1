@@ -7,7 +7,6 @@ Check-RunAsAdministrator #Check Script is runne with Elevated Privileges
 InitializeCommands
 MaxPowerPlan #Activate Max Performance Power Plan
 Ins-WindowsFeatures #Install Windows Features use DISM
-Ins-Nuget #Install Nuget provider
 Install-Winget #Install Winget and its dependencies
 
 Write-Host -F Cyan "`r`n======================================================================================================================"

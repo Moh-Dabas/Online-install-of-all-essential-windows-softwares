@@ -6,4 +6,5 @@ catch{Write-Host "AllFunctions.psm1 file not found";Start-Sleep 5;exit}
 #Check Script is running with Elevated Privileges
 Check-RunAsAdministrator
 InitializeCommands
+Ins-Nuget #Install Nuget provider
 Ins-Choco #Install Chocolatey

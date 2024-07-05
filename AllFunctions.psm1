@@ -21,6 +21,14 @@ Function Check-RunAsAdministrator()
     }
 }
 
+Function Relaunch
+{
+    $CurFolder = Split-Path -Path $PSCommandPath -Parent
+    $runningCMD = Get-Process | where -Property ProcessName -eq "cmd"
+    Start-Process "$CurFolder\Install All.bat" -Verb RunAs
+    $runningCMD | Stop-Process
+}
+
 Function AddRegEntry
 {
     Param
@@ -182,12 +190,12 @@ $ErrorActionPreference = 'Continue'
 $progressPreference = 'silentlyContinue'
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12, [Net.SecurityProtocolType]::Ssl3
-Set-PSRepository PSGallery -InstallationPolicy Trusted
 New-Item -Path "$env:TEMP\IA" -ItemType Directory -EA SilentlyContinue | out-null
 $CurFolder = Split-Path -Path $PSCommandPath -Parent
 Write-Host -f C "`r`n*** Disabling proxies ***`r`n"
 Set HTTP_PROXY=
 Set HTTPS_PROXY=
+# Set-PSRepository PSGallery -InstallationPolicy Trusted #causes nuget install to ask for confirmation
 }
 
 Function MaxPowerPlan
@@ -344,33 +352,37 @@ if ($St2 -ne "Enabled" ) {DISM /Online /Enable-Feature /FeatureName:DirectPlay /
 else {Write-Host -f C "Already Installed"}
 }
 
-Function Ins-Choco
-{
-Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Installing Chocolatey *****************************"
-Write-Host -f C "======================================================================================================================`r`n"
-if (Get-Command -Name choco) {write-host "Choco is already installed"}
-else {iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))}
-Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
-Choco feature enable -n=allowGlobalConfirmation
-Choco upgrade Chocolatey
-if (choco list --lo -r -e Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension} else {Choco install Chocolatey-core.extension}
-}
-
 Function Ins-Nuget
 {
-Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Installing Nuget provider *****************************"
-Write-Host -f C "======================================================================================================================`r`n"
-$NuGetInstalled = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction Ignore
-if (-not $NuGetInstalled) {
-    Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -EA silentlycontinue | out-null
-    if (get-packageprovider -Name NuGet) {Write-Host -f C "Successfully Installed"}
+    Write-Host -f C "`r`n======================================================================================================================"
+    Write-Host -f C "***************************** Installing Nuget provider *****************************"
+    Write-Host -f C "======================================================================================================================`r`n"
+    $NuGetInstalled = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction Ignore
+    if (-not $NuGetInstalled) {
+        Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -EA silentlycontinue | out-null
+        if (get-packageprovider -Name NuGet) {Write-Host -f C "Successfully Installed"}
+    }
+    else {Write-Host -f C "Already Installed"}
+    Import-PackageProvider -Name NuGet -Force -EA silentlycontinue
+    Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AcceptLicense -AllowClobber -AllowPrerelease -Force -EA silentlycontinue | out-null
 }
-else {Write-Host -f C "Already Installed"}
-Import-PackageProvider -Name NuGet -Force -EA silentlycontinue
-Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -Force -EA silentlycontinue
 
+Function Ins-Choco
+{
+    Write-Host -f C "`r`n======================================================================================================================"
+    Write-Host -f C "***************************** Installing Chocolatey *****************************"
+    Write-Host -f C "======================================================================================================================`r`n"
+    try {$ChocoInstalled = Get-Command -Name choco -EA silentlycontinue} catch {}
+    if ($ChocoInstalled) {write-host "Choco is already installed"}
+    else {
+        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        Start-Sleep 1
+        Relaunch
+        }
+    Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
+    Choco upgrade Chocolatey
+    if (choco list --lo -r -e Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension} else {Choco install Chocolatey-core.extension}
+    Choco feature enable -n=allowGlobalConfirmation
 }
 
 Function Ins-Scoop-git
@@ -386,7 +398,7 @@ Function Ins-winget-ps
 {
     Ins-Scoop-git
     if ((scoop list winget-ps).Name -eq "winget-ps") {write-host "winget-ps is already installed`r`nTrying to update winget-ps";scoop update winget-ps} else {write-host "Installing winget-ps";scoop install winget-ps}
-    Install-Module Microsoft.WinGet.Client -Confirm:$False -Force -EA silentlycontinue
+    Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AcceptLicense -AllowClobber -AllowPrerelease -Force -EA silentlycontinue | out-null
     Import-Module Microsoft.WinGet.Client -Force -EA silentlycontinue
 }
 
@@ -474,50 +486,16 @@ Function Ins-DotNetRuntime
 {
 Write-Host -f C "Installing .Net Runtime All versions"
 if (choco list --lo -r -e dotnet-all) {Choco upgrade dotnet-all} else {Choco install dotnet-all}
-(Find-WinGetPackage "Microsoft.DotNet.DesktopRuntime").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --nowarn --disable-interactivity}
-(Find-WinGetPackage "Microsoft.DotNet.Runtime").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --nowarn --disable-interactivity}
-(Find-WinGetPackage "Microsoft.DotNet.AspNetCore").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --nowarn --disable-interactivity}
-<#
-winget install -e --id Microsoft.DotNet.DesktopRuntime.3_1 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.DesktopRuntime.5 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.DesktopRuntime.6 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.DesktopRuntime.7 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.DesktopRuntime.8 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.DesktopRuntime.Preview --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.Runtime.3_1 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.Runtime.5 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.Runtime.6 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.Runtime.7 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.Runtime.8 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.Runtime.Preview --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.AspNetCore.3_1 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.AspNetCore.5 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.AspNetCore.6 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.AspNetCore.7 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.AspNetCore.8 --silent --accept-source-agreements --accept-package-agreements
-winget install -e --id Microsoft.DotNet.AspNetCore.Preview --silent --accept-source-agreements --accept-package-agreements
-#>
+(Find-WinGetPackage "Microsoft.DotNet.DesktopRuntime").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements}
+(Find-WinGetPackage "Microsoft.DotNet.Runtime").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements}
+(Find-WinGetPackage "Microsoft.DotNet.AspNetCore").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements}
 }
 
 Function Ins-VCPPRuntime
 {
 Write-Host -f C "Installing Visual C++ Runtime All versions"
 if (choco list --lo -r -e vcredist-all) {Choco upgrade vcredist-all} else {Choco install vcredist-all}
-(Find-WinGetPackage "Microsoft.VCRedist").Id | Where-Object {-not $_.EndsWith("arm64")} | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --nowarn --disable-interactivity}
-<#
-winget install -e --id "Microsoft.VCRedist.2005.x86" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2005.x64" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2008.x86" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2008.x64" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2010.x86" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2010.x64" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2012.x86" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2012.x64" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2013.x86" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2013.x64" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2015+.x86" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-winget install -e --id "Microsoft.VCRedist.2015+.x64" --silent --uninstall-previous --accept-source-agreements --accept-package-agreements
-#>
+(Find-WinGetPackage "Microsoft.VCRedist").Id | Where-Object {-not $_.EndsWith("arm64")} | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements}
 }
 
 Function Ins-JavaRuntime
@@ -663,7 +641,7 @@ Function Windows-Update
 Write-Host -f C "`r`n*** Starting Windows Updates ***`r`n"
 Start-Service -Name "wuauserv" -EA silentlycontinue | out-null
 Start-Service -Name "UsoSvc" -EA silentlycontinue | out-null
-Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -Force -EA silentlycontinue
+Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AcceptLicense -AllowClobber -AllowPrerelease -Force -EA silentlycontinue | out-null
 Import-Module PSWindowsUpdate -Force -EA silentlycontinue
 Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -EA silentlycontinue | out-null}
 Get-WindowsUpdate -Install -ForceInstall -WithHidden -AcceptAll -IgnoreReboot -Silent -EA silentlycontinue
@@ -679,7 +657,7 @@ wuauclt /detectnow /updatenow
 Function Unins-MSTeams
 {
 Write-Host -f C "`r`n*** Uninstalling Microsoft Teams ***`r`n"
-Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -Force -EA silentlycontinue | out-null
+Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AcceptLicense -AllowClobber -AllowPrerelease -Force -EA silentlycontinue | out-null
 Import-Module UninstallTeams -Force -EA silentlycontinue | out-null
 Install-Script UninstallTeams -Confirm:$False -Force -EA silentlycontinue | out-null
 UninstallTeams -DisableChatWidget -AllUsers
