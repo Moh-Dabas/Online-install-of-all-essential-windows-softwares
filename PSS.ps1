@@ -16,7 +16,7 @@ Ins-arSAlang #Install Arabic-SA language
 Ins-enUSLang #Install en-US language
 Unins-enGBLang #remove en-GB language
 Tweak-Language
-Ins-LatestPowershell #Install Latest Stable Powershell
+#Ins-LatestPowershell #Install Latest Stable Powershell
 Ins-Terminal #Install Windows Terminal
 Ins-DotNetRuntime #Install .Net Runtime All versions
 Ins-VCPPRuntime #Install Visual C++ Runtime All versions
