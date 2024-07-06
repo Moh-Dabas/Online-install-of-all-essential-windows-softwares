@@ -38,14 +38,15 @@ Unins-Devhome #Uninstall Dev Home
 Winget-UpdateAll #Update all Installd applications use Winget
 Ins-DirectX #Install DirectX Extra files
 Windows-Update #Start Install Windows Updates
-Unins-MSTeams #UnInstall Microsoft Teams
+Unins-MSTeams #Uninstall Microsoft Teams
 Unins-Cortana #Uninstall & disable Cortana & tweak search
 Unins-Copilot #Uninstall & disable Copilot
 Unins-Xbox #UnInstall Xbox & Game Bar
 Unins-OneDrive #Remove One Drive
 DeepTweaks
 Dis-BitLocker #Disable BitLocker
-Activate-Guest #Activate Guest account
+#EnableSMB1Protocol-Client #Old legacy security threat sharing protocol
+Fix-Share #Fix Windows file sharing
 Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
 Registry-Tweaks #Applye Registry Tweaks
 D-ScanFolder #Create Drive D (If not found)& Create shared Scan folder in it

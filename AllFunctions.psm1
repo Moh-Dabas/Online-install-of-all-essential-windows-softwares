@@ -800,12 +800,62 @@ Get-BitLockerVolume | foreach {Disable-BitLocker -MountPoint $_.MountPoint -EA S
 Get-BitLockerVolume | foreach {manage-bde -off $_.MountPoint} | out-null
 }
 
-Function Activate-Guest
+Function EnableSMB1Protocol-Client
 {
-Write-Host -f C "`r`n*** Activating Guest account ***`r`n"
-net user guest /active:yes
-Write-Host -f C "`r`n" | net user guest *
-net user guest /passwordreq:no
+    AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'SMB1' '1' 'DWORD'
+    if ((Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol).state -ne "Enabled") {Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol}
+    if ((Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Client).state -ne "Enabled") {Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Client}
+    if ((Get-SmbServerConfiguration).EnableSMB1Protocol -ne $true) {Set-SmbServerConfiguration -EnableSMB1Protocol $true}
+    if ((Get-SmbServerConfiguration).AuditSmb1Access -ne $true) {Set-SmbServerConfiguration -AuditSmb1Access $true}
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\mrxsmb' 'Start' '2' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\mrxsmb10' 'Start' '2' 'DWord'
+}
+
+Function Activate-Guest 
+{
+    Write-Host -f C "`r`n*** Activating Guest account ***`r`n"
+    net user guest /active:yes
+    Write-Host -f C "`r`n" | net user guest *
+    net user guest /passwordreq:no
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'forceguest' '1' 'DWord'
+}
+
+Function Fix-Share
+{
+    Write-Host -f C "`r`n*** Fixining Windows file sharing ***`r`n"
+    Activate-Guest #Activate Guest account
+    if ((Get-SmbServerConfiguration).EnableSMB2Protocol -ne $true) {Set-SmbServerConfiguration -EnableSMB2Protocol $true}
+    sc.exe config lanmanworkstation depend= bowser/mrxsmb10/mrxsmb20/nsi
+    netsh advfirewall firewall set rule name="File and Printer Sharing (SMB-In)" dir=in new enable=Yes
+    netsh firewall set service type= FILEANDPRINT mode=ENABLE profile=ALL #Old
+    netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes #New
+    Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Any
+    netsh advfirewall set currentprofile state on
+    # Share
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'EnableAuthenticateUserSharing' '1' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'EnableSecuritySignature' '1' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'RequireSecuritySignature' '0' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'RestrictNullSessAccess' '0' 'DWord'
+    AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'SMB2' '1' 'DWORD'
+    AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'SMB3' '1' 'DWORD'
+    AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'AutoShareWks' '0' 'DWORD'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'fullprivilegeauditing' '1' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'LimitBlankPasswordUse' '0' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'disabledomaincreds' '0' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'everyoneincludesanonymous' '1' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'restrictanonymous' '0' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'restrictanonymoussam' '0' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'SamConnectedAccountsExist' '1' 'DWord'
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'LocalAccountTokenFilterPolicy' '1' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer' 'Start' '2' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\mrxsmb20' 'Start' '2' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\fdPHost' 'Start' '2' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\SSDPSRV' 'Start' '2' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\upnphost' 'Start' '2' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\FDResPub' 'Start' '2' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\lmhosts' 'Start' '3' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\FDResPub' 'Start' '3' 'DWord'
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation' 'AllowInsecureGuestAuth' '1' 'DWord'   
 }
 
 Function Tweak-schtasks
@@ -1006,29 +1056,12 @@ AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Maps' 'AutoDownloadAndUpd
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableUwpStartupTasks' '0' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'SupportUwpStartupTasks' '0' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableVirtualization' '1' 'DWord'
-# Share & UAC
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'EnableAuthenticateUserSharing' '1' 'DWord'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'EnableSecuritySignature' '1' 'DWord'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'RequireSecuritySignature' '0' 'DWord'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'RestrictNullSessAccess' '0' 'DWord'
-AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'SMB1' '1' 'DWORD'
-AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'SMB2' '1' 'DWORD'
-AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'SMB3' '1' 'DWORD'
-AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'AutoShareWks' '0' 'DWORD'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'fullprivilegeauditing' '1' 'DWord'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'LimitBlankPasswordUse' '0' 'DWord'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'disabledomaincreds' '0' 'DWord'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'everyoneincludesanonymous' '1' 'DWord'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'forceguest' '0' 'DWord'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'restrictanonymous' '0' 'DWord'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'restrictanonymoussam' '0' 'DWord'
-AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'SamConnectedAccountsExist' '1' 'DWord'
+#UAC
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableLUA' '1' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ValidateAdminCodeSignatures' '0' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ConsentPromptBehaviorAdmin' '0' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ConsentPromptBehaviorUser' '0' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'PromptOnSecureDesktop' '0' 'DWord'
-AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'LocalAccountTokenFilterPolicy' '1' 'DWord'
 # Taskbar & notifications
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoChangeStartMenu' '0' 'DWord'
 AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\PushNotifications' 'ToastEnabled' '1' 'DWord'
