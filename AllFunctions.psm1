@@ -817,7 +817,7 @@ Function Activate-Guest
     net user guest /active:yes
     Write-Host -f C "`r`n" | net user guest *
     net user guest /passwordreq:no
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'forceguest' '1' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'forceguest' '0' 'DWord'
 }
 
 Function Fix-Share
@@ -826,8 +826,9 @@ Function Fix-Share
     Activate-Guest #Activate Guest account
     if ((Get-SmbServerConfiguration).EnableSMB2Protocol -ne $true) {Set-SmbServerConfiguration -EnableSMB2Protocol $true}
     sc.exe config lanmanworkstation depend= bowser/mrxsmb10/mrxsmb20/nsi
-    netsh advfirewall firewall set rule name="File and Printer Sharing (SMB-In)" dir=in new enable=Yes
-    netsh firewall set service type= FILEANDPRINT mode=ENABLE profile=ALL #Old
+    netsh advfirewall reset
+    #netsh advfirewall firewall set rule name="File and Printer Sharing (SMB-In)" dir=in new enable=Yes
+    #netsh firewall set service type= FILEANDPRINT mode=ENABLE profile=ALL #Old
     netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes #New
     Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Any
     netsh advfirewall set currentprofile state on
