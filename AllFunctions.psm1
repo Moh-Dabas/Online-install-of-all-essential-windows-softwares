@@ -875,6 +875,8 @@ Function Fix-Share
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device' 'DevicePasswordLessBuildVersion' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device' 'DevicePasswordLessUpdateType' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\Settings\AllowSignInOptions' 'value' '1' 'DWord'
+    # Somtimes User need to login using his password (not pin) at least one time
+    # Somtimes changing account form microsoft to local then back to microsoft can fix share issues
 }
 
 Function Tweak-schtasks
