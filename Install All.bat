@@ -40,7 +40,6 @@ cd /d "%~dp0"
 Echo.
 Echo Start installing programms
 Echo.
-Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0Choco.ps1"
 Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0PSS.ps1"
 start "" wt -p "Windows PowerShell" winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements
 
