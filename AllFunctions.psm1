@@ -27,6 +27,7 @@ Function Relaunch
     $runningCMD = Get-Process | where -Property ProcessName -eq "cmd"
     Start-Process "$CurFolder\Install All.bat" -Verb RunAs
     $runningCMD | Stop-Process
+    Exit
 }
 
 Function AddRegEntry
