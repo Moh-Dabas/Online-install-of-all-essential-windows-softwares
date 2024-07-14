@@ -55,4 +55,5 @@ D-ScanFolder #Create Drive D (If not found)& Create shared Scan folder in it
 Adj-Hosts #Adjust Hosts file
 Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions
 Ins-ExtraFonts #Install Extra Fonts
+Fix-MSWindows #Fix Windows
 Clean-up

@@ -460,6 +460,7 @@ Function Unins-enGBLang
 Write-Host -f C "`r`n*** Removing English-GB language ***`r`n"
 Uninstall-Language -Language en-GB;lpksetup.exe /u en-GB /s /r
 Remove-Item -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Control\ContentIndex\Language\English_UK"  -Recurse -force -EA SilentlyContinue | out-null
+Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile\en-GB"  -Recurse -force -EA SilentlyContinue | out-null
 Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile System Backup\en-GB"  -Recurse -force -EA SilentlyContinue | out-null
 }
 
@@ -639,7 +640,7 @@ winget upgrade --all --disable-interactivity --silent --accept-source-agreements
 
 Function Ins-DirectX
 {
-Write-Host -f C "`r`n*** Installing DirectX Extra Files***`r`n"
+Write-Host -f C "`r`n*** Installing DirectX Extra Files ***`r`n"
 # Run on windows terminal to work
 Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '-p "Windows PowerShell"', 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
 }
@@ -803,13 +804,13 @@ Get-BitLockerVolume | foreach {manage-bde -off $_.MountPoint} | out-null
 
 Function EnableSMB1Protocol-Client
 {
+    #Insecure (only old devices use it).
     AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'SMB1' '1' 'DWORD'
     if ((Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol).state -ne "Enabled") {Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol}
     if ((Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Client).state -ne "Enabled") {Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol-Client}
     if ((Get-SmbServerConfiguration).EnableSMB1Protocol -ne $true) {Set-SmbServerConfiguration -EnableSMB1Protocol $true}
     if ((Get-SmbServerConfiguration).AuditSmb1Access -ne $true) {Set-SmbServerConfiguration -AuditSmb1Access $true}
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\mrxsmb' 'Start' '2' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\mrxsmb10' 'Start' '2' 'DWord'
+    Set-SmbServerConfiguration  -EnableSMB1Protocol -Force -Confirm:$false
 }
 
 Function CLUA
@@ -822,41 +823,77 @@ Function CLUA
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'forceguest' '0' 'DWord' #Use local users authenticate not guest
 }
 
+Function Del-WinDomainCred
+{
+    Write-Host -f C "`r`n*** Deleting windows Domain credintials (sometimes it's stuck) ***`r`n"
+    Write-Host -f C "`r`n Maped drives and saved shared folders credintials will be affected `r`n"
+    cmdkey /list | ForEach-Object{
+    if($_ -like "*Target: Domain:target=*"){
+        $c = ($_ -replace (' ')).split(":", 2)[1]
+        cmdkey.exe /delete $c | Out-Null
+    }
+    }
+}
+
 Function Fix-Share
 {
     Write-Host -f C "`r`n*** Fixining Windows file sharing ***`r`n"
     CLUA #Classic local users authenticate (Disable the ForceGuest feature)
+    Del-WinDomainCred #Delete windows Domain credintials (sometimes it's stuck). Maped drives and saved shared folders credintials will be affected
     if ((Get-SmbServerConfiguration).EnableSMB2Protocol -ne $true) {Set-SmbServerConfiguration -EnableSMB2Protocol $true}
-    sc.exe config lanmanworkstation depend= bowser/mrxsmb10/mrxsmb20/nsi
-    (get-netconnectionprofile).Name | foreach {set-netconnectionprofile -name $_ -NetworkCategory private}
-    netsh advfirewall reset #Reset firewall settings (bad but needed sometimes) you can disable this.
-    #netsh advfirewall firewall set rule name="File and Printer Sharing (SMB-In)" dir=in new enable=Yes
-    #netsh firewall set service type= FILEANDPRINT mode=ENABLE profile=ALL #Old
+    (get-netconnectionprofile).Name | foreach {set-netconnectionprofile -name $_ -NetworkCategory private} #Make currently connected networks private
+    (New-Object -ComObject HNetCfg.FwPolicy2).RestoreLocalFirewallDefaults(); netsh advfirewall reset #Reset firewall settings (Needed sometimes) you can disable this.
     netsh advfirewall set currentprofile state on
-    netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes #New
+    netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes
     netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes
+    Get-NetFirewallRule -DisplayGroup "File and Printer Sharing" | Enable-NetFirewallRule
+    Get-NetFirewallRule -DisplayGroup "Network Discovery" | Enable-NetFirewallRule
     Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Private
     Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Private
+    Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Domain
+    Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Domain
+    Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Public
+    Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Public
     Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Any
     Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Any
-    # Share registery values
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\NcdAutoSetup\Private' 'AutoSetup' '1' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0' 'NtlmMinClientSec' '0x20000000' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0' 'NtlmMinServerSec' '0x20000000' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'EnableAuthenticateUserSharing' '1' 'DWord'
+    # Make sure required protocols are enabled in the adapter (they should be by default)
+    Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "File and Printer Sharing for Microsoft Networks"}
+    Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "Client for Microsoft Networks"}
+    Remove-Item "C:\Windows\System32\GroupPolicyUsers" -Recurse -Force -EA SilentlyContinue | out-null
+    Remove-Item "C:\Windows\System32\GroupPolicy" -Recurse -Force -EA SilentlyContinue | out-null
+    gpupdate /force
+    (Get-ComputerInfo -Property CsWorkgroup).CsWorkgroup
+    Add-Computer -WorkGroupName "WORKGROUP" -EA SilentlyContinue | out-null
+    Set-SmbClientConfiguration -EnableInsecureGuestLogons:$true -Force -Confirm:$false
+    Set-SmbClientConfiguration -SkipCertificateCheck:$true -Force -Confirm:$false
+    Set-SmbClientConfiguration -EnableSecuritySignature:$true -Force -Confirm:$false
+    Set-SmbClientConfiguration -RequireSecuritySignature:$false -Force -Confirm:$false
+    Set-SmbClientConfiguration -ForceSMBEncryptionOverQuic:$false -Force -Confirm:$false
+    Set-SmbServerConfiguration -AutoShareServer:$true -Force -Confirm:$false
+    Set-SmbServerConfiguration -AutoShareWorkstation:$true -Force -Confirm:$false
+    Set-SmbServerConfiguration -EnableAuthenticateUserSharing:$true -Force -Confirm:$false
+    Set-SmbServerConfiguration -EnableForcedLogoff:$true -Force -Confirm:$false
+    Set-SmbServerConfiguration -EnableSecuritySignature:$true -Force -Confirm:$false
+    Set-SmbServerConfiguration -EnableSMB2Protocol:$true -Force -Confirm:$false
+    Set-SmbServerConfiguration -EncryptData:$false -Force -Confirm:$false
+    Set-SmbServerConfiguration -RejectUnencryptedAccess:$false -Force -Confirm:$false
+    Set-SmbServerConfiguration -RequireSecuritySignature:$false -Force -Confirm:$false
+    Set-SmbServerConfiguration -RestrictNamedpipeAccessViaQuic:$false -Force -Confirm:$false
+    Set-SmbServerConfiguration -RequireSecuritySignature:$false -Force -Confirm:$false
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\NcdAutoSetup\Private' 'AutoSetup' '1' 'DWord' #Setup network connected devices automatically
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0' 'NtlmMinClientSec' '0x20000000' 'DWord' #128
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0' 'NtlmMinServerSec' '0x20000000' 'DWord' #128
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'EnableAuthenticateUserSharing' '0' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'EnableSecuritySignature' '1' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'RequireSecuritySignature' '0' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'RestrictNullSessAccess' '0' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'RejectUnencryptedAccess' '0' 'DWord'
-    AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'SMB2' '1' 'DWORD'
-    AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'SMB3' '1' 'DWORD'
     AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'AutoShareWks' '1' 'DWORD'
     AddRegEntry "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" 'AutoShareServer' '1' 'DWORD'
     AddRegEntry 'HKLM:\System\CurrentControlSet\Services\LanManWorkstation\Parameters' 'EnableSecuritySignature' '1' 'DWord'
     AddRegEntry 'HKLM:\System\CurrentControlSet\Services\LanManWorkstation\Parameters' 'RequireSecuritySignature' '0' 'DWord'
-    AddRegEntry 'HKLM:\System\CurrentControlSet\Services\LanManWorkstation\Parameters' 'AllowInsecureGuestAuth' '1' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation' 'AllowInsecureGuestAuth' '1' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'fullprivilegeauditing' '1' 'DWord'
+    AddRegEntry 'HKLM:\System\CurrentControlSet\Services\LanManWorkstation\Parameters' 'AllowInsecureGuestAuth' '0' 'DWord'
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation' 'AllowInsecureGuestAuth' '0' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'LimitBlankPasswordUse' '0' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'disabledomaincreds' '0' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'everyoneincludesanonymous' '1' 'DWord'
@@ -865,19 +902,22 @@ Function Fix-Share
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'SamConnectedAccountsExist' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'LocalAccountTokenFilterPolicy' '1' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer' 'Start' '2' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\mrxsmb20' 'Start' '2' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation' 'Start' '2' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\fdPHost' 'Start' '2' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\SSDPSRV' 'Start' '2' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\upnphost' 'Start' '2' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\FDResPub' 'Start' '2' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\lmhosts' 'Start' '3' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\lmhosts' 'Start' '2' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\FDResPub' 'Start' '3' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'scforceoption' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device' 'DevicePasswordLessBuildVersion' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device' 'DevicePasswordLessUpdateType' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\Settings\AllowSignInOptions' 'value' '1' 'DWord'
-    # Somtimes User need to login using his password (not pin) at least one time
-    # Somtimes changing account form microsoft to local then back to microsoft can fix share issues
+    ipconfig /release
+    ipconfig /flushdns
+    ipconfig /renew
+    netsh int ip reset
+    netsh winsock reset
 }
 
 Function Tweak-schtasks
@@ -1164,6 +1204,7 @@ AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 
 AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoPreviewPane' '0' 'DWord'
 AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoLowDiskSpaceChecks' '1' 'DWord'
 AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Speech_OneCore\Preferences' 'ModelDownloadAllowed' '0' 'DWord'
+AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'fullprivilegeauditing' '0' 'DWord'
 }
 
 Function ShrinkC-MakeNew
@@ -1745,6 +1786,15 @@ $Arguments1= " --new-window --force-app-mode --app=https://web.whatsapp.com/"
 $s=(New-Object -COM WScript.Shell).CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\WhatsAppWeb.lnk")
 $s.TargetPath="$chrome";$s.Arguments=$Arguments1;$s.IconLocation="$Env:Programfiles\Google\Chrome\WhatsApp.ico";$s.Save()
 Pin-to-taskbar -IDorPath "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\WhatsAppWeb.lnk" -PinType "DesktopApplicationLinkPath"
+}
+
+Function Fix-MSWindows
+{
+    Write-Host -f C "`r`n======================================================================================================================"
+    Write-Host -f C "***************************** Fixing Windows *****************************"
+    Write-Host -f C "======================================================================================================================`r`n"
+    sfc /scannow
+    DISM /Online /Cleanup-Image /RestoreHealth
 }
 
 Function Clean-up
