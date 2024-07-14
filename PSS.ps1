@@ -18,6 +18,7 @@ Ins-arSAlang #Install Arabic-SA language
 Ins-enUSLang #Install en-US language
 Unins-enGBLang #remove en-GB language
 Tweak-Language
+Fix-Share #Fix Windows file sharing
 #Ins-LatestPowershell #Install Latest Stable Powershell
 Ins-Terminal #Install Windows Terminal
 Ins-DotNetRuntime #Install .Net Runtime All versions
@@ -48,7 +49,6 @@ Unins-OneDrive #Remove One Drive
 DeepTweaks
 Dis-BitLocker #Disable BitLocker
 #EnableSMB1Protocol-Client #Old legacy security threat sharing protocol
-Fix-Share #Fix Windows file sharing
 Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
 Registry-Tweaks #Applye Registry Tweaks
 D-ScanFolder #Create Drive D (If not found)& Create shared Scan folder in it
