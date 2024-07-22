@@ -197,6 +197,11 @@ Function InitializeCommands
     Set HTTP_PROXY=
     Set HTTPS_PROXY=
     # Set-PSRepository PSGallery -InstallationPolicy Trusted #causes nuget install to ask for confirmation
+    # Time Zone & Sync
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters' 'Type' 'NTP' 'String' # Autoupdate time
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location' 'Value' 'Allow' 'String' # Allow location
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\tzautoupdate' 'Start' '3' 'DWord' # Autoupdate timezone
+    w32tm /resync #Sync time now
 }
 
 Function MaxPowerPlan
