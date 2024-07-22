@@ -187,8 +187,8 @@ Function InitializeCommands
     Write-Host -f C "***************************** Initializing *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
     Set-ExecutionPolicy Bypass -Force -EA SilentlyContinue | out-null
-    $ErrorActionPreference = 'Continue'
-    $progressPreference = 'silentlyContinue'
+    $ErrorActionPreference = 'SilentlyContinue'
+    $progressPreference = 'SilentlyContinue'
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12, [Net.SecurityProtocolType]::Ssl3
     New-Item -Path "$env:TEMP\IA" -ItemType Directory -EA SilentlyContinue | out-null
@@ -358,13 +358,13 @@ Function Ins-Nuget
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Installing Nuget provider *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    $NuGetInstalled = Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction Ignore
+    $NuGetInstalled = Get-PackageProvider -Name NuGet -ListAvailable -EA silentlycontinue
     if (-not $NuGetInstalled) {
         Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -EA silentlycontinue | out-null
-        if (get-packageprovider -Name NuGet) {Write-Host -f C "Successfully Installed"}
+        if (get-packageprovider -Name NuGet -EA silentlycontinue) {Write-Host -f C "Successfully Installed"}
     }
     else {Write-Host -f C "Already Installed"}
-    Import-PackageProvider -Name NuGet -Force -EA silentlycontinue
+    Import-PackageProvider -Name NuGet -Force -EA silentlycontinue | out-null
     Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA silentlycontinue | out-null
 }
 
