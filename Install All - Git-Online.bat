@@ -58,5 +58,4 @@ REM ============================================================================
 Echo.&Echo All done!
 endlocal && TIMEOUT /t 1 >NUL
 start "" "cmd.exe" "/c TIMEOUT /t 2 >NUL & del /f /q "%temp%\R.bat"
-pause
 EXIT
