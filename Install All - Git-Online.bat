@@ -48,8 +48,8 @@ goto :exit
 REM ======================================================================================================================
 REM Get Admin privileges
 :GetAdmin
-@Echo off && SetLOCAL EnableDelayedExpansion && pushd %~dp0
-Set "params=%*" && cd /d "%~dp0" && (if exist "%temp%\getadmin.vbs" del "%temp%\getadmin.vbs") && fsutil dirty query %systemdrive% >nul 2>nul || (Echo Set UAC = CreateObject^("Shell.Application"^) : UAC.ShellExecute "cmd.exe", "/k cd /d ""%~sdp0"" && ""%~s0"" %params%", "", "runas", 1 >> "%temp%\getadmin.vbs" && "%temp%\getadmin.vbs" && exit)
+@Echo off & SetLOCAL EnableDelayedExpansion & pushd %~dp0 & Set "params=%*" & cd /d "%~dp0" & (if exist "%temp%\getadmin.vbs" del /f /q "%temp%\getadmin.vbs") & copy "%~f0" "%temp%\R.bat" /Y
+fsutil dirty query %systemdrive% >nul 2>nul || (Echo Set UAC = CreateObject^("Shell.Application"^) : UAC.ShellExecute "cmd.exe", "/k cd /d ""%temp%"" & ""R.bat"" %params%", "", "runas", 1 >> "%temp%\getadmin.vbs" & "%temp%\getadmin.vbs" & exit)
 title Installing All Essential Programs Online
 cls
 goto :eof
@@ -57,4 +57,6 @@ REM ============================================================================
 :exit
 Echo.&Echo All done!
 endlocal && TIMEOUT /t 1 >NUL
+start "" "cmd.exe" "/c TIMEOUT /t 2 >NUL & del /f /q "%temp%\R.bat"
+pause
 EXIT
