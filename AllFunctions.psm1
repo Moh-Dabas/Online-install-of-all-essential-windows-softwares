@@ -745,6 +745,7 @@ Function Move-OneDriveUserFolders
         Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
         Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
         Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
     }
     # Use %OneDrive% $env:OneDrive
     if ($env:OneDrive)
@@ -754,6 +755,7 @@ Function Move-OneDriveUserFolders
         Get-ChildItem -Path "$env:OneDrive\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDrive\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDrive\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDrive" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
     }
     # Use %OneDriveConsumer% $env:OneDriveConsumer
     if ($env:OneDriveConsumer)
@@ -763,6 +765,7 @@ Function Move-OneDriveUserFolders
         Get-ChildItem -Path "$env:OneDriveConsumer\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDriveConsumer\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDriveConsumer\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveConsumer" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
     }
     # Use %OneDriveCommercial% $env:OneDriveCommercial
     if ($env:OneDriveCommercial)
@@ -772,6 +775,7 @@ Function Move-OneDriveUserFolders
         Get-ChildItem -Path "$env:OneDriveCommercial\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDriveCommercial\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDriveCommercial\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveCommercial" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
     }
 }
 
