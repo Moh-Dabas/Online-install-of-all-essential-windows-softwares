@@ -788,6 +788,17 @@ Function Move-OneDriveUserFolders
         Get-ChildItem -Path "$OneDriveFolder\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
         Get-ChildItem -Path "$OneDriveFolder" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
     }
+    # Use registry Check
+    $OneDriveDesktop= Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' -Name 'Desktop' | select -ExpandProperty 'Desktop' | where-object {($_ -like "OneDrive*")}
+    if ($OneDriveDesktop) {if ($OneDriveDesktop -match "%") {$OneDriveDesktop='$env:' + $OneDriveDesktop.replace("%","")};Get-ChildItem -Path $OneDriveDesktop -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue}
+    $OneDriveDocuments= Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' -Name 'Personal' | select -ExpandProperty 'Personal' | where-object {($_ -like "OneDrive*")}
+    if ($OneDriveDocuments) {if ($OneDriveDocuments -match "%") {$OneDriveDocuments='$env:' + $OneDriveDocuments.replace("%","")};Get-ChildItem -Path $OneDriveDocuments -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue}
+    $OneDriveVideos= Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' -Name 'My Video' | select -ExpandProperty 'My Video' | where-object {($_ -like "OneDrive*")}
+    if ($OneDriveVideos) {if ($OneDriveVideos -match "%") {$OneDriveVideos='$env:' + $OneDriveVideos.replace("%","")};Get-ChildItem -Path $OneDriveVideos -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue}
+    $OneDriveMusic= Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' -Name 'My Music' | select -ExpandProperty 'My Music' | where-object {($_ -like "OneDrive*")}
+    if ($OneDriveMusic) {if ($OneDriveMusic -match "%") {$OneDriveMusic='$env:' + $OneDriveMusic.replace("%","")};Get-ChildItem -Path $OneDriveMusic -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue}
+    $OneDriveDownloads= Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' -Name '{374DE290-123F-4565-9164-39C4925E467B}' | select -ExpandProperty '{374DE290-123F-4565-9164-39C4925E467B}' | where-object {($_ -like "OneDrive*")}
+    if ($OneDriveDownloads) {if ($OneDriveDownloads -match "%") {$OneDriveDownloads='$env:' + $OneDriveDesktop.replace("%","")};Get-ChildItem -Path $OneDriveDownloads -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue}
     #Adjust the paths in registry
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'AppData' '%USERPROFILE%\AppData\Roaming' 'String'
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Cache' '%USERPROFILE%\AppData\Local\Microsoft\Windows\INetCache' 'String'
