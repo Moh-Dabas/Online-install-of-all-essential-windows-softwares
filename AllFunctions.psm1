@@ -731,22 +731,12 @@ Function Unins-Xbox
 Function Move-OneDriveUserFolders
 {
     Write-Host -f C "`r`n Moving One Drive folders to User Profile folders `r`n"
-    # Make sure USERPROFILE folders are not deleted
+    # Make sure USER PROFILE folders are not deleted
     if (!(Test-Path -Path "$env:USERPROFILE\Desktop" -ea SilentlyContinue)) {New-Item -Path "$env:USERPROFILE" -Name "Desktop" -ItemType Directory -ea SilentlyContinue | out-null}
     if (!(Test-Path -Path "$env:USERPROFILE\Documents" -ea SilentlyContinue)) {New-Item -Path "$env:USERPROFILE" -Name "Documents" -ItemType Directory -ea SilentlyContinue | out-null}
     if (!(Test-Path -Path "$env:USERPROFILE\Videos" -ea SilentlyContinue)) {New-Item -Path "$env:USERPROFILE" -Name "Videos" -ItemType Directory -ea SilentlyContinue | out-null}
     if (!(Test-Path -Path "$env:USERPROFILE\Music" -ea SilentlyContinue)) {New-Item -Path "$env:USERPROFILE" -Name "Music" -ItemType Directory -ea SilentlyContinue | out-null}
     if (!(Test-Path -Path "$env:USERPROFILE\Downloads" -ea SilentlyContinue)) {New-Item -Path "$env:USERPROFILE" -Name "Downloads" -ItemType Directory -ea SilentlyContinue | out-null}
-    # Direct OneDrive folder path at %USERPROFILE% $env:USERPROFILE
-    if (Test-Path -Path "$env:USERPROFILE\OneDrive" -ea SilentlyContinue)
-    {
-        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Desktop" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
-        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Documents" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
-        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
-        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
-        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
-        Get-ChildItem -Path "$env:USERPROFILE\OneDrive" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
-    }
     # Use %OneDrive% $env:OneDrive
     if ($env:OneDrive)
     {
@@ -777,6 +767,74 @@ Function Move-OneDriveUserFolders
         Get-ChildItem -Path "$env:OneDriveCommercial\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDriveCommercial" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
     }
+    # Use default OneDrive folder path at %USERPROFILE% $env:USERPROFILE
+    if (Test-Path -Path "$env:USERPROFILE\OneDrive" -ea SilentlyContinue)
+    {
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Desktop" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Documents" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
+    }
+    # Use any OneDrive folder in the $env:USERPROFILE
+    $OneDriveFolder=Get-ChildItem -Path "$env:USERPROFILE" -Directory -ea SilentlyContinue | where-object {($_.Name -like "OneDrive*")} | select -ExpandProperty Name
+    if ($OneDriveFolder)
+    {
+        Get-ChildItem -Path "$OneDriveFolder\Desktop" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+        Get-ChildItem -Path "$OneDriveFolder\Documents" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+        Get-ChildItem -Path "$OneDriveFolder\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+        Get-ChildItem -Path "$OneDriveFolder\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+        Get-ChildItem -Path "$OneDriveFolder\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+        Get-ChildItem -Path "$OneDriveFolder" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
+    }
+    #Adjust the paths in registry
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'AppData' '%USERPROFILE%\AppData\Roaming' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Cache' '%USERPROFILE%\AppData\Local\Microsoft\Windows\INetCache' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Cookies' '%USERPROFILE%\AppData\Local\Microsoft\Windows\INetCookies' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Favorites' '%USERPROFILE%\Favorites' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'History' '%USERPROFILE%\AppData\Local\Microsoft\Windows\History' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Local AppData' '%USERPROFILE%\AppData\Local' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'My Music' '%USERPROFILE%\Music' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'My Video' '%USERPROFILE%\Videos' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'NetHood' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Network Shortcuts' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'PrintHood' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Printer Shortcuts' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Programs' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Recent' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Recent' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'SendTo' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\SendTo' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Start Menu' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Startup' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Templates' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Templates' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' '{374DE290-123F-4565-9164-39C4925E467B}' '%USERPROFILE%\Downloads' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Desktop' '%USERPROFILE%\Desktop' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'My Pictures' '%USERPROFILE%\Pictures' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Personal' '%USERPROFILE%\Documents' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' '{F42EE2D3-909F-4907-8871-4C22FC0BF756}' '%USERPROFILE%\Documents' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' '{0DDD015D-B06C-45D5-8C4C-F59713854639}' '%USERPROFILE%\Pictures' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' '{A52BBA46-E9E1-435F-B3D9-28DAA648C0F6}' '%USERPROFILE%' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'AppData' '%USERPROFILE%\AppData\Roaming' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Cache' '%USERPROFILE%\AppData\Local\Microsoft\Windows\INetCache' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Cookies' '%USERPROFILE%\AppData\Local\Microsoft\Windows\INetCookies' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Favorites' '%USERPROFILE%\Favorites' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'History' '%USERPROFILE%\AppData\Local\Microsoft\Windows\History' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Local AppData' '%USERPROFILE%\AppData\Local' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'My Music' '%USERPROFILE%\Music' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'My Video' '%USERPROFILE%\Videos' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'NetHood' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Network Shortcuts' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'PrintHood' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Printer Shortcuts' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Programs' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Recent' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Recent' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'SendTo' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\SendTo' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Start Menu' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Startup' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Templates' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Templates' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' '{374DE290-123F-4565-9164-39C4925E467B}' '%USERPROFILE%\Downloads' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Desktop' '%USERPROFILE%\Desktop' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'My Pictures' '%USERPROFILE%\Pictures' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' 'Personal' '%USERPROFILE%\Documents' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' '{F42EE2D3-909F-4907-8871-4C22FC0BF756}' '%USERPROFILE%\Documents' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' '{0DDD015D-B06C-45D5-8C4C-F59713854639}' '%USERPROFILE%\Pictures' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' '{A52BBA46-E9E1-435F-B3D9-28DAA648C0F6}' '%USERPROFILE%' 'String'
 }
 
 Function Unins-OneDrive
@@ -784,33 +842,12 @@ Function Unins-OneDrive
     Write-Host -f C "`r`n*** Removing One Drive ***`r`n"
     # Kill running process onedrive
     Stop-Process -Force -Name OneDrive -ea SilentlyContinue | out-null
-    cmd /c '"taskkill /f /im OneDrive.exe" >nul 2>nul'
+    cmd /c 'taskkill /f /im OneDrive.exe >nul 2>nul'
+    winget uninstall OneDrive
+    (Find-WinGetPackage "OneDrive").Id | ForEach-Object {winget uninstall -e --id $_ --silent}
     Start-Process 'OneDriveSetup.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '/uninstall'
     Move-OneDriveUserFolders
     Get-ScheduledTask | Where-Object {$_.Taskname -match 'OneDrive'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'AppData' '%USERPROFILE%\AppData\Roaming' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Cache' '%USERPROFILE%\AppData\Local\Microsoft\Windows\INetCache' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Cookies' '%USERPROFILE%\AppData\Local\Microsoft\Windows\INetCookies' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Favorites' '%USERPROFILE%\Favorites' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'History' '%USERPROFILE%\AppData\Local\Microsoft\Windows\History' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Local AppData' '%USERPROFILE%\AppData\Local' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'My Music' '%USERPROFILE%\Music' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'My Video' '%USERPROFILE%\Videos' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'NetHood' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Network Shortcuts' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'PrintHood' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Printer Shortcuts' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Programs' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Recent' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Recent' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'SendTo' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\SendTo' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Start Menu' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Startup' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Templates' '%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Templates' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' '{374DE290-123F-4565-9164-39C4925E467B}' '%USERPROFILE%\Downloads' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Desktop' '%USERPROFILE%\Desktop' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'My Pictures' '%USERPROFILE%\Pictures' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Personal' '%USERPROFILE%\Documents' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' '{F42EE2D3-909F-4907-8871-4C22FC0BF756}' '%USERPROFILE%\Documents' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' '{0DDD015D-B06C-45D5-8C4C-F59713854639}' '%USERPROFILE%\Pictures' 'ExpandString'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' '{A52BBA46-E9E1-435F-B3D9-28DAA648C0F6}' '%USERPROFILE%' 'ExpandString'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive' 'DisableFileSyncNGSC' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\OneDrive' 'PreventNetworkTrafficPreUserSignIn' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive' 'KFMBlockOptIn' '1' 'DWord'
@@ -901,8 +938,8 @@ Function Fix-Share
     # Make sure required protocols are enabled in the adapter (they should be by default)
     Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "File and Printer Sharing for Microsoft Networks"}
     Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "Client for Microsoft Networks"}
-    Remove-Item "$env:HOMEDRIVE\Windows\System32\GroupPolicyUsers" -Recurse -Force -ea SilentlyContinue | out-null
-    Remove-Item "$env:HOMEDRIVE\Windows\System32\GroupPolicy" -Recurse -Force -ea SilentlyContinue | out-null
+    Remove-Item "$env:windir\System32\GroupPolicyUsers" -Recurse -Force -ea SilentlyContinue | out-null
+    Remove-Item "$env:windir\System32\GroupPolicy" -Recurse -Force -ea SilentlyContinue | out-null
     gpupdate /force
     (Get-ComputerInfo -Property CsWorkgroup).CsWorkgroup
     Add-Computer -WorkGroupName "WORKGROUP" -ea SilentlyContinue | out-null
@@ -1288,7 +1325,7 @@ Function D-ScanFolder
         Remove-SmbShare -Name "Scans" -Confirm:$False -Force -ea silentlycontinue | out-null
         if (!([System.IO.Directory]::Exists("\\localhost\Scans"))) {New-SmbShare -Name "Scans" -Path "D:\Scans" -FullAccess "Everyone" -ea SilentlyContinue | out-null}
         else {Grant-SmbShareAccess -Name "Scans" -AccountName "Everyone" -AccessRight Full -Force -ea SilentlyContinue | out-null}
-        $s=(New-Object -COM WScript.Shell).CreateShortcut("$($env:USERPROFILE)\Desktop\Scans.lnk");$s.TargetPath="D:\Scans\";$s.Save()
+        $s=(New-Object -COM WScript.Shell).CreateShortcut("$env:PUBLIC\Desktop\Scans.lnk");$s.TargetPath="D:\Scans\";$s.Save()
     }
     Remove-SmbShare -Name "Users" -Confirm:$False -Force -ErrorAction silentlycontinue | out-null
 }
