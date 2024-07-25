@@ -868,7 +868,7 @@ Function Fix-Share
     Del-WinDomainCred #Delete windows Domain credintials (sometimes it's stuck). Maped drives and saved shared folders credintials will be affected
     if ((Get-SmbServerConfiguration).EnableSMB2Protocol -ne $true) {Set-SmbServerConfiguration -EnableSMB2Protocol $true}
     (get-netconnectionprofile).Name | foreach {set-netconnectionprofile -name $_ -NetworkCategory private} #Make currently connected networks private
-    (New-Object -ComObject HNetCfg.FwPolicy2).RestoreLocalFirewallDefaults(); netsh advfirewall reset #Reset firewall settings (Needed sometimes) you can disable this.
+    #(New-Object -ComObject HNetCfg.FwPolicy2).RestoreLocalFirewallDefaults(); netsh advfirewall reset #Reset firewall settings (Needed sometimes) you can disable this.
     netsh advfirewall set currentprofile state on
     netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes
     netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes
