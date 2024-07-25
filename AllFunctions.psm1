@@ -80,12 +80,12 @@ Function RmAppx
     $PartName = '*' + $PartName + '*'
     try
     {
-        Get-AppxPackage -AllUsers | where-object{$_.name -like $PartName} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers -EA Ignore}
+        Get-AppxPackage -AllUsers | where-object{$_.name -like $PartName} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers -ea Ignore}
     }
     catch {Write-Host -f C "Appx Package " + $PartName + "  remove failed"}
     try
     {
-        if ($RmProv -ne "false") {Get-appxprovisionedpackage -online | where-object {$_.packagename -like $PartName} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -EA Ignore}}
+        if ($RmProv -ne "false") {Get-appxprovisionedpackage -online | where-object {$_.packagename -like $PartName} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -ea Ignore}}
     }
     catch {Write-Host -f C "Appx provisioned package " + $PartName + "  remove failed"}
 }
@@ -186,12 +186,12 @@ Function InitializeCommands
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Initializing *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    Set-ExecutionPolicy Bypass -Force -EA SilentlyContinue | out-null
+    Set-ExecutionPolicy Bypass -Force -ea SilentlyContinue | out-null
     $ErrorActionPreference = 'SilentlyContinue'
     $progressPreference = 'SilentlyContinue'
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12, [Net.SecurityProtocolType]::Ssl3
-    New-Item -Path "$env:TEMP\IA" -ItemType Directory -EA SilentlyContinue | out-null
+    New-Item -Path "$env:TEMP\IA" -ItemType Directory -ea SilentlyContinue | out-null
     $CurFolder = Split-Path -Path $PSCommandPath -Parent
     Write-Host -f C "`r`n*** Disabling proxies ***`r`n"
     Set HTTP_PROXY=
@@ -363,14 +363,14 @@ Function Ins-Nuget
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Installing Nuget provider *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    $NuGetInstalled = Get-PackageProvider -Name NuGet -ListAvailable -EA silentlycontinue
+    $NuGetInstalled = Get-PackageProvider -Name NuGet -ListAvailable -ea silentlycontinue
     if (-not $NuGetInstalled) {
-        Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -EA silentlycontinue | out-null
-        if (get-packageprovider -Name NuGet -EA silentlycontinue) {Write-Host -f C "Successfully Installed"}
+        Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -ea silentlycontinue | out-null
+        if (get-packageprovider -Name NuGet -ea silentlycontinue) {Write-Host -f C "Successfully Installed"}
     }
     else {Write-Host -f C "Already Installed"}
-    Import-PackageProvider -Name NuGet -Force -EA silentlycontinue | out-null
-    Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA silentlycontinue | out-null
+    Import-PackageProvider -Name NuGet -Force -ea silentlycontinue | out-null
+    Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null
 }
 
 Function Ins-Choco
@@ -378,7 +378,7 @@ Function Ins-Choco
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Installing Chocolatey *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    try {$ChocoInstalled = Get-Command -Name choco -EA silentlycontinue} catch {}
+    try {$ChocoInstalled = Get-Command -Name choco -ea silentlycontinue} catch {}
     if ($ChocoInstalled) {write-host "Choco is already installed"}
     else {
         iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
@@ -393,9 +393,9 @@ Function Ins-Choco
 
 Function Ins-Scoop-git
 {
-    try {$scoopInstalled = Get-Command -Name scoop -EA silentlycontinue} catch {}
+    try {$scoopInstalled = Get-Command -Name scoop -ea silentlycontinue} catch {}
     if ($scoopInstalled) {write-host "scoop is already installed"} else {write-host "Installing scoop";iex "& {$(irm get.scoop.sh)} -RunAsAdmin"}
-    try {$gitInstalled = Get-Command -Name git -EA silentlycontinue} catch {}
+    try {$gitInstalled = Get-Command -Name git -ea silentlycontinue} catch {}
     if ($gitInstalled) {write-host "git is already installed`r`nTrying to update git";scoop update git} else {write-host "Installing git";scoop install git}
     if (Get-Command -Name scoop) {write-host "Trying to update scoop";scoop update}
 }
@@ -404,8 +404,8 @@ Function Ins-winget-ps
 {
     Ins-Scoop-git
     if ((scoop list winget-ps).Name -eq "winget-ps") {write-host "winget-ps is already installed`r`nTrying to update winget-ps";scoop update winget-ps} else {write-host "Installing winget-ps";scoop install winget-ps}
-    Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA silentlycontinue | out-null
-    Import-Module Microsoft.WinGet.Client -Force -EA silentlycontinue
+    Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null
+    Import-Module Microsoft.WinGet.Client -Force -ea silentlycontinue
 }
 
 Function Install-Winget
@@ -413,25 +413,25 @@ Function Install-Winget
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Installing Winget and its dependencies & scoop & git *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    New-Item -Path "$env:TEMP\IA\Winget" -ItemType Directory -EA SilentlyContinue | out-null
+    New-Item -Path "$env:TEMP\IA\Winget" -ItemType Directory -ea SilentlyContinue | out-null
     $VCLibsVersion = Get-AppxPackage -Name Microsoft.VCLibs* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
     if ([int]$VCLibsVersion -lt 14)
     {
-        Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -EA SilentlyContinue | out-null
-        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -EA SilentlyContinue | out-null
+        Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null
+        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null
     }
     else {Write-Host -f C "VCLibs already installed"}
     $UIXamlVersion = Get-AppxPackage -Name Microsoft.UI.Xaml* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
     if ([int]$UIXamlVersion -lt 8)
     {
-        Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -EA SilentlyContinue | out-null
-        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -EA SilentlyContinue | out-null
+        Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
+        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
     }
     else {Write-Host -f C "UI Xaml already installed"}
     if (!(Test-Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe))
     {
-        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -EA SilentlyContinue | out-null
-        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -EA SilentlyContinue | out-null
+        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
+        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
     }
     else {Write-Host -f C "winget already installed"}
     Ins-winget-ps
@@ -464,9 +464,9 @@ Function Unins-enGBLang
 {
     Write-Host -f C "`r`n*** Removing English-GB language ***`r`n"
     Uninstall-Language -Language en-GB;lpksetup.exe /u en-GB /s /r
-    Remove-Item -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Control\ContentIndex\Language\English_UK"  -Recurse -force -EA SilentlyContinue | out-null
-    Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile\en-GB"  -Recurse -force -EA SilentlyContinue | out-null
-    Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile System Backup\en-GB"  -Recurse -force -EA SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Control\ContentIndex\Language\English_UK"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile\en-GB"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile System Backup\en-GB"  -Recurse -force -ea SilentlyContinue | out-null
 }
 
 Function Tweak-Language
@@ -551,15 +551,15 @@ Function Ins-Chrome
     winget install -e --id 'Google.Chrome' --silent --accept-source-agreements --accept-package-agreements
     if (choco list --lo -r -e googlechrome) {Choco upgrade googlechrome --ignore-checksums} else {Choco install googlechrome}
     # remove logon chrome
-    Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{8A69D345-D564-463c-AFF1-A69D9E530F96}"  -Recurse -force -EA SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{8A69D345-D564-463c-AFF1-A69D9E530F96}"  -Recurse -force -ea SilentlyContinue | out-null
     # disable chrome services
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\GoogleChromeElevationService' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\gupdate' 'Start' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\gupdatem' 'Start' '4' 'DWord'
     # remove chrome tasks
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineCore'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdaterTaskSystem'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineCore'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdaterTaskSystem'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
 }
 
 Function Tweak-Edge
@@ -571,16 +571,16 @@ Function Tweak-Edge
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main' 'AllowPrelaunch' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer\Storage\microsoft.microsoftedge_8wekyb3d8bbwe\MicrosoftEdge\PhishingFilter' 'EnabledV9' '0' 'DWord'
     # remove logon edge
-    Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{9459C573-B17A-45AE-9F64-1857B5D58CEE}"  -Recurse -force -EA SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{9459C573-B17A-45AE-9F64-1857B5D58CEE}"  -Recurse -force -ea SilentlyContinue | out-null
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\TabPreloader' 'AllowTabPreloading' '0' 'DWord'
     # disable edge services
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\MicrosoftEdgeElevationService' 'Start' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\edgeupdate' 'Start' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\edgeupdatem' 'Start' '4' 'DWord'
     # remove edge tasks
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateTaskMachineCore'} | Unregister-ScheduledTask -Confirm:$false -EA silentlycontinue | out-null
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -EA silentlycontinue | out-null
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateBrowserReplacementTask'} | Unregister-ScheduledTask -Confirm:$false -EA silentlycontinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateTaskMachineCore'} | Unregister-ScheduledTask -Confirm:$false -ea silentlycontinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -ea silentlycontinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateBrowserReplacementTask'} | Unregister-ScheduledTask -Confirm:$false -ea silentlycontinue | out-null
 }
 
 Function Ins-Acrobat
@@ -653,12 +653,12 @@ Function Ins-DirectX
 Function Windows-Update
 {
     Write-Host -f C "`r`n*** Starting Windows Updates ***`r`n"
-    Start-Service -Name "wuauserv" -EA silentlycontinue | out-null
-    Start-Service -Name "UsoSvc" -EA silentlycontinue | out-null
-    Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA silentlycontinue | out-null
-    Import-Module PSWindowsUpdate -Force -EA silentlycontinue
-    Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -EA silentlycontinue | out-null}
-    Get-WindowsUpdate -Install -ForceInstall -WithHidden -AcceptAll -IgnoreReboot -Silent -EA silentlycontinue
+    Start-Service -Name "wuauserv" -ea silentlycontinue | out-null
+    Start-Service -Name "UsoSvc" -ea silentlycontinue | out-null
+    Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null
+    Import-Module PSWindowsUpdate -Force -ea silentlycontinue
+    Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -ea silentlycontinue | out-null}
+    Get-WindowsUpdate -Install -ForceInstall -WithHidden -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
     (New-Object -ComObject Microsoft.Update.AutoUpdate).DetectNow()
     usoclient ScanInstallWait
     UsoClient RefreshSettings
@@ -671,9 +671,9 @@ Function Windows-Update
 Function Unins-MSTeams
 {
     Write-Host -f C "`r`n*** Uninstalling Microsoft Teams ***`r`n"
-    Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA silentlycontinue | out-null
-    Import-Module UninstallTeams -Force -EA silentlycontinue | out-null
-    Install-Script UninstallTeams -Confirm:$False -Force -EA silentlycontinue | out-null
+    Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null
+    Import-Module UninstallTeams -Force -ea silentlycontinue | out-null
+    Install-Script UninstallTeams -Confirm:$False -Force -ea silentlycontinue | out-null
     UninstallTeams -DisableChatWidget -AllUsers
     UninstallTeams -DisableOfficeTeamsInstall
     UninstallTeams
@@ -712,12 +712,12 @@ Function Unins-Xbox
     Write-Host -f C "`r`n*** Uninstalling Xbox & Game Bar ***`r`n"
     RmAppx 'Xbox'
     AddRegEntry "HKLM:\System\CurrentControlSet\Services\xbgm" "Start" '4' 'DWORD'
-    Set-Service -Name XblAuthManager -StartupType Disabled -EA silentlycontinue | out-null
-    Set-Service -Name XblGameSave -StartupType Disabled -EA silentlycontinue | out-null
-    Set-Service -Name XboxGipSvc -StartupType Disabled -EA silentlycontinue | out-null
-    Set-Service -Name XboxNetApiSvc -StartupType Disabled -EA silentlycontinue | out-null
+    Set-Service -Name XblAuthManager -StartupType Disabled -ea silentlycontinue | out-null
+    Set-Service -Name XblGameSave -StartupType Disabled -ea silentlycontinue | out-null
+    Set-Service -Name XboxGipSvc -StartupType Disabled -ea silentlycontinue | out-null
+    Set-Service -Name XboxNetApiSvc -StartupType Disabled -ea silentlycontinue | out-null
     # Disabling scheduled tasks
-    Get-ScheduledTask -TaskName 'XblGameSaveTask' | Disable-ScheduledTask -EA silentlycontinue | out-null
+    Get-ScheduledTask -TaskName 'XblGameSaveTask' | Disable-ScheduledTask -ea silentlycontinue | out-null
     #  Disable Game DVR
     AddRegEntry 'HKCU:\System\GameConfigStore' 'GameDVR_Enabled' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\ApplicationManagement\AllowGameDVR' 'value' '0' 'DWord'
@@ -728,35 +728,50 @@ Function Unins-Xbox
     AddRegEntry 'HKCU:\Software\Microsoft\GameBar' 'AutoGameModeEnabled' '0' 'DWord'
 }
 
+Function Move-OneDriveUserFolders
+{
+    Write-Host -f C "`r`n Moving One Drive folders to User Profile folders `r`n"
+    # Make sure USERPROFILE folders are not deleted
+    if (!(Test-Path -Path "$env:USERPROFILE\Desktop")) {New-Item -Path "$env:USERPROFILE" -Name "Desktop" -ItemType Directory -ea SilentlyContinue | out-null}
+    if (!(Test-Path -Path "$env:USERPROFILE\Documents")) {New-Item -Path "$env:USERPROFILE" -Name "Documents" -ItemType Directory -ea SilentlyContinue | out-null}
+    if (!(Test-Path -Path "$env:USERPROFILE\Videos")) {New-Item -Path "$env:USERPROFILE" -Name "Videos" -ItemType Directory -ea SilentlyContinue | out-null}
+    if (!(Test-Path -Path "$env:USERPROFILE\Music")) {New-Item -Path "$env:USERPROFILE" -Name "Music" -ItemType Directory -ea SilentlyContinue | out-null}
+    if (!(Test-Path -Path "$env:USERPROFILE\Downloads")) {New-Item -Path "$env:USERPROFILE" -Name "Downloads" -ItemType Directory -ea SilentlyContinue | out-null}
+    # Direct OneDrive folder path at %USERPROFILE% $env:USERPROFILE
+    Move-Item -Path "$env:USERPROFILE\OneDrive\Desktop" -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+    Move-Item -Path "$env:USERPROFILE\OneDrive\Documents" -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+    Move-Item -Path "$env:USERPROFILE\OneDrive\Videos" -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+    Move-Item -Path "$env:USERPROFILE\OneDrive\Music" -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+    Move-Item -Path "$env:USERPROFILE\OneDrive\Downloads"-Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    # Use %OneDrive% $env:OneDrive
+    Move-Item -Path "$env:OneDrive\Desktop" -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDrive\Documents" -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDrive\Videos" -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDrive\Music" -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDrive\Downloads" -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    # Use %OneDriveConsumer% $env:OneDriveConsumer
+    Move-Item -Path "$env:OneDriveConsumer\Desktop" -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDriveConsumer\Documents" -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDriveConsumer\Videos" -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDriveConsumer\Music" -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDriveConsumer\Downloads" -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    # Use %OneDriveCommercial% $env:OneDriveCommercial
+    Move-Item -Path "$env:OneDriveCommercial\Desktop" -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDriveCommercial\Documents" -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDriveCommercial\Videos" -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDriveCommercial\Music" -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+    Move-Item -Path "$env:OneDriveCommercial\Downloads" -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+}
+
 Function Unins-OneDrive
 {
     Write-Host -f C "`r`n*** Removing One Drive ***`r`n"
     # Kill running process onedrive
-    Stop-Process -Force -Name OneDrive -EA SilentlyContinue | out-null
+    Stop-Process -Force -Name OneDrive -ea SilentlyContinue | out-null
     cmd /c '"taskkill /f /im OneDrive.exe" >nul 2>nul'
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'OneDrive'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
-    cmd /c '"%SystemRoot%\System32\OneDriveSetup.exe /uninstall" >nul 2>nul'
-    cmd /c '"%SystemRoot%\SysWOW64\OneDriveSetup.exe /uninstall" >nul 2>nul'
-    cmd /c 'Move /y "%OneDrive%\Desktop" "%USERPROFILE%\Desktop" >nul 2>nul'
-    cmd /c 'Move /y "%OneDrive%\Documents" "%USERPROFILE%\Documents" >nul 2>nul'
-    cmd /c 'Move /y "%OneDrive%\Videos" "%USERPROFILE%\Videos" >nul 2>nul'
-    cmd /c 'Move /y "%OneDrive%\Music" "%USERPROFILE%\Music" >nul 2>nul'
-    cmd /c 'Move /y "%OneDrive%\Downloads" "%USERPROFILE%\Downloads" >nul 2>nul'
-    cmd /c 'Move /y "%OneDriveConsumer%\Desktop" "%USERPROFILE%\Desktop" >nul 2>nul'
-    cmd /c 'Move /y "%OneDriveConsumer%\Documents" "%USERPROFILE%\Documents" >nul 2>nul'
-    cmd /c 'Move /y "%OneDriveConsumer%\Videos" "%USERPROFILE%\Videos" >nul 2>nul'
-    cmd /c 'Move /y "%OneDriveConsumer%\Music" "%USERPROFILE%\Music" >nul 2>nul'
-    cmd /c 'Move /y "%OneDriveConsumer%\Downloads" "%USERPROFILE%\Downloads" >nul 2>nul'
-    cmd /c 'Move /y "%OneDriveCommercial%\Desktop" "%USERPROFILE%\Desktop" >nul 2>nul'
-    cmd /c 'Move /y "%OneDriveCommercial%\Documents" "%USERPROFILE%\Documents" >nul 2>nul'
-    cmd /c 'Move /y "%OneDriveCommercial%\Videos" "%USERPROFILE%\Videos" >nul 2>nul'
-    cmd /c 'Move /y "%OneDriveCommercial%\Music" "%USERPROFILE%\Music" >nul 2>nul'
-    cmd /c 'Move /y "%OneDriveCommercial%\Downloads" "%USERPROFILE%\Downloads" >nul 2>nul'
-    cmd /c 'rd "C:\OneDriveTemp" /Q /S >nul 2>nul'
-    cmd /c 'rd "%LOCALAPPDATA%\Microsoft\OneDrive" /Q /S >nul 2>nul'
-    cmd /c 'rd "%PROGRAMDATA%\Microsoft OneDrive" /Q /S >nul 2>nul'
-    cmd /c 'REG Delete "HKEY_CLASSES_ROOT\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f >nul 2>nul'
-    cmd /c 'REG Delete "HKEY_CLASSES_ROOT\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f >nul 2>nul'
+    Start-Process 'OneDriveSetup.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '/uninstall'
+    Move-OneDriveUserFolders
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'OneDrive'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'AppData' '%USERPROFILE%\AppData\Roaming' 'ExpandString'
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Cache' '%USERPROFILE%\AppData\Local\Microsoft\Windows\INetCache' 'ExpandString'
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' 'Cookies' '%USERPROFILE%\AppData\Local\Microsoft\Windows\INetCookies' 'ExpandString'
@@ -783,6 +798,12 @@ Function Unins-OneDrive
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive' 'DisableFileSyncNGSC' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\OneDrive' 'PreventNetworkTrafficPreUserSignIn' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive' 'KFMBlockOptIn' '1' 'DWord'
+    # Clean Remaining
+    Remove-Item -LiteralPath "$env:LOCALAPPDATA\Microsoft\OneDrive" -Force -Recurse -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "$env:PROGRAMDATA\Microsoft\OneDrive" -Force -Recurse -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "$env:HOMEDRIVE\OneDriveTemp" -Force -Recurse -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKEY_CLASSES_ROOT:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKEY_CLASSES_ROOT:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"  -Recurse -force -ea SilentlyContinue | out-null
 }
 
 Function DeepTweaks
@@ -801,9 +822,9 @@ Function DeepTweaks
 Function Dis-BitLocker
 {
     Write-Host -f C "`r`n*** Disabling BitLocker ***`r`n"
-    Get-BitLockerVolume | foreach {manage-bde -unlock $_.MountPoint -recoverypassword (Get-BitLockerVolume -MountPoint $_.MountPoint).KeyProtector.RecoveryPassword -EA SilentlyContinue} | out-null
-    Clear-BitLockerAutoUnlock -EA SilentlyContinue | out-null
-    Get-BitLockerVolume | foreach {Disable-BitLocker -MountPoint $_.MountPoint -EA SilentlyContinue} | out-null
+    Get-BitLockerVolume | foreach {manage-bde -unlock $_.MountPoint -recoverypassword (Get-BitLockerVolume -MountPoint $_.MountPoint).KeyProtector.RecoveryPassword -ea SilentlyContinue} | out-null
+    Clear-BitLockerAutoUnlock -ea SilentlyContinue | out-null
+    Get-BitLockerVolume | foreach {Disable-BitLocker -MountPoint $_.MountPoint -ea SilentlyContinue} | out-null
     Get-BitLockerVolume | foreach {manage-bde -off $_.MountPoint} | out-null
 }
 
@@ -864,11 +885,11 @@ Function Fix-Share
     # Make sure required protocols are enabled in the adapter (they should be by default)
     Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "File and Printer Sharing for Microsoft Networks"}
     Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "Client for Microsoft Networks"}
-    Remove-Item "C:\Windows\System32\GroupPolicyUsers" -Recurse -Force -EA SilentlyContinue | out-null
-    Remove-Item "C:\Windows\System32\GroupPolicy" -Recurse -Force -EA SilentlyContinue | out-null
+    Remove-Item "$env:HOMEDRIVE\Windows\System32\GroupPolicyUsers" -Recurse -Force -ea SilentlyContinue | out-null
+    Remove-Item "$env:HOMEDRIVE\Windows\System32\GroupPolicy" -Recurse -Force -ea SilentlyContinue | out-null
     gpupdate /force
     (Get-ComputerInfo -Property CsWorkgroup).CsWorkgroup
-    Add-Computer -WorkGroupName "WORKGROUP" -EA SilentlyContinue | out-null
+    Add-Computer -WorkGroupName "WORKGROUP" -ea SilentlyContinue | out-null
     Set-SmbClientConfiguration -EnableInsecureGuestLogons:$true -Force -Confirm:$false
     Set-SmbClientConfiguration -SkipCertificateCheck:$true -Force -Confirm:$false
     Set-SmbClientConfiguration -EnableSecuritySignature:$true -Force -Confirm:$false
@@ -928,10 +949,10 @@ Function Fix-Share
 Function Tweak-schtasks
 {
     Write-Host -f C "Disabling scheduled tasks that are considered unnecessary"
-    Get-ScheduledTask -TaskName 'Consolidator' | Disable-ScheduledTask -EA SilentlyContinue | out-null
-    Get-ScheduledTask -TaskName 'UsbCeip' | Disable-ScheduledTask -EA SilentlyContinue | out-null
-    Get-ScheduledTask -TaskName 'DmClient' | Disable-ScheduledTask -EA SilentlyContinue | out-null
-    Get-ScheduledTask -TaskName 'DmClientOnScenarioDownload' | Disable-ScheduledTask -EA SilentlyContinue | out-null
+    Get-ScheduledTask -TaskName 'Consolidator' | Disable-ScheduledTask -ea SilentlyContinue | out-null
+    Get-ScheduledTask -TaskName 'UsbCeip' | Disable-ScheduledTask -ea SilentlyContinue | out-null
+    Get-ScheduledTask -TaskName 'DmClient' | Disable-ScheduledTask -ea SilentlyContinue | out-null
+    Get-ScheduledTask -TaskName 'DmClientOnScenarioDownload' | Disable-ScheduledTask -ea SilentlyContinue | out-null
 }
 
 Function Registry-Tweaks
@@ -956,8 +977,8 @@ Function Registry-Tweaks
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' 'NoLockScreen' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'DisableAcrylicBackgroundOnLogon' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'DisableLogonBackgroundImage' '0' 'DWord'
-    Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticecaption' -force -EA SilentlyContinue | out-null
-    Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticetext' -force -EA SilentlyContinue | out-null
+    Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticecaption' -force -ea SilentlyContinue | out-null
+    Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticetext' -force -ea SilentlyContinue | out-null
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'dontdisplaylastusername' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'shutdownwithoutlogon' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'undockwithoutlogon' '1' 'DWord'
@@ -971,8 +992,8 @@ Function Registry-Tweaks
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lock Screen' 'SlideshowDuration' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\AccessPage\Camera' 'CameraEnabled' '0' 'DWord'
     # Blocked Downloaded Files
-    Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments"  -Recurse -force -EA SilentlyContinue | out-null
-    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments"  -Recurse -force -EA SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments"  -Recurse -force -ea SilentlyContinue | out-null
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments' 'SaveZoneInformation' '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments' 'SaveZoneInformation' '1' 'DWord'
     AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations' 'DefaultFileTypeRisk' '24914' 'DWord'
@@ -992,7 +1013,7 @@ Function Registry-Tweaks
     #  Telemetry & Track & Feedback
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'AllowTelemetry' '0' 'DWord'
     AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' 'NumberOfSIUFInPeriod' '0' 'DWord'
-    Remove-ItemProperty -LiteralPath 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' -Name 'PeriodInNanoSeconds' -force -EA SilentlyContinue | out-null
+    Remove-ItemProperty -LiteralPath 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' -Name 'PeriodInNanoSeconds' -force -ea SilentlyContinue | out-null
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\System' 'AllowCommercialDataPipeline' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\System' 'FeedbackHubAlwaysSaveDiagnosticsLocally' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\System' 'LimitEnhancedDiagnosticDataWindowsAnalytics' '1' 'DWord'
@@ -1070,10 +1091,10 @@ Function Registry-Tweaks
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\CommonGlobUserSettings\Control Panel\International' 'iPaperSize' '9' 'String'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers' 'KMPrintersAreBlocked' '0' 'DWord'
     # Startup & performance
-    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -EA SilentlyContinue | out-null
-    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunNotification"  -Recurse -force -EA SilentlyContinue | out-null
-    Remove-Item -LiteralPath "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -EA SilentlyContinue | out-null
-    Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -EA SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunNotification"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LicenseManager' 'Start' '3' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ssh-agent' 'Start' '3' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HPAppHelperCap' 'Start' '3' 'DWord'
@@ -1219,16 +1240,16 @@ Function ShrinkC-MakeNew
     [Parameter(Mandatory=$true, Position=0)]
     [string]$DriveLetter
     )
-    if (Get-Volume -DriveLetter $DriveLetter -EA SilentlyContinue) {Write-Host -f C "Partition $DriveLetter already exist";return}
+    if (Get-Volume -DriveLetter $DriveLetter -ea SilentlyContinue) {Write-Host -f C "Partition $DriveLetter already exist";return}
     $CSizeMax = (Get-PartitionSupportedSize -DriveLetter C).SizeMax
     $CSizeMin = (Get-PartitionSupportedSize -DriveLetter C).SizeMin
     $CShrink = ($CSizeMax - $CSizeMin)/1000000000 #Shrinkable amount in GB
     if ($CShrink -gt 70)
     {
-        Resize-Partition -DriveLetter C -Size ($CSizeMax - 50GB) -EA SilentlyContinue | out-null
+        Resize-Partition -DriveLetter C -Size ($CSizeMax - 50GB) -ea SilentlyContinue | out-null
         $CDiskNumber = (Get-Volume | where DriveLetter -eq "C" | Get-Partition | Get-Disk).Number
-        New-Partition -DiskNumber $CDiskNumber -UseMaximumSize -DriveLetter $DriveLetter -EA SilentlyContinue | out-null
-        Format-Volume -DriveLetter $DriveLetter -FileSystem NTFS -Force -EA SilentlyContinue | out-null
+        New-Partition -DiskNumber $CDiskNumber -UseMaximumSize -DriveLetter $DriveLetter -ea SilentlyContinue | out-null
+        Format-Volume -DriveLetter $DriveLetter -FileSystem NTFS -Force -ea SilentlyContinue | out-null
     }
     else {Write-Host -f C "Not Enough shrinkable Space on Partition C"}
 }
@@ -1247,10 +1268,10 @@ Function D-ScanFolder
     }
     if ((Get-Volume -DriveLetter D).DriveType -eq "Fixed")
     {
-        if (!(Test-Path -Path "D:\Scans")) {New-Item -Path "D:\" -Name "Scans" -ItemType Directory -EA SilentlyContinue | out-null}
-        Remove-SmbShare -Name "Scans" -Confirm:$False -Force -EA silentlycontinue | out-null
-        if (!([System.IO.Directory]::Exists("\\localhost\Scans"))) {New-SmbShare -Name "Scans" -Path "D:\Scans" -FullAccess "Everyone" -EA SilentlyContinue | out-null}
-        else {Grant-SmbShareAccess -Name "Scans" -AccountName "Everyone" -AccessRight Full -Force -EA SilentlyContinue | out-null}
+        if (!(Test-Path -Path "D:\Scans")) {New-Item -Path "D:\" -Name "Scans" -ItemType Directory -ea SilentlyContinue | out-null}
+        Remove-SmbShare -Name "Scans" -Confirm:$False -Force -ea silentlycontinue | out-null
+        if (!([System.IO.Directory]::Exists("\\localhost\Scans"))) {New-SmbShare -Name "Scans" -Path "D:\Scans" -FullAccess "Everyone" -ea SilentlyContinue | out-null}
+        else {Grant-SmbShareAccess -Name "Scans" -AccountName "Everyone" -AccessRight Full -Force -ea SilentlyContinue | out-null}
         $s=(New-Object -COM WScript.Shell).CreateShortcut("$($env:USERPROFILE)\Desktop\Scans.lnk");$s.TargetPath="D:\Scans\";$s.Save()
     }
     Remove-SmbShare -Name "Users" -Confirm:$False -Force -ErrorAction silentlycontinue | out-null
@@ -1522,7 +1543,7 @@ $HostsFile =
 127.0.0.1 secure.asap-utilities.com
 127.0.0.1 server2.asap-utilities.com
 "@
-Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Force -EA SilentlyContinue | out-null
+Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Force -ea SilentlyContinue | out-null
 }
 
 Function uninsSara-Office
@@ -1531,12 +1552,12 @@ Function uninsSara-Office
     # Remove MS Store Office 365
     RmAppx "Microsoft.Office.Desktop"
     # Run SaraCMD non-interactive Script
-    New-Item -Path "$env:TEMP\IA\office" -ItemType Directory -EA SilentlyContinue | out-null
+    New-Item -Path "$env:TEMP\IA\office" -ItemType Directory -ea SilentlyContinue | out-null
     Invoke-WebRequest -Uri "https://aka.ms/SaRAEnterpriseHelper" -OutFile "$env:TEMP\IA\office\ExecuteSaraCmd.zip"
-    Expand-Archive -LiteralPath "$env:TEMP\IA\office\ExecuteSaraCmd.zip" -DestinationPath "$env:TEMP\IA\office" -Force -EA SilentlyContinue | out-null
+    Expand-Archive -LiteralPath "$env:TEMP\IA\office\ExecuteSaraCmd.zip" -DestinationPath "$env:TEMP\IA\office" -Force -ea SilentlyContinue | out-null
     $SNIfile = "$env:TEMP\IA\office\ExecuteSaraCmd.ps1"
     $find = '$SaraScenarioArgument = ""';$replace = '$SaraScenarioArgument = "-S OfficeScrubScenario -Script -AcceptEula -OfficeVersion All"'
-    (Get-Content $SNIfile).replace($find, $replace) | Set-Content -Path $SNIfile -Force -EA SilentlyContinue | out-null
+    (Get-Content $SNIfile).replace($find, $replace) | Set-Content -Path $SNIfile -Force -ea SilentlyContinue | out-null
     & "$SNIfile"
 }
 
@@ -1645,16 +1666,16 @@ $ConfigurationFile =
 </Configuration>
 "@
 Write-Host -f C "Downloading & extracting Office Deployment Tool"
-Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -EA SilentlyContinue | out-null
+Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
 for ($i = 1; $i -le 50; $i++) {
 $webpage2 = Repeatiwr -Uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
 $FileLink =$webpage2.Links | Where-Object href -like '*officedeploymenttool*exe' | select -Last 1 -expand href
 if ($Filelink -ne $null) {break}
 }
 if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
-if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe") {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -EA SilentlyContinue | out-null}
+if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe") {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -ea SilentlyContinue | out-null}
 Write-Host -f C "`r`n*** Installing Office 2021 Pro Plus ... ***`r`n"
-if (Test-Path -Path "$env:TEMP\IA\office\setup.exe") {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -EA SilentlyContinue | out-null}
+if (Test-Path -Path "$env:TEMP\IA\office\setup.exe") {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -ea SilentlyContinue | out-null}
 else {Write-Host -f C "Failed to download & extract Office Deployment Tool"}
 ActivateofficeKMS
 }
@@ -1809,5 +1830,5 @@ Function Clean-up
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Cleaning up *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse
+    Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -ea SilentlyContinue | out-null
 }
