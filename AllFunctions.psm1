@@ -45,8 +45,8 @@ Function AddRegEntry
     )
     try
     {
-        if(!(Test-Path -LiteralPath $Path)) {New-Item $Path -force -ea SilentlyContinue | out-null}
-        if(Test-Path -LiteralPath $Path) {New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force -ea SilentlyContinue | out-null}
+        if(!(Test-Path -LiteralPath $Path -ea SilentlyContinue)) {New-Item $Path -force -ea SilentlyContinue | out-null}
+        if(Test-Path -LiteralPath $Path -ea SilentlyContinue) {New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force -ea SilentlyContinue | out-null}
     }
     catch
     {
@@ -168,12 +168,12 @@ Function AdminTakeownership
     [Parameter(Mandatory=$true, Position=0)]
     [string]$Path
     )
-    if (Test-Path -Path $Path -PathType Leaf)
+    if (Test-Path -Path $Path -PathType Leaf -ea SilentlyContinue)
     {
         takeown /a /f $Path
         icacls $Path /t /c /grant "administrators:F"
     }
-    elseif (Test-Path -Path $Path -PathType Container)
+    elseif (Test-Path -Path $Path -PathType Container -ea SilentlyContinue)
     {
         takeown /a /r /d y /f $Path
         icacls $Path /t /c /grant "administrators:F"
@@ -312,19 +312,19 @@ Function MaxPowerPlan
     powercfg /setacvalueindex $MaxPlanGUID '44f3beca-a7c0-460e-9df2-bb8b99e0cba6' '3619c3f2-afb2-4afc-b0e9-e7fef372de36' '0x00000002' | out-null
     powercfg /setdcvalueindex $MaxPlanGUID '44f3beca-a7c0-460e-9df2-bb8b99e0cba6' '3619c3f2-afb2-4afc-b0e9-e7fef372de36' '0x00000002' | out-null
     # AMD power slider overlay # sub_GUID: 'c763b4ec-0e50-4b6b-9bed-2b92a6ee884e' # setting_GUID: '7ec1751b-60ed-4588-afb5-9819d3d77d90' # 3 Best performance
-    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\c763b4ec-0e50-4b6b-9bed-2b92a6ee884e\7ec1751b-60ed-4588-afb5-9819d3d77d90')
+    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\c763b4ec-0e50-4b6b-9bed-2b92a6ee884e\7ec1751b-60ed-4588-afb5-9819d3d77d90' -ea SilentlyContinue)
     {
         powercfg /setacvalueindex $MaxPlanGUID 'c763b4ec-0e50-4b6b-9bed-2b92a6ee884e' '7ec1751b-60ed-4588-afb5-9819d3d77d90' '0x00000003' | out-null
         powercfg /setdcvalueindex $MaxPlanGUID 'c763b4ec-0e50-4b6b-9bed-2b92a6ee884e' '7ec1751b-60ed-4588-afb5-9819d3d77d90' '0x00000003' | out-null
     }
     # ATI graphics powerplay settings # sub_GUID: 'f693fb01-e858-4f00-b20f-f30e12ac06d6' # setting_GUID: '191f65b5-d45c-4a4f-8aae-1ab8bfd980e6' # 1 Best performance
-    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\f693fb01-e858-4f00-b20f-f30e12ac06d6\191f65b5-d45c-4a4f-8aae-1ab8bfd980e6')
+    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\f693fb01-e858-4f00-b20f-f30e12ac06d6\191f65b5-d45c-4a4f-8aae-1ab8bfd980e6' -ea SilentlyContinue)
     {
         powercfg /setacvalueindex $MaxPlanGUID 'f693fb01-e858-4f00-b20f-f30e12ac06d6' '191f65b5-d45c-4a4f-8aae-1ab8bfd980e6' '0x00000001' | out-null
         powercfg /setdcvalueindex $MaxPlanGUID 'f693fb01-e858-4f00-b20f-f30e12ac06d6' '191f65b5-d45c-4a4f-8aae-1ab8bfd980e6' '0x00000001' | out-null
     }
     # Switchable dynamic graphics global settings # sub_GUID: 'e276e160-7cb0-43c6-b20b-73f5dce39954' # setting_GUID: 'a1662ab2-9d34-4e53-ba8b-2639b9e20857' # 3 Maximize performance
-    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\e276e160-7cb0-43c6-b20b-73f5dce39954\a1662ab2-9d34-4e53-ba8b-2639b9e20857')
+    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\e276e160-7cb0-43c6-b20b-73f5dce39954\a1662ab2-9d34-4e53-ba8b-2639b9e20857' -ea SilentlyContinue)
     {
         powercfg /setacvalueindex $MaxPlanGUID 'e276e160-7cb0-43c6-b20b-73f5dce39954' 'a1662ab2-9d34-4e53-ba8b-2639b9e20857' '0x00000003' | out-null
         powercfg /setdcvalueindex $MaxPlanGUID 'e276e160-7cb0-43c6-b20b-73f5dce39954' 'a1662ab2-9d34-4e53-ba8b-2639b9e20857' '0x00000003' | out-null
@@ -428,7 +428,7 @@ Function Install-Winget
         Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
     }
     else {Write-Host -f C "UI Xaml already installed"}
-    if (!(Test-Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe))
+    if (!(Test-Path -Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe -ea SilentlyContinue))
     {
         Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
         Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
@@ -732,35 +732,47 @@ Function Move-OneDriveUserFolders
 {
     Write-Host -f C "`r`n Moving One Drive folders to User Profile folders `r`n"
     # Make sure USERPROFILE folders are not deleted
-    if (!(Test-Path -Path "$env:USERPROFILE\Desktop")) {New-Item -Path "$env:USERPROFILE" -Name "Desktop" -ItemType Directory -ea SilentlyContinue | out-null}
-    if (!(Test-Path -Path "$env:USERPROFILE\Documents")) {New-Item -Path "$env:USERPROFILE" -Name "Documents" -ItemType Directory -ea SilentlyContinue | out-null}
-    if (!(Test-Path -Path "$env:USERPROFILE\Videos")) {New-Item -Path "$env:USERPROFILE" -Name "Videos" -ItemType Directory -ea SilentlyContinue | out-null}
-    if (!(Test-Path -Path "$env:USERPROFILE\Music")) {New-Item -Path "$env:USERPROFILE" -Name "Music" -ItemType Directory -ea SilentlyContinue | out-null}
-    if (!(Test-Path -Path "$env:USERPROFILE\Downloads")) {New-Item -Path "$env:USERPROFILE" -Name "Downloads" -ItemType Directory -ea SilentlyContinue | out-null}
+    if (!(Test-Path -Path "$env:USERPROFILE\Desktop" -ea SilentlyContinue)) {New-Item -Path "$env:USERPROFILE" -Name "Desktop" -ItemType Directory -ea SilentlyContinue | out-null}
+    if (!(Test-Path -Path "$env:USERPROFILE\Documents" -ea SilentlyContinue)) {New-Item -Path "$env:USERPROFILE" -Name "Documents" -ItemType Directory -ea SilentlyContinue | out-null}
+    if (!(Test-Path -Path "$env:USERPROFILE\Videos" -ea SilentlyContinue)) {New-Item -Path "$env:USERPROFILE" -Name "Videos" -ItemType Directory -ea SilentlyContinue | out-null}
+    if (!(Test-Path -Path "$env:USERPROFILE\Music" -ea SilentlyContinue)) {New-Item -Path "$env:USERPROFILE" -Name "Music" -ItemType Directory -ea SilentlyContinue | out-null}
+    if (!(Test-Path -Path "$env:USERPROFILE\Downloads" -ea SilentlyContinue)) {New-Item -Path "$env:USERPROFILE" -Name "Downloads" -ItemType Directory -ea SilentlyContinue | out-null}
     # Direct OneDrive folder path at %USERPROFILE% $env:USERPROFILE
-    Move-Item -Path "$env:USERPROFILE\OneDrive\Desktop" -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
-    Move-Item -Path "$env:USERPROFILE\OneDrive\Documents" -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
-    Move-Item -Path "$env:USERPROFILE\OneDrive\Videos" -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
-    Move-Item -Path "$env:USERPROFILE\OneDrive\Music" -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
-    Move-Item -Path "$env:USERPROFILE\OneDrive\Downloads"-Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    if (Test-Path -Path "$env:USERPROFILE\OneDrive" -ea SilentlyContinue)
+    {
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Desktop" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Documents" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    }
     # Use %OneDrive% $env:OneDrive
-    Move-Item -Path "$env:OneDrive\Desktop" -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDrive\Documents" -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDrive\Videos" -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDrive\Music" -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDrive\Downloads" -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    if ($env:OneDrive)
+    {
+        Get-ChildItem -Path "$env:OneDrive\Desktop" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDrive\Documents" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDrive\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDrive\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDrive\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    }
     # Use %OneDriveConsumer% $env:OneDriveConsumer
-    Move-Item -Path "$env:OneDriveConsumer\Desktop" -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDriveConsumer\Documents" -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDriveConsumer\Videos" -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDriveConsumer\Music" -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDriveConsumer\Downloads" -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    if ($env:OneDriveConsumer)
+    {
+        Get-ChildItem -Path "$env:OneDriveConsumer\Desktop" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveConsumer\Documents" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveConsumer\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveConsumer\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveConsumer\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    }
     # Use %OneDriveCommercial% $env:OneDriveCommercial
-    Move-Item -Path "$env:OneDriveCommercial\Desktop" -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDriveCommercial\Documents" -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDriveCommercial\Videos" -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDriveCommercial\Music" -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
-    Move-Item -Path "$env:OneDriveCommercial\Downloads" -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    if ($env:OneDriveCommercial)
+    {
+        Get-ChildItem -Path "$env:OneDriveCommercial\Desktop" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveCommercial\Documents" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveCommercial\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveCommercial\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveCommercial\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+    }
 }
 
 Function Unins-OneDrive
@@ -1268,7 +1280,7 @@ Function D-ScanFolder
     }
     if ((Get-Volume -DriveLetter D).DriveType -eq "Fixed")
     {
-        if (!(Test-Path -Path "D:\Scans")) {New-Item -Path "D:\" -Name "Scans" -ItemType Directory -ea SilentlyContinue | out-null}
+        if (!(Test-Path -Path "D:\Scans" -ea SilentlyContinue)) {New-Item -Path "D:\" -Name "Scans" -ItemType Directory -ea SilentlyContinue | out-null}
         Remove-SmbShare -Name "Scans" -Confirm:$False -Force -ea silentlycontinue | out-null
         if (!([System.IO.Directory]::Exists("\\localhost\Scans"))) {New-SmbShare -Name "Scans" -Path "D:\Scans" -FullAccess "Everyone" -ea SilentlyContinue | out-null}
         else {Grant-SmbShareAccess -Name "Scans" -AccountName "Everyone" -AccessRight Full -Force -ea SilentlyContinue | out-null}
@@ -1586,8 +1598,8 @@ Function ActivateofficeKMS
 {
     Write-Host -f C "Activating office using KMS"
     $Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs";$Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
-    if (Test-Path -Path $Officeospp64) {$office64 = $true}
-    elseif (Test-Path -Path $Officeospp32) {$office64 = $false}
+    if (Test-Path -Path $Officeospp64 -ea SilentlyContinue) {$office64 = $true}
+    elseif (Test-Path -Path $Officeospp32 -ea SilentlyContinue) {$office64 = $false}
     else {Write-Host -f C "Office16 ospp.vbs not found";return}
     
     if ($office64) {$Licenses = (Get-ChildItem "$Env:Programfiles\Microsoft Office\root\Licenses16\ProPlus2021VL_KMS*.xrm-ms").fullname}
@@ -1673,9 +1685,9 @@ $FileLink =$webpage2.Links | Where-Object href -like '*officedeploymenttool*exe'
 if ($Filelink -ne $null) {break}
 }
 if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
-if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe") {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -ea SilentlyContinue | out-null}
+if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -ea SilentlyContinue | out-null}
 Write-Host -f C "`r`n*** Installing Office 2021 Pro Plus ... ***`r`n"
-if (Test-Path -Path "$env:TEMP\IA\office\setup.exe") {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -ea SilentlyContinue | out-null}
+if (Test-Path -Path "$env:TEMP\IA\office\setup.exe" -ea SilentlyContinue) {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -ea SilentlyContinue | out-null}
 else {Write-Host -f C "Failed to download & extract Office Deployment Tool"}
 ActivateofficeKMS
 }
@@ -1803,11 +1815,11 @@ Function Pin-WhatsappWebChrome
     $Chrome=(Get-ItemProperty -Path $key -Name '(Default)').'(default)'
     if ($chrome -eq $null)
     {
-    if (Test-Path '${env:ProgramFiles(x86)}\Google\Chrome') {
-    $chrome = '${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe'
-    } elseif (Test-Path '$Env:Programfiles\Google\Chrome') {
-    $chrome = '$Env:Programfiles\Google\Chrome\Application\chrome.exe'
-    } else {Write-Host "Not Found"}
+        if (Test-Path '${env:ProgramFiles(x86)}\Google\Chrome' -ea SilentlyContinue) {
+            $chrome = '${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe'
+            } elseif (Test-Path '$Env:Programfiles\Google\Chrome' -ea SilentlyContinue) {
+            $chrome = '$Env:Programfiles\Google\Chrome\Application\chrome.exe'
+        } else {Write-Host "Not Found"}
     }
     Invoke-WebRequest -Uri "https://web.whatsapp.com/favicon-64x64.ico" -OutFile "$Env:Programfiles\Google\Chrome\WhatsApp.ico"
     $Arguments1= " --new-window --force-app-mode --app=https://web.whatsapp.com/"
