@@ -404,9 +404,14 @@ Function Ins-winget-ps
 {
     Ins-Scoop-git
     #if ((scoop list winget-ps).Name -eq "winget-ps") {write-host "winget-ps is already installed`r`nTrying to update winget-ps";scoop update winget-ps} else {write-host "Installing winget-ps";scoop install winget-ps}
-    Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null
-    Import-Module Microsoft.WinGet.Client -Force -ea silentlycontinue
-    repair-wingetpackagemanager
+    try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -ea silentlycontinue} catch {}
+    if (!($WinGetClientInstalled))
+    {
+        Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null
+        Import-Module Microsoft.WinGet.Client -Force -ea silentlycontinue | out-null
+        repair-wingetpackagemanager
+        Relaunch
+    }
 }
 
 Function Install-Winget
@@ -589,7 +594,7 @@ Function Tweak-Edge
 Function Ins-Acrobat
 {
     Write-Host -f C "Installing Adobe Acrobat Reader DC"
-    try {$Acrobat = Get-Package -Name 'Adobe Acrobat (64-bit)'} catch {}
+    try {$Acrobat = Get-Package -Name 'Adobe Acrobat (64-bit)' -ea silentlycontinue} catch {}
     if ($Acrobat) {Write-Host -f C "Adobe Acrobat (64-bit) found installed"}
     else
     {
@@ -701,6 +706,11 @@ Function Unins-MSTeams
     UninstallTeams -DisableChatWidget -AllUsers
     UninstallTeams -DisableOfficeTeamsInstall
     UninstallTeams
+}
+
+Function Unins-DropboxPromotion
+{
+    RmAppx 'DropboxOEM'
 }
 
 Function Unins-Cortana

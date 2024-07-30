@@ -37,6 +37,7 @@ Ins-VLC #Install VLC Player
 Ins-OpenAl #Install OpenAl
 Ins-WhatsApp #Install WhatsApp
 #Pin-WhatsappWebChrome #Pin Chrome whatsapp web to taskbar
+Unins-DropboxPromotion
 Unins-Devhome #Uninstall Dev Home
 Winget-UpdateAll #Update all Installd applications use Winget
 Ins-DirectX #Install DirectX Extra files
