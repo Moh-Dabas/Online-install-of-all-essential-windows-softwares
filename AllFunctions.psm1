@@ -412,6 +412,7 @@ Function Ins-winget-ps
         repair-wingetpackagemanager
         Relaunch
     }
+    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe
 }
 
 Function Install-Winget
@@ -434,11 +435,9 @@ Function Install-Winget
         Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
     }
     else {Write-Host -f C "UI Xaml already installed"}
-    if (!(Test-Path -Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe -ea SilentlyContinue))
-    {
-        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
-        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
-    }
+    # if (!(Test-Path -Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe -ea SilentlyContinue))
+    Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
+    Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
     else {Write-Host -f C "winget already installed"}
     Ins-winget-ps
     $WingetSource = Get-AppxPackage | select -ExpandProperty 'PackageFamilyName' | where {$_ -match 'Microsoft.Winget.Source'}
