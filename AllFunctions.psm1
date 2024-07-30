@@ -403,7 +403,7 @@ Function Ins-Scoop-git
 Function Ins-winget-ps
 {
     Ins-Scoop-git
-    if ((scoop list winget-ps).Name -eq "winget-ps") {write-host "winget-ps is already installed`r`nTrying to update winget-ps";scoop update winget-ps} else {write-host "Installing winget-ps";scoop install winget-ps}
+    #if ((scoop list winget-ps).Name -eq "winget-ps") {write-host "winget-ps is already installed`r`nTrying to update winget-ps";scoop update winget-ps} else {write-host "Installing winget-ps";scoop install winget-ps}
     Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null
     Import-Module Microsoft.WinGet.Client -Force -ea silentlycontinue
     repair-wingetpackagemanager
@@ -436,6 +436,8 @@ Function Install-Winget
     }
     else {Write-Host -f C "winget already installed"}
     Ins-winget-ps
+    $WingetSource = Get-AppxPackage | select -ExpandProperty 'PackageFamilyName' | where {$_ -match 'Microsoft.Winget.Source'}
+    Add-AppxPackage -RegisterByFamilyName -MainPackage $WingetSource
 }
 
 Function Ins-arSALang
@@ -641,7 +643,7 @@ Function Unins-Devhome
 Function Winget-UpdateAll
 {
     Write-Host -f C "`r`n*** Updating all installed applications using Winget ***`r`n"
-    winget upgrade --all --disable-interactivity --silent --accept-source-agreements --accept-package-agreements --force
+    winget upgrade --all --silent --accept-source-agreements --accept-package-agreements --force
 }
 
 Function Ins-DirectX
@@ -878,6 +880,11 @@ Function Unins-OneDrive
     cmd /c 'taskkill /f /im OneDrive.exe >nul 2>nul'
     winget uninstall OneDrive
     (Find-WinGetPackage "OneDrive").Id | ForEach-Object {winget uninstall -e --id $_ --silent}
+    $OneDriveUninstallString= Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\OneDriveSetup.exe' -Name 'UninstallString' | select -ExpandProperty 'UninstallString'
+    $OneDriveUninstallString= $OneDriveUninstallString -split('/',0)[0, -1]
+    $OneDriveUninstallString[0].trim()
+    $OneDriveUninstallString[1] = '/' + $OneDriveUninstallString[1]
+    Start-Process $OneDriveUninstallString[0] -Verb RunAs -WindowStyle Minimized -ArgumentList $OneDriveUninstallString[1]
     Start-Process 'OneDriveSetup.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '/uninstall'
     Move-OneDriveUserFolders
     Get-ScheduledTask | Where-Object {$_.Taskname -match 'OneDrive'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
