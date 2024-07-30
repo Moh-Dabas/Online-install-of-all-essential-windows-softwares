@@ -403,7 +403,6 @@ Function Ins-Scoop-git
 Function Ins-winget-ps
 {
     Ins-Scoop-git
-    #if ((scoop list winget-ps).Name -eq "winget-ps") {write-host "winget-ps is already installed`r`nTrying to update winget-ps";scoop update winget-ps} else {write-host "Installing winget-ps";scoop install winget-ps}
     try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -ea silentlycontinue} catch {}
     if (!($WinGetClientInstalled))
     {
@@ -412,7 +411,6 @@ Function Ins-winget-ps
         repair-wingetpackagemanager
         Relaunch
     }
-    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe
 }
 
 Function Install-Winget
@@ -435,13 +433,16 @@ Function Install-Winget
         Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
     }
     else {Write-Host -f C "UI Xaml already installed"}
-    # if (!(Test-Path -Path ~\AppData\Local\Microsoft\WindowsApps\winget.exe -ea SilentlyContinue))
+    
     Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
     Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
-    else {Write-Host -f C "winget already installed"}
+    
+    Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
+    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe
+    Install-Script winget-install -Force
+    winget-install -UpdateSelf -CheckForUpdate -Force -ForceClose
     Ins-winget-ps
-    $WingetSource = Get-AppxPackage | select -ExpandProperty 'PackageFamilyName' | where {$_ -match 'Microsoft.Winget.Source'}
-    Add-AppxPackage -RegisterByFamilyName -MainPackage $WingetSource
 }
 
 Function Ins-arSALang
