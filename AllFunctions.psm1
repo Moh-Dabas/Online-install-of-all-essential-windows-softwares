@@ -201,6 +201,8 @@ Function InitializeCommands
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters' 'Type' 'NTP' 'String' # Autoupdate time
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location' 'Value' 'Allow' 'String' # Allow location
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\tzautoupdate' 'Start' '3' 'DWord' # Autoupdate timezone
+    Start-Service -Name "W32Time" -ea silentlycontinue | out-null
+    Start-Service -Name "tzautoupdate" -ea silentlycontinue | out-null
     w32tm /resync #Sync time now
 }
 
