@@ -435,15 +435,24 @@ Function Install-Winget
         Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
     }
     else {Write-Host -f C "UI Xaml already installed"}
-    
-    Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
-    Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
-    
-    Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+    try {$WingetInstalled = Get-Command -Name winget -ea silentlycontinue} catch {}
+    if ($WingetInstalled) {write-host -f C "Winget is already installed"}
+    else {
+        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
+        Start-Job -Name InstallWinget1 -ScriptBlock {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null}
+        Wait-Job -Name InstallWinget1 -Timeout 600
+        Start-Sleep 1
+        Start-Job -Name InstallWinget2 -ScriptBlock {Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle -ea SilentlyContinue | out-null}
+        Wait-Job -Name InstallWinget2 -Timeout 600
+        Start-Sleep 1
+        Relaunch
+    }
     Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
     Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe
+    write-host -f C "Updating Winget"
     Install-Script winget-install -Force
-    winget-install -UpdateSelf -CheckForUpdate -Force -ForceClose
+    winget-install -Force
+    winget-install -CheckForUpdate
     Ins-winget-ps
 }
 
@@ -712,6 +721,7 @@ Function Unins-MSTeams
 
 Function Unins-DropboxPromotion
 {
+    Write-Host -f C "`r`n*** Uninstalling Dropbox promotion ***`r`n"
     RmAppx 'DropboxOEM'
 }
 
