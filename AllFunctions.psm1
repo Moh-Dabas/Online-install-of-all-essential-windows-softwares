@@ -557,6 +557,13 @@ Function Ins-WScan
     winget install -e --name 'Windows Scan' --silent --accept-source-agreements --accept-package-agreements
 }
 
+Function Ins-HpSmart
+{
+    Write-Host -f C "Installing Hp Smart App"
+    winget install -e --name 'HP Smart' --silent --accept-source-agreements --accept-package-agreements
+}
+
+
 Function Ins-NotepadPP
 {
     Write-Host -f C "Installing Notepad++"

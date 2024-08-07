@@ -27,6 +27,7 @@ Ins-JavaRuntime #Install Java Runtime Environment
 Ins-XNA #Install Microsoft XNA Framework Redistributable
 Ins-AdobeAIRRuntime #Install Adobe AIR Runtime
 Ins-WScan #Install Windows Scan
+Ins-HpSmart #Install Hp Smart App
 Ins-NotepadPP #Install Notepad++
 Ins-Chrome #Install Google Chrome
 Tweak-Edge
