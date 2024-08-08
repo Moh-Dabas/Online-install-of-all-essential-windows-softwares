@@ -31,7 +31,8 @@ Ins-HpSmart #Install Hp Smart App
 Ins-NotepadPP #Install Notepad++
 Ins-Chrome #Install Google Chrome
 Tweak-Edge
-Ins-Acrobat #Install Adobe Acrobat Reader DC
+#Ins-AcrobatRdr #Install Adobe Acrobat Reader DC
+#Ins-AcrobatPro #Install Adobe Acrobat Pro DC
 Ins-WinRAR #Install WinRAR
 Ins-KLiteMega #Install K-Lite Codec Pack Mega
 Ins-VLC #Install VLC Player

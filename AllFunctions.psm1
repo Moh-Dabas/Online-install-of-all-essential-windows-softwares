@@ -609,7 +609,7 @@ Function Tweak-Edge
     Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateBrowserReplacementTask'} | Unregister-ScheduledTask -Confirm:$false -ea silentlycontinue | out-null
 }
 
-Function Ins-Acrobat
+Function Ins-AcrobatRdr
 {
     Write-Host -f C "Installing Adobe Acrobat Reader DC"
     try {$Acrobat = Get-Package -Name 'Adobe Acrobat (64-bit)' -ea silentlycontinue} catch {}
@@ -620,6 +620,19 @@ Function Ins-Acrobat
         winget install -e --id 'Adobe.Acrobat.Reader.64-bit' --silent --accept-source-agreements --accept-package-agreements
     }
 }
+
+Function Ins-AcrobatPro
+{
+    Write-Host -f C "Installing Adobe Acrobat Pro DC"
+    for ($i = 1; $i -le 50; $i++) {
+        $webpage3 = Repeatiwr -Uri "https://u.pcloud.link/publink/show?code=XZ5abx0Z770k4R52QGYrKn02sw37sfBMQvKV"
+        $FileLink =$webpage3.Links | Where-Object href -like '*AdobeAcrobatProDC2024.002.20991x64.exe' | select -Last 1 -expand href
+        if ($Filelink -ne $null) {break}
+    }
+    if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe"}
+    if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue | out-null}
+}
+
 
 Function Ins-WinRAR
 {
@@ -917,15 +930,18 @@ Function Unins-OneDrive
     Start-Process 'OneDriveSetup.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '/uninstall'
     Move-OneDriveUserFolders
     Get-ScheduledTask | Where-Object {$_.Taskname -match 'OneDrive'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive' 'DisableFileSyncNGSC' '1' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\OneDrive' 'PreventNetworkTrafficPreUserSignIn' '1' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive' 'KFMBlockOptIn' '1' 'DWord'
     # Clean Remaining
     Remove-Item -LiteralPath "$env:LOCALAPPDATA\Microsoft\OneDrive" -Force -Recurse -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:PROGRAMDATA\Microsoft\OneDrive" -Force -Recurse -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:HOMEDRIVE\OneDriveTemp" -Force -Recurse -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "HKEY_CLASSES_ROOT:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"  -Recurse -force -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "HKEY_CLASSES_ROOT:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive'  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive'  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath 'HKLM:\SOFTWARE\Microsoft\OneDrive'  -Recurse -force -ea SilentlyContinue | out-null
+    #AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive' 'DisableFileSyncNGSC' '1' 'DWord'
+    #AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\OneDrive' 'KFMBlockOptIn' '1' 'DWord'
+    #AddRegEntry 'HKLM:\SOFTWARE\Microsoft\OneDrive' 'PreventNetworkTrafficPreUserSignIn' '1' 'DWord'
 }
 
 Function DeepTweaks
@@ -1604,16 +1620,12 @@ $HostsFile =
 127.0.0.1 wwis-dubc1-vip98.adobe.com
 127.0.0.1 wwis-dubc1-vip99.adobe.com
 127.0.0.1 ic.adobe.io
+127.0.0.1 cc-api-data.adobe.io
+127.0.0.1 cc-api-data-stage.adobe.io
+127.0.0.1 notify.adobe.io
+127.0.0.1 prod.adobegenuine.com
+127.0.0.1 gocart-web-prod-ue1-alb-1461435473.us-east-1.elb.amazonaws.com
 127.0.0.1 assets.adobedtm.com
-127.0.0.1 4vzokhpsbs.adobe.io
-127.0.0.1 69tu0xswvq.adobe.io
-127.0.0.1 5zgzzv92gn.adobe.io
-127.0.0.1 dyzt55url8.adobe.io
-127.0.0.1 gw8gfjbs05.adobe.io
-127.0.0.1 dxyeyf6ecy.adobe.io
-127.0.0.1 1hzopx6nz7.adobe.io
-127.0.0.1 p13n.adobe.io
-127.0.0.1 1b9khekel6.adobe.io
 127.0.0.1 adobe-dns-01.adobe.com
 127.0.0.1 adobe.demdex.net
 127.0.0.1 adobe.tt.omtrdc.net
@@ -1641,7 +1653,6 @@ $HostsFile =
 127.0.0.1 stls.adobe.com-cn.edgesuite.net
 127.0.0.1 stls.adobe.com-cn.edgesuite.net.globalredir.akadns.net
 127.0.0.1 use-stls.adobe.com.edgesuite.net
-127.0.0.1 9ngulmtgqi.adobe.io
 #</block-adobe>
 
 127.0.0.1 209-34-83-73.ood.opsource.net
