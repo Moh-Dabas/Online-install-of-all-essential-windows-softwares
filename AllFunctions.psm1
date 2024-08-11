@@ -59,11 +59,11 @@ Function AddRegEntry
                 String {$typeCMD = "REG_SZ"};ExpandString {$typeCMD = "REG_EXPAND_SZ"};MultiString {$typeCMD = "REG_MULTI_SZ"}
             }
             if ($typeCMD -ne $null) {Reg Add $Path /v $Name /t $typeCMD /d $Value /f | out-null}
-            else {Write-Host -f C "Unsupported type"}
+            else {Write-Host -f red "Unsupported type"}
         }
         catch
         {
-            Write-Host -f C "Error: " + $Error # Might need takeown or runing as system or trusted installer
+            Write-Host -f red "Error: " + $Error # Might need takeown or runing as system or trusted installer
         }
     }
 }
@@ -80,14 +80,16 @@ Function RmAppx
     $PartName = '*' + $PartName + '*'
     try
     {
-        Get-AppxPackage -AllUsers | where-object{$_.name -like $PartName} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers -ea Ignore}
+        Start-Job -Name RmAppxjob -ScriptBlock {Get-AppxPackage -AllUsers | where-object{$_.name -like $PartName} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers -ea Ignore}}
+        Wait-Job -Name RmAppxjob -Timeout 999
     }
-    catch {Write-Host -f C "Appx Package " + $PartName + "  remove failed"}
+    catch {Write-Host -f red "Appx Package " + $PartName + "  remove failed"}
     try
     {
-        if ($RmProv -ne "false") {Get-appxprovisionedpackage -online | where-object {$_.packagename -like $PartName} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -ea Ignore}}
+        Start-Job -Name RmAppxprovjob -ScriptBlock {if ($RmProv -ne "false") {Get-appxprovisionedpackage -online | where-object {$_.packagename -like $PartName} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -ea Ignore}}}
+        Wait-Job -Name RmAppxprovjob -Timeout 999
     }
-    catch {Write-Host -f C "Appx provisioned package " + $PartName + "  remove failed"}
+    catch {Write-Host -f red "Appx provisioned package " + $PartName + "  remove failed"}
 }
 
 Function Set-Hibernate
@@ -178,7 +180,7 @@ Function AdminTakeownership
         takeown /a /r /d y /f $Path
         icacls $Path /t /c /grant "administrators:F"
     }
-    else {Write-Host -f C "Path is wrong or not supported"}
+    else {Write-Host -f red "Path is wrong or not supported"}
 }
 
 Function InitializeCommands
@@ -425,14 +427,16 @@ Function Install-Winget
     if ([int]$VCLibsVersion -lt 14)
     {
         Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null
-        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null
+        Start-Job -Name VCLibs -ScriptBlock {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null}
+        Wait-Job -Name VCLibs -Timeout 999
     }
     else {Write-Host -f C "VCLibs already installed"}
     $UIXamlVersion = Get-AppxPackage -Name Microsoft.UI.Xaml* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
     if ([int]$UIXamlVersion -lt 8)
     {
         Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
-        Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
+        Start-Job -Name UIXaml -ScriptBlock {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null}
+        Wait-Job -Name UIXaml -Timeout 999
     }
     else {Write-Host -f C "UI Xaml already installed"}
     try {$WingetInstalled = Get-Command -Name winget -ea silentlycontinue} catch {}
@@ -440,18 +444,23 @@ Function Install-Winget
     else {
         Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
         Start-Job -Name InstallWinget1 -ScriptBlock {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null}
-        Wait-Job -Name InstallWinget1 -Timeout 600
-        Start-Sleep 1
+        Wait-Job -Name InstallWinget1 -Timeout 999
         Start-Job -Name InstallWinget2 -ScriptBlock {Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle -ea SilentlyContinue | out-null}
-        Wait-Job -Name InstallWinget2 -Timeout 600
+        Wait-Job -Name InstallWinget2 -Timeout 999
+        Install-Script winget-install -Force
+        Start-Job -Name UpdateWinget {winget-install -Force}
+        Wait-Job -Name UpdateWinget -Timeout 999
         Start-Sleep 1
         Relaunch
     }
-    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe
-    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe
+    Start-Job -Name ConfigWinget1 -ScriptBlock {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe}
+    Wait-Job -Name ConfigWinget1 -Timeout 999
+    Start-Job -Name ConfigWinget2 -ScriptBlock {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe}
+    Wait-Job -Name ConfigWinget2 -Timeout 999
     write-host -f C "Updating Winget"
     Install-Script winget-install -Force
-    winget-install -Force
+    Start-Job -Name UpdateWinget {winget-install -Force}
+    Wait-Job -Name UpdateWinget -Timeout 999
     winget-install -CheckForUpdate
     Ins-winget-ps
 }
@@ -459,14 +468,16 @@ Function Install-Winget
 Function Ins-arSALang
 {
     Write-Host -f C "`r`n*** Installing Arabic-SA language ***`r`n"
-    Install-Language -Language ar-SA
+    Start-Job -Name InsAr -ScriptBlock {Install-Language -Language ar-SA}
+    Wait-Job -Name InsAr -Timeout 999
     Set-WinHomeLocation 0xcd
 }
 
 Function Ins-enUSLang
 {
     Write-Host -f C "`r`n*** Installing English-US language ***`r`n"
-    Install-Language -Language en-US -CopyToSettings
+    Start-Job -Name InsEng -ScriptBlock {Install-Language -Language en-US -CopyToSettings}
+    Wait-Job -Name InsEng -Timeout 999
     Set-WinSystemLocale en-US
     Set-WinUILanguageOverride en-US
     Set-WinDefaultInputMethodOverride "0409:00000409"
@@ -512,6 +523,8 @@ Function Ins-Terminal
 {
     Write-Host -f C "Installing Windows Terminal"
     winget install -e --id 'Microsoft.WindowsTerminal' --silent --accept-source-agreements --accept-package-agreements
+    AddRegEntry 'HKCU:Console\%%Startup' "DelegationConsole" "{2EACA947-7F5F-4CFA-BA87-8F7FBEEFBE69}" 'String'
+    AddRegEntry 'HKCU:Console\%%Startup' "DelegationTerminal" "{E12CFF52-A866-4C77-9A90-F570A7AA2C6B}" 'String'
 }
 
 Function Ins-DotNetRuntime
@@ -624,12 +637,7 @@ Function Ins-AcrobatRdr
 Function Ins-AcrobatPro
 {
     Write-Host -f C "Installing Adobe Acrobat Pro DC"
-    for ($i = 1; $i -le 50; $i++) {
-        $webpage3 = Repeatiwr -Uri "https://u.pcloud.link/publink/show?code=XZ5abx0Z770k4R52QGYrKn02sw37sfBMQvKV"
-        $FileLink =$webpage3.Links | Where-Object href -like '*AdobeAcrobatProDC2024.002.20991x64.exe' | select -Last 1 -expand href
-        if ($Filelink -ne $null) {break}
-    }
-    if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe"}
+    Invoke-WebRequest -Uri 'https://www.googleapis.com/drive/v3/files/1B3hlYp8awJLTnm0_r74VnzzYuaodMp7T?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -OutFile "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe"
     if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue | out-null}
 }
 
