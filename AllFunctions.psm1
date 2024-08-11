@@ -206,6 +206,7 @@ Function InitializeCommands
     Start-Service -Name "W32Time" -ea silentlycontinue | out-null
     Start-Service -Name "tzautoupdate" -ea silentlycontinue | out-null
     w32tm /resync #Sync time now
+    Start-Service -Name "BITS" -ea silentlycontinue | out-null # Service needed for fast download
 }
 
 Function MaxPowerPlan
@@ -442,7 +443,7 @@ Function Install-Winget
     try {$WingetInstalled = Get-Command -Name winget -ea silentlycontinue} catch {}
     if ($WingetInstalled) {write-host -f C "Winget is already installed"}
     else {
-        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
+        Start-BitsTransfer -Source "https://aka.ms/getwinget" -Destination "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
         Start-Job -Name InstallWinget1 -ScriptBlock {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null}
         Wait-Job -Name InstallWinget1 -Timeout 999
         Start-Job -Name InstallWinget2 -ScriptBlock {Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle -ea SilentlyContinue | out-null}
@@ -637,7 +638,7 @@ Function Ins-AcrobatRdr
 Function Ins-AcrobatPro
 {
     Write-Host -f C "Installing Adobe Acrobat Pro DC"
-    Invoke-WebRequest -Uri 'https://www.googleapis.com/drive/v3/files/1B3hlYp8awJLTnm0_r74VnzzYuaodMp7T?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -OutFile "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe"
+    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1B3hlYp8awJLTnm0_r74VnzzYuaodMp7T?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe"  -ea SilentlyContinue | out-null
     if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue | out-null}
 }
 
