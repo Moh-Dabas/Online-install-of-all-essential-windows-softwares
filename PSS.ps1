@@ -16,6 +16,7 @@ Write-Host -F Cyan "***************************** Install programs *************
 Write-Host -F Cyan "======================================================================================================================`r`n"
 Ins-arSAlang #Install Arabic-SA language
 Ins-enUSLang #Install en-US language
+Set-en-GB-Culture
 Unins-enGBLang #remove en-GB language
 Tweak-Language
 Fix-Share #Fix Windows file sharing
