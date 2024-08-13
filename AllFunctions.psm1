@@ -206,7 +206,8 @@ Function InitializeCommands
     Start-Service -Name "W32Time" -ea silentlycontinue | out-null
     Start-Service -Name "tzautoupdate" -ea silentlycontinue | out-null
     w32tm /resync #Sync time now
-    Start-Service -Name "BITS" -ea silentlycontinue | out-null # Service needed for fast download
+    Start-Job -Name BITS -ScriptBlock {Start-Service -Name "BITS" -ea silentlycontinue | out-null} # Service needed for fast download
+    Wait-Job -Name BITS -Timeout 999
 }
 
 Function MaxPowerPlan
@@ -449,7 +450,7 @@ Function Install-Winget
         Start-Job -Name InstallWinget2 -ScriptBlock {Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle -ea SilentlyContinue | out-null}
         Wait-Job -Name InstallWinget2 -Timeout 999
         Install-Script winget-install -Force
-        Start-Job -Name UpdateWinget {winget-install -Force}
+        Start-Job -Name UpdateWinget -ScriptBlock {winget-install -Force}
         Wait-Job -Name UpdateWinget -Timeout 999
         Start-Sleep 1
         Relaunch
@@ -653,11 +654,11 @@ Function Ins-AcrobatRdr
 Function Ins-AcrobatPro
 {
     Write-Host -f C "Installing Adobe Acrobat Pro DC"
-    #1iJwXrhTSBDM_4ym_TbV6wJhkzkZNsRzG
-    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1iJwXrhTSBDM_4ym_TbV6wJhkzkZNsRzG?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe"  -ea SilentlyContinue | out-null
-    if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue | out-null}
+    #1LvbWCCbXPuY5F2uJeFhwM7pyePlXWMvn
+    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1LvbWCCbXPuY5F2uJeFhwM7pyePlXWMvn?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe"  -ea SilentlyContinue | out-null
+    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue | out-null}}
+    Wait-Job -Name AcrobatPro -Timeout 999
 }
-
 
 Function Ins-WinRAR
 {
@@ -1035,16 +1036,16 @@ Function Fix-Share
     netsh advfirewall set currentprofile state on
     netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes
     netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes
-    Get-NetFirewallRule -DisplayGroup "File and Printer Sharing" | Enable-NetFirewallRule
-    Get-NetFirewallRule -DisplayGroup "Network Discovery" | Enable-NetFirewallRule
-    Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Private
-    Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Private
-    Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Domain
-    Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Domain
-    Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Public
-    Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Public
-    Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Any
-    Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Any
+    Start-Job -Name NFR1 {Get-NetFirewallRule -DisplayGroup "File and Printer Sharing" | Enable-NetFirewallRule};Wait-Job -Name NFR1 -Timeout 999
+    Start-Job -Name NFR2 {Get-NetFirewallRule -DisplayGroup "Network Discovery" | Enable-NetFirewallRule};Wait-Job -Name NFR2 -Timeout 999
+    Start-Job -Name NFR3 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Private};Wait-Job -Name NFR3 -Timeout 999
+    Start-Job -Name NFR4 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Private};Wait-Job -Name NFR4 -Timeout 999
+    Start-Job -Name NFR5 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Domain};Wait-Job -Name NFR5 -Timeout 999
+    Start-Job -Name NFR6 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Domain};Wait-Job -Name NFR6 -Timeout 999
+    Start-Job -Name NFR7 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Public};Wait-Job -Name NFR7 -Timeout 999
+    Start-Job -Name NFR8 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Public};Wait-Job -Name NFR8 -Timeout 999
+    Start-Job -Name NFR9 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Any};Wait-Job -Name NFR9 -Timeout 999
+    Start-Job -Name NFR10 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Any};Wait-Job -Name NFR10 -Timeout 999
     # Make sure required protocols are enabled in the adapter (they should be by default)
     Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "File and Printer Sharing for Microsoft Networks"}
     Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "Client for Microsoft Networks"}
