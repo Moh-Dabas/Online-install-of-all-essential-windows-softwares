@@ -1821,7 +1821,8 @@ AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'disab
 AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'keepunsavedchanges' '1' 'DWord'
 AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'recognizesmarttags' '2' 'DWord'
 AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Office\16.0\Word\Wizards' 'PageSize' 'A4' 'String'
-Get-printer | ForEach-Object {set-printconfiguration -printerobject $_ -Papersize 'A4'}
+Get-printer | ForEach-Object {set-printconfiguration -printerobject $_ -Papersize A4 -DuplexingMode OneSided}
+$Printers = Get-Printer;Foreach ($Printer in $Printers){Set-PrintConfiguration -PrinterName $Printer.name -PaperSize A4 -DuplexingMode OneSided}
 }
 
 Function OpenMSStoreUpdate #Not used
