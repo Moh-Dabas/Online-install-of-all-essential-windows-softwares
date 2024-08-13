@@ -134,7 +134,7 @@ Function Set-Hibernate
         powercfg.exe /hibernate off | out-null
         # Disable hibernate button
         AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '0' 'DWord'
-    }
+        }
 }
 
 Function Repeatiwr
@@ -638,7 +638,8 @@ Function Ins-AcrobatRdr
 Function Ins-AcrobatPro
 {
     Write-Host -f C "Installing Adobe Acrobat Pro DC"
-    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1B3hlYp8awJLTnm0_r74VnzzYuaodMp7T?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe"  -ea SilentlyContinue | out-null
+    #1iJwXrhTSBDM_4ym_TbV6wJhkzkZNsRzG
+    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1iJwXrhTSBDM_4ym_TbV6wJhkzkZNsRzG?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe"  -ea SilentlyContinue | out-null
     if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue | out-null}
 }
 
