@@ -472,6 +472,7 @@ Function Set-en-GB-Culture
     AddRegEntry 'HKCU:\Control Panel\International' 'sTimeFormat' 'hh:mm:ss tt' 'String'
     AddRegEntry 'HKCU:\Control Panel\International' 'sShortTime' 'hh:mm tt' 'String'
     AddRegEntry 'HKCU:\Control Panel\International' 'iFirstDayOfWeek' '6' 'String'
+    AddRegEntry 'HKCU:\Control Panel\International' 'NumShape' '0' 'String' # Native digits number shape # 0 - Context # 1 - Never # 2 - Always
     AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
     Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name AutoRestartShell -Value 1 -ea SilentlyContinue | out-null
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
