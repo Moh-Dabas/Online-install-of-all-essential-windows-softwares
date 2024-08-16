@@ -535,16 +535,16 @@ Function Ins-DotNetRuntime
 {
     Write-Host -f C "Installing .Net Runtime All versions"
     if (choco list --lo -r -e dotnet-all) {Choco upgrade dotnet-all} else {Choco install dotnet-all}
-    (Find-WinGetPackage "Microsoft.DotNet.DesktopRuntime").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements}
-    (Find-WinGetPackage "Microsoft.DotNet.Runtime").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements}
-    (Find-WinGetPackage "Microsoft.DotNet.AspNetCore").Id | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements}
+    (Find-WinGetPackage "Microsoft.DotNet.DesktopRuntime").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
+    (Find-WinGetPackage "Microsoft.DotNet.Runtime").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
+    (Find-WinGetPackage "Microsoft.DotNet.AspNetCore").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
 }
 
 Function Ins-VCPPRuntime
 {
     Write-Host -f C "Installing Visual C++ Runtime All versions"
     if (choco list --lo -r -e vcredist-all) {Choco upgrade vcredist-all} else {Choco install vcredist-all}
-    (Find-WinGetPackage "Microsoft.VCRedist").Id | Where-Object {-not $_.EndsWith("arm64")} | ForEach-Object { winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements}
+    (Find-WinGetPackage "Microsoft.VCRedist").Id | Where-Object {-not $_.EndsWith("arm64")} | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
 }
 
 Function Ins-JavaRuntime
@@ -823,7 +823,7 @@ Function Move-OneDriveUserFolders
         Get-ChildItem -Path "$env:OneDrive\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDrive\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDrive\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
-        Get-ChildItem -Path "$env:OneDrive" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDrive" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\OneDrive" -ea SilentlyContinue
     }
     # Use %OneDriveConsumer% $env:OneDriveConsumer
     if ($env:OneDriveConsumer)
@@ -833,7 +833,7 @@ Function Move-OneDriveUserFolders
         Get-ChildItem -Path "$env:OneDriveConsumer\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDriveConsumer\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDriveConsumer\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
-        Get-ChildItem -Path "$env:OneDriveConsumer" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveConsumer" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\OneDrive" -ea SilentlyContinue
     }
     # Use %OneDriveCommercial% $env:OneDriveCommercial
     if ($env:OneDriveCommercial)
@@ -843,7 +843,7 @@ Function Move-OneDriveUserFolders
         Get-ChildItem -Path "$env:OneDriveCommercial\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDriveCommercial\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
         Get-ChildItem -Path "$env:OneDriveCommercial\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
-        Get-ChildItem -Path "$env:OneDriveCommercial" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
+        Get-ChildItem -Path "$env:OneDriveCommercial" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\OneDrive" -ea SilentlyContinue
     }
     # Use default OneDrive folder path at %USERPROFILE% $env:USERPROFILE
     if (Test-Path -Path "$env:USERPROFILE\OneDrive" -ea SilentlyContinue)
@@ -853,18 +853,20 @@ Function Move-OneDriveUserFolders
         Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
         Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
         Get-ChildItem -Path "$env:USERPROFILE\OneDrive\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
-        Get-ChildItem -Path "$env:USERPROFILE\OneDrive" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
     }
     # Use any OneDrive folder in the $env:USERPROFILE
-    $OneDriveFolder=Get-ChildItem -Path "$env:USERPROFILE" -Directory -ea SilentlyContinue | where-object {($_.Name -like "OneDrive*")} | select -ExpandProperty Name
-    if ($OneDriveFolder)
+    $OneDriveFolders=Get-ChildItem -Path "$env:USERPROFILE" -Directory -ea SilentlyContinue | where-object {($_.Name -like "OneDrive*")} | select -ExpandProperty Name
+    if ($OneDriveFolders)
     {
-        Get-ChildItem -Path "$OneDriveFolder\Desktop" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
-        Get-ChildItem -Path "$OneDriveFolder\Documents" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
-        Get-ChildItem -Path "$OneDriveFolder\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
-        Get-ChildItem -Path "$OneDriveFolder\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
-        Get-ChildItem -Path "$OneDriveFolder\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
-        Get-ChildItem -Path "$OneDriveFolder" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE" -ea SilentlyContinue
+        Foreach ($OneDriveFolder in $OneDriveFolders)
+        {
+            Get-ChildItem -Path "$OneDriveFolder\Desktop" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Desktop" -ea SilentlyContinue
+            Get-ChildItem -Path "$OneDriveFolder\Documents" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Documents" -ea SilentlyContinue
+            Get-ChildItem -Path "$OneDriveFolder\Videos" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Videos" -ea SilentlyContinue
+            Get-ChildItem -Path "$OneDriveFolder\Music" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Music" -ea SilentlyContinue
+            Get-ChildItem -Path "$OneDriveFolder\Downloads" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\Downloads" -ea SilentlyContinue
+            Get-ChildItem -Path "$OneDriveFolder" -Recurse -ea SilentlyContinue | Move-Item -Destination "$env:USERPROFILE\OneDrive" -ea SilentlyContinue
+        }
     }
     # Use registry Check
     $OneDriveDesktop= Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders' -Name 'Desktop' | select -ExpandProperty 'Desktop' | where-object {($_ -like "OneDrive*")}
