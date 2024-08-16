@@ -727,7 +727,7 @@ Function Windows-Update
     (New-Object -ComObject Microsoft.Update.ServiceManager).Services | Select Name,ServiceID | foreach {if($_.Name -match "Store"){$StoreServiceID=$_.ServiceID}} #Get Store Service ID
     Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
     # Use kbupdate Module
-    Start-ThreadJob -Name kbupdate {Install-Module -Name kbupdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-ThreadJob -Name kbupdate {Install-Module -Name kbupdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-List -Wrap -AutoSize -Property Name,State
     Import-Module kbupdate -Force -ea silentlycontinue
     Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
     # Older versions
