@@ -80,12 +80,12 @@ Function RmAppx
     $PartName = '*' + $PartName + '*'
     try
     {
-        Start-ThreadJob -Name RmAppxjob {Get-AppxPackage -AllUsers | where-object{$_.name -like $PartName} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers -ea Ignore}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name RmAppxjob {Get-AppxPackage -AllUsers | where-object{$_.name -like $PartName} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers -ea Ignore}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     }
     catch {Write-Host -f red "Appx Package " + $PartName + "  remove failed"}
     try
     {
-        Start-ThreadJob -Name RmAppxprovjob {if ($RmProv -ne "false") {Get-appxprovisionedpackage -online | where-object {$_.packagename -like $PartName} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -ea Ignore}}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name RmAppxprovjob {if ($RmProv -ne "false") {Get-appxprovisionedpackage -online | where-object {$_.packagename -like $PartName} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -ea Ignore}}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     }
     catch {Write-Host -f red "Appx provisioned package " + $PartName + "  remove failed"}
 }
@@ -204,7 +204,7 @@ Function InitializeCommands
     Start-Service -Name "W32Time" -ea silentlycontinue | out-null
     Start-Service -Name "tzautoupdate" -ea silentlycontinue | out-null
     w32tm /resync #Sync time now
-    Start-ThreadJob -Name BITS {Start-Service -Name "BITS" -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State # Service needed for fast download
+    Start-Job -Name BITS {Start-Service -Name "BITS" -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State # Service needed for fast download
 }
 
 Function MaxPowerPlan
@@ -368,12 +368,12 @@ Function Ins-Nuget
     Write-Host -f C "======================================================================================================================`r`n"
     $NuGetInstalled = Get-PackageProvider -Name NuGet -ListAvailable -ea silentlycontinue
     if (-not $NuGetInstalled) {
-        Start-ThreadJob -Name PackageProviderNuGet {Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name PackageProviderNuGet {Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
         if (get-packageprovider -Name NuGet -ea silentlycontinue) {Write-Host -f C "Successfully Installed"}
     }
     else {Write-Host -f C "Already Installed"}
     Import-PackageProvider -Name NuGet -Force -ea silentlycontinue | out-null
-    Start-ThreadJob -Name ModuleNuGet {Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name ModuleNuGet {Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
 Function Ins-Choco
@@ -409,7 +409,7 @@ Function Ins-winget-ps
     try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -ea silentlycontinue} catch {}
     if (!($WinGetClientInstalled))
     {
-        Start-ThreadJob -Name ModuleWinGet {Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name ModuleWinGet {Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
         Import-Module Microsoft.WinGet.Client -Force -ea silentlycontinue | out-null
         repair-wingetpackagemanager
         Relaunch
@@ -426,32 +426,32 @@ Function Install-Winget
     if ([int]$VCLibsVersion -lt 14)
     {
         Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null
-        Start-ThreadJob -Name VCLibs {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name VCLibs {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     }
     else {Write-Host -f C "VCLibs already installed"}
     $UIXamlVersion = Get-AppxPackage -Name Microsoft.UI.Xaml* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
     if ([int]$UIXamlVersion -lt 8)
     {
         Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
-        Start-ThreadJob -Name UIXaml {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name UIXaml {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     }
     else {Write-Host -f C "UI Xaml already installed"}
     try {$WingetInstalled = Get-Command -Name winget -ea silentlycontinue} catch {}
     if ($WingetInstalled) {write-host -f C "Winget is already installed"}
     else {
         Start-BitsTransfer -Source "https://aka.ms/getwinget" -Destination "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
-        Start-ThreadJob -Name InstallWinget1 {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-        Start-ThreadJob -Name InstallWinget2 {Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name InstallWinget1 {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name InstallWinget2 {Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
         Install-Script winget-install -Force
-        Start-ThreadJob -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
         Start-Sleep 1
         Relaunch
     }
-    Start-ThreadJob -Name ConfigWinget1 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-ThreadJob -Name ConfigWinget2 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name ConfigWinget1 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name ConfigWinget2 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     write-host -f C "Updating Winget"
     Install-Script winget-install -Force
-    Start-ThreadJob -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     winget-install -CheckForUpdate
     Ins-winget-ps
 }
@@ -459,7 +459,7 @@ Function Install-Winget
 Function Ins-arSALang
 {
     Write-Host -f C "`r`n*** Installing Arabic-SA language ***`r`n"
-    Start-ThreadJob -Name InsAr {Install-Language -Language ar-SA} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name InsAr {Install-Language -Language ar-SA} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Set-WinHomeLocation 0xcd
 }
 
@@ -481,7 +481,7 @@ Function Set-en-GB-Culture
 Function Ins-enUSLang
 {
     Write-Host -f C "`r`n*** Installing English-US language ***`r`n"
-    Start-ThreadJob -Name InsEng {Install-Language -Language en-US -CopyToSettings} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name InsEng {Install-Language -Language en-US -CopyToSettings} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Set-WinSystemLocale en-US
     Set-WinUILanguageOverride en-US
     Set-WinDefaultInputMethodOverride "0409:00000409"
@@ -643,7 +643,7 @@ Function Ins-AcrobatPro
     Write-Host -f C "Installing Adobe Acrobat Pro DC"
     #1LvbWCCbXPuY5F2uJeFhwM7pyePlXWMvn
     Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1LvbWCCbXPuY5F2uJeFhwM7pyePlXWMvn?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe"  -ea SilentlyContinue | out-null
-    Start-ThreadJob -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.20991x64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
 Function Ins-WinRAR
@@ -720,14 +720,14 @@ Function Windows-Update
     Start-Service -Name "wuauserv" -ea silentlycontinue | out-null
     Start-Service -Name "UsoSvc" -ea silentlycontinue | out-null
     # Use PSWindowsUpdate Module
-    Start-ThreadJob -Name PSWindowsUpdate {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name PSWindowsUpdate {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Import-Module PSWindowsUpdate -Force -ea silentlycontinue
     Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -ea silentlycontinue | out-null}
     Get-WindowsUpdate -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
     (New-Object -ComObject Microsoft.Update.ServiceManager).Services | Select Name,ServiceID | foreach {if($_.Name -match "Store"){$StoreServiceID=$_.ServiceID}} #Get Store Service ID
     Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
     # Use kbupdate Module
-    Start-ThreadJob -Name kbupdate {Install-Module -Name kbupdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-List -Wrap -AutoSize -Property Name,State
+    Start-Job -Name kbupdate {Install-Module -Name kbupdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-List -Wrap -AutoSize -Property Name,State
     Import-Module kbupdate -Force -ea silentlycontinue
     Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
     # Older versions
@@ -743,7 +743,7 @@ Function Windows-Update
 Function Unins-MSTeams
 {
     Write-Host -f C "`r`n*** Uninstalling Microsoft Teams ***`r`n"
-    Start-ThreadJob -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Import-Module UninstallTeams -Force -ea silentlycontinue | out-null
     Install-Script UninstallTeams -Confirm:$False -Force -ea silentlycontinue | out-null
     UninstallTeams -DisableChatWidget -AllUsers
@@ -1024,16 +1024,16 @@ Function Fix-Share
     netsh advfirewall set currentprofile state on
     netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes
     netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes
-    Start-ThreadJob -Name NFR1 {Get-NetFirewallRule -DisplayGroup "File and Printer Sharing" | Enable-NetFirewallRule} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-ThreadJob -Name NFR2 {Get-NetFirewallRule -DisplayGroup "Network Discovery" | Enable-NetFirewallRule} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-ThreadJob -Name NFR3 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Private} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-ThreadJob -Name NFR4 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Private} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-ThreadJob -Name NFR5 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Domain} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-ThreadJob -Name NFR6 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Domain} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-ThreadJob -Name NFR7 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Public} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-ThreadJob -Name NFR8 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Public} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-ThreadJob -Name NFR9 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Any} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-ThreadJob -Name NFR10 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Any} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR1 {Get-NetFirewallRule -DisplayGroup "File and Printer Sharing" | Enable-NetFirewallRule} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR2 {Get-NetFirewallRule -DisplayGroup "Network Discovery" | Enable-NetFirewallRule} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR3 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Private} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR4 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Private} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR5 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Domain} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR6 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Domain} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR7 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Public} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR8 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Public} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR9 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Any} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR10 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Any} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     # Make sure required protocols are enabled in the adapter (they should be by default)
     Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "File and Printer Sharing for Microsoft Networks"}
     Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "Client for Microsoft Networks"}
@@ -1192,11 +1192,11 @@ Function Registry-Tweaks
     AddRegEntry 'HKCU:\Software\Microsoft\Siuf\Rules' 'PeriodInNanoSeconds' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\MediaPlayer\Preferences' 'UsageTracking' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'Start_TrackDocs' '0' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\DiagTrack' 'Start' '4' 'DWord'
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'HideRecentlyAddedApps' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet' 'SpyNetReporting' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet' 'SubmitSamplesConsent' '2' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\MRT' 'DontReportInfectionInformation' '1' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\DiagTrack' 'Start' '4' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'HideRecentlyAddedApps' '0' 'DWord'
     # Print
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Print' 'SpoolerPriority' '128' 'DWord'
     AddRegEntry 'HKCU:\Control Panel\International' 'iPaperSize' '9' 'String'
@@ -1365,7 +1365,7 @@ Function D-ScanFolder
     if (!(Get-Volume -DriveLetter D)) {ShrinkC-MakeNew "D"}
     elseif ((Get-Volume -DriveLetter D).DriveType -ne "Fixed")
     {
-        try{$successful = $true;Set-WmiInstance -InputObject ( Get-WmiObject -Class Win32_volume -Filter "DriveLetter = 'd:'" ) -Arguments @{DriveLetter='Z:'}}
+        try{$successful = $true;Set-WmiInstance -InputObject (Get-WmiObject -Class Win32_volume -Filter "DriveLetter = 'd:'" ) -Arguments @{DriveLetter='Z:'}}
         catch{$successful = $false;Write-Host -f C "Busy Removable Partition D"}
         if ($successful) {ShrinkC-MakeNew "D"}
     }
