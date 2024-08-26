@@ -466,7 +466,8 @@ Function Ins-arSALang
 Function Set-en-GB-Culture
 {
     Import-Module International
-    Set-Culture -CultureInfo en-GB 
+    Start-Job -Name CultureENGB {Set-Culture -CultureInfo en-GB} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-sleep 1
     AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
     AddRegEntry 'HKCU:\Control Panel\International' 'sShortDate' 'dd/MM/yyyy' 'String'
     AddRegEntry 'HKCU:\Control Panel\International' 'sTimeFormat' 'hh:mm:ss tt' 'String'
