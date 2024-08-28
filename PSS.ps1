@@ -16,11 +16,11 @@ Write-Host -F Cyan "***************************** Install programs *************
 Write-Host -F Cyan "======================================================================================================================`r`n"
 Ins-arSAlang #Install Arabic-SA language
 Ins-enUSLang #Install en-US language
-Set-en-GB-Culture
+Set-en-GB-Culture # Make regional format en-GB with AM/PM
 Unins-enGBLang #remove en-GB language
 Tweak-Language
 Fix-Share #Fix Windows file sharing
-#Ins-LatestPowershell #Install Latest Stable Powershell
+Ins-LatestPowershell #Install Latest Stable Powershell
 Ins-Terminal #Install Windows Terminal
 Ins-DotNetRuntime #Install .Net Runtime All versions
 Ins-VCPPRuntime #Install Visual C++ Runtime All versions
