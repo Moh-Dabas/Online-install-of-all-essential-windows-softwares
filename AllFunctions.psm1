@@ -607,8 +607,8 @@ Function Ins-NotepadPP
 Function Ins-Chrome
 {
     Write-Host -f C "Installing Chrome"
+    if (choco list --lo -r -e googlechrome) {Choco upgrade googlechrome --ignore-checksums} else {Choco install googlechrome --ignore-checksums}
     winget install -e --id 'Google.Chrome' --silent --accept-source-agreements --accept-package-agreements
-    if (choco list --lo -r -e googlechrome) {Choco upgrade googlechrome --ignore-checksums} else {Choco install googlechrome}
     # remove logon chrome
     Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{8A69D345-D564-463c-AFF1-A69D9E530F96}"  -Recurse -force -ea SilentlyContinue | out-null
     # disable chrome services
@@ -1379,14 +1379,14 @@ Function D-ScanFolder
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "************************* Creating Drive D (If not found) & Creating shared Scan folder in it **************************"
     Write-Host -f C "======================================================================================================================`r`n" 
-    if (!(Get-Volume -DriveLetter D)) {ShrinkC-MakeNew "D"}
-    elseif ((Get-Volume -DriveLetter D).DriveType -ne "Fixed")
+    if (!(Get-Volume -DriveLetter D -ea SilentlyContinue)) {ShrinkC-MakeNew "D"}
+    elseif ((Get-Volume -DriveLetter D -ea SilentlyContinue).DriveType -ne "Fixed")
     {
         try{$successful = $true;Set-WmiInstance -InputObject (Get-WmiObject -Class Win32_volume -Filter "DriveLetter = 'd:'" ) -Arguments @{DriveLetter='Z:'}}
         catch{$successful = $false;Write-Host -f C "Busy Removable Partition D"}
         if ($successful) {ShrinkC-MakeNew "D"}
     }
-    if ((Get-Volume -DriveLetter D).DriveType -eq "Fixed")
+    if ((Get-Volume -DriveLetter D -ea SilentlyContinue).DriveType -eq "Fixed")
     {
         if (!(Test-Path -Path "D:\Scans" -ea SilentlyContinue)) {New-Item -Path "D:\" -Name "Scans" -ItemType Directory -ea SilentlyContinue | out-null}
         Remove-SmbShare -Name "Scans" -Confirm:$False -Force -ea silentlycontinue | out-null
@@ -1394,7 +1394,7 @@ Function D-ScanFolder
         else {Grant-SmbShareAccess -Name "Scans" -AccountName "Everyone" -AccessRight Full -Force -ea SilentlyContinue | out-null}
         $s=(New-Object -COM WScript.Shell).CreateShortcut("$env:PUBLIC\Desktop\Scans.lnk");$s.TargetPath="D:\Scans\";$s.Save()
     }
-    Remove-SmbShare -Name "Users" -Confirm:$False -Force -ErrorAction silentlycontinue | out-null
+    Remove-SmbShare -Name "Users" -Confirm:$False -Force -ea silentlycontinue | out-null
 }
 
 Function Adj-Hosts
