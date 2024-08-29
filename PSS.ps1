@@ -3,7 +3,7 @@ $ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 try{Import-Module -Name $ScriptDirectory\AllFunctions.psm1 -DisableNameChecking -Global -Force}
 catch{Write-Host "AllFunctions.psm1 file not found";Start-Sleep 5;exit}
 
-Check-RunAsAdministrator #Check Script is runne with Elevated Privileges
+Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 InitializeCommands
 Ins-Nuget #Install Nuget provider
 Ins-Choco #Install Chocolatey
@@ -12,7 +12,7 @@ Ins-WindowsFeatures #Install Windows Features use DISM
 Install-Winget #Install Winget and its dependencies
 
 Write-Host -F Cyan "`r`n======================================================================================================================"
-Write-Host -F Cyan "***************************** Install programs *****************************"
+Write-Host -F Cyan "***************************** Installing programs *****************************"
 Write-Host -F Cyan "======================================================================================================================`r`n"
 Ins-arSAlang #Install Arabic-SA language
 Ins-enUSLang #Install en-US language

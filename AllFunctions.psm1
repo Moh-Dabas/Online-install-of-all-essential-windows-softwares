@@ -1235,6 +1235,7 @@ Function Registry-Tweaks
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WSearch' 'WSearch' '3' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\SysMain' 'Start' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\dmwappushservice' 'Start' '4' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WerSvc' 'Start' '4' 'DWord' #Error reporting
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting' 'Disabled' '1' 'DWord'
     AddRegEntry 'HKCU:\Control Panel\Desktop' 'AutoEndTasks' '1' 'String'
     AddRegEntry 'HKCU:\Control Panel\Desktop' 'SmoothScroll' '0' 'DWord'
