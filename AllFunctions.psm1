@@ -47,6 +47,7 @@ Function AddRegEntry
     {
         if(!(Test-Path -LiteralPath $Path -ea SilentlyContinue)) {New-Item $Path -force -ea SilentlyContinue | out-null}
         if(Test-Path -LiteralPath $Path -ea SilentlyContinue) {New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force -ea SilentlyContinue | out-null}
+        if(Test-Path -LiteralPath $Path -ea SilentlyContinue) {Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force -ea SilentlyContinue | out-null}
     }
     catch
     {
@@ -461,13 +462,27 @@ Function Ins-arSALang
     Write-Host -f C "`r`n*** Installing Arabic-SA language ***`r`n"
     Start-Job -Name InsAr {Install-Language -Language ar-SA} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Set-WinHomeLocation 0xcd
+    Set-WinDefaultInputMethodOverride -InputTip "0401:00000401" #Default input language Arabic
 }
 
 Function Set-en-GB-Culture
 {
     Import-Module International
     Start-Job -Name CultureENGB {Set-Culture -CultureInfo en-GB} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-sleep 1
+    Start-sleep 2
+    $culture = Get-Culture
+    $culture.DateTimeFormat.LongDatePattern = 'dd MMMM yyyy'
+    $culture.DateTimeFormat.ShortDatePattern = 'dd/MM/yyyy'
+    $culture.DateTimeFormat.LongTimePattern = 'hh:mm:ss tt'
+    $culture.DateTimeFormat.ShortTimePattern = 'hh:mm tt'
+    $culture.DateTimeFormat.ShortDatePattern = 'd/MM/yyyy'
+    $culture.DateTimeFormat.FirstDayOfWeek = 'Sunday'
+    $culture.NumberFormat.DigitSubstitution = 'Context'
+    Start-Job -Name CustomCulture {Set-Culture -CultureInfo $culture} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    # Use this to see all properties
+    # $culture | Format-List -Property *
+    # $culture.DateTimeFormat
+    # $culture.NumberFormat
     AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
     AddRegEntry 'HKCU:\Control Panel\International' 'sShortDate' 'dd/MM/yyyy' 'String'
     AddRegEntry 'HKCU:\Control Panel\International' 'sTimeFormat' 'hh:mm:ss tt' 'String'
