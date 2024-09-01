@@ -42,7 +42,6 @@ Ins-WhatsApp #Install WhatsApp
 #Pin-WhatsappWebChrome #Pin Chrome whatsapp web to taskbar
 Unins-DropboxPromotion
 Unins-Devhome #Uninstall Dev Home
-Winget-UpdateAll #Update all Installd applications use Winget
 Ins-DirectX #Install DirectX Extra files
 Windows-Update #Start Install Windows Updates
 Unins-MSTeams #Uninstall Microsoft Teams
@@ -50,6 +49,7 @@ Unins-Cortana #Uninstall & disable Cortana & tweak search
 Unins-Copilot #Uninstall & disable Copilot
 Unins-Xbox #UnInstall Xbox & Game Bar
 #Unins-OneDrive #Remove One Drive
+Winget-UpdateAll #Update all Installd applications use Winget
 DeepTweaks
 Dis-BitLocker #Disable BitLocker
 #EnableSMB1Protocol-Client #Old legacy security threat sharing protocol
