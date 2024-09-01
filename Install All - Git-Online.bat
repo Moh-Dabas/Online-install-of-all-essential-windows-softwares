@@ -36,19 +36,20 @@ Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command
 reg add "HKCU\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /v "ExecutionPolicy" /t REG_SZ /d "Unrestricted" /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /v "ExecutionPolicy" /t REG_SZ /d "Unrestricted" /f >nul 2>&1
 
+:DnR
 Echo Downloading ^& runing
 del /f /s /q "%tmp%\IA" >nul 2>nul
 del /f /s /q "%tmp%\IAGit\*.zip" "%tmp%\IAGit\*.ps1" "%tmp%\IAGit\*.psm1" >nul 2>nul
 mkdir "%tmp%\IAGit"
-
 reg add "HKLM\SYSTEM\CurrentControlSet\Services\BITS" /v "Start" /t REG_DWORD /d "2" /f >nul 2>nul
 sc Start "BITS"
 TIMEOUT /nobreak /t 2 >nul 2>nul
 Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} | Wait-Job -Timeout 999"
 Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Start-BitsTransfer -Source 'https://github.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/archive/refs/heads/main.zip' -Destination '%tmp%\IAGit\IAGit.zip';Expand-Archive -LiteralPath '%tmp%\IAGit\IAGit.zip' -DestinationPath '%tmp%\IAGit' -Force"
+if %errorlevel% neq 0 (goto :DnR)
 REM Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Invoke-WebRequest -Uri 'https://github.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/archive/refs/heads/main.zip' -OutFile '%tmp%\IAGit\IAGit.zip';Expand-Archive -LiteralPath '%tmp%\IAGit\IAGit.zip' -DestinationPath '%tmp%\IAGit' -Force"
-Start "" /High "%tmp%\IAGit\Online-install-of-all-essential-windows-softwares-main\Install All.bat"
-if %errorlevel% neq 0 (Start "Relunch" "%~f0" & exit)
+if exist "%tmp%\IAGit\Online-install-of-all-essential-windows-softwares-main\Install All.bat" (Start "" /High "%tmp%\IAGit\Online-install-of-all-essential-windows-softwares-main\Install All.bat")
+
 
 REM Commands end
 goto :exit
