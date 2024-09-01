@@ -807,6 +807,8 @@ Function Unins-Copilot
     AddRegEntry 'HKU:\.DEFAULT\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
     # remove copilot from taskbar
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowCopilotButton' '0' 'DWord'
+    Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name AutoRestartShell -Value 1 -ea SilentlyContinue | out-null
+    Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 }
 
 Function Unins-Xbox
