@@ -205,7 +205,8 @@ Function InitializeCommands
     Start-Service -Name "W32Time" -ea silentlycontinue | out-null
     Start-Service -Name "tzautoupdate" -ea silentlycontinue | out-null
     w32tm /resync #Sync time now
-    Start-Job -Name BITS {Start-Service -Name "BITS" -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State # Service needed for fast download
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\BITS' 'Start' '2' 'DWord'
+    Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State # Service needed for fast download
 }
 
 Function MaxPowerPlan
