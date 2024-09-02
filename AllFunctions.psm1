@@ -47,7 +47,7 @@ Function AddRegEntry
     {
         if(!(Test-Path -LiteralPath $Path -ea SilentlyContinue)) {New-Item $Path -force -ea SilentlyContinue | out-null}
         if(Test-Path -LiteralPath $Path -ea SilentlyContinue) {New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force -ea SilentlyContinue | out-null}
-        if(Test-Path -LiteralPath $Path -ea SilentlyContinue) {Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force -ea SilentlyContinue | out-null}
+        if(Test-Path -LiteralPath $Path -ea SilentlyContinue) {Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -Force -ea SilentlyContinue | out-null}
     }
     catch
     {
@@ -492,13 +492,19 @@ Function Set-en-GB-Culture
     # $culture.DateTimeFormat
     # $culture.NumberFormat
     AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
+    reg add "HKCU\Control Panel\International" /V sLongDate /T REG_SZ /D "dd MMMM yyyy" /F
     AddRegEntry 'HKCU:\Control Panel\International' 'sShortDate' 'dd/MM/yyyy' 'String'
+    reg add "HKCU\Control Panel\International" /V sShortDate /T REG_SZ /D "dd/MM/yyyy" /F
     AddRegEntry 'HKCU:\Control Panel\International' 'sTimeFormat' 'hh:mm:ss tt' 'String'
+    reg add "HKCU\Control Panel\International" /V sTimeFormat /T REG_SZ /D "hh:mm:ss tt" /F
     AddRegEntry 'HKCU:\Control Panel\International' 'sShortTime' 'hh:mm tt' 'String'
-    AddRegEntry 'HKCU:\Control Panel\International' 'iFirstDayOfWeek' '6' 'String'
-    AddRegEntry 'HKCU:\Control Panel\International' 'NumShape' '0' 'String' # Native digits number shape # 0 - Context # 1 - Never # 2 - Always
+    reg add "HKCU\Control Panel\International" /V sShortTime /T REG_SZ /D "hh:mm tt" /F
+    AddRegEntry 'HKCU:\Control Panel\International' 'iFirstDayOfWeek' '5' 'String' # Saturday
+    reg add "HKCU\Control Panel\International" /V iFirstDayOfWeek /T REG_SZ /D "5" /F
+    AddRegEntry 'HKCU:\Control Panel\International' 'NumShape' '0' 'String' # Native digits number shape # 0 - Context # 1 - default # 2 - Always local
+    reg add "HKCU\Control Panel\International" /V NumShape /T REG_SZ /D "0" /F
     AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
-    Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name AutoRestartShell -Value 1 -ea SilentlyContinue | out-null
+    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 }
 
@@ -807,7 +813,7 @@ Function Unins-Copilot
     AddRegEntry 'HKU:\.DEFAULT\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
     # remove copilot from taskbar
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowCopilotButton' '0' 'DWord'
-    Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name AutoRestartShell -Value 1 -ea SilentlyContinue | out-null
+    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 }
 
@@ -1046,7 +1052,7 @@ Function Fix-Share
     Del-WinDomainCred #Delete windows Domain credintials (sometimes it's stuck). Maped drives and saved shared folders credintials will be affected
     if ((Get-SmbServerConfiguration).EnableSMB2Protocol -ne $true) {Set-SmbServerConfiguration -EnableSMB2Protocol $true}
     (get-netconnectionprofile).Name | foreach {set-netconnectionprofile -name $_ -NetworkCategory private} #Make currently connected networks private
-    #(New-Object -ComObject HNetCfg.FwPolicy2).RestoreLocalFirewallDefaults(); netsh advfirewall reset #Reset firewall settings (Needed sometimes) you can disable this.
+    #(New-Object -ComObject HNetCfg.FwPolicy2).RestoreLocalFirewallDefaults(); netsh advfirewall reset #Reset firewall settings (Needed sometimes).
     netsh advfirewall set currentprofile state on
     netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes
     netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes
@@ -1066,7 +1072,7 @@ Function Fix-Share
     Remove-Item "$env:windir\System32\GroupPolicyUsers" -Recurse -Force -ea SilentlyContinue | out-null
     Remove-Item "$env:windir\System32\GroupPolicy" -Recurse -Force -ea SilentlyContinue | out-null
     gpupdate /force
-    (Get-ComputerInfo -Property CsWorkgroup).CsWorkgroup
+    # Get-ComputerInfo -Property CsWorkgroup | Select-Object -ExpandProperty CsWorkgroup
     Add-Computer -WorkGroupName "WORKGROUP" -ea SilentlyContinue | out-null
     Set-SmbClientConfiguration -EnableInsecureGuestLogons:$true -Force -Confirm:$false
     Set-SmbClientConfiguration -SkipCertificateCheck:$true -Force -Confirm:$false
@@ -1955,7 +1961,7 @@ $registry.SetValue($_.name, $_.value, $_.type)
 $registry.Dispose()
 }
 Write-Host -f C "Restarting explorer to pin application to taskbar"
-Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name AutoRestartShell -Value 1 -ea SilentlyContinue | out-null
+AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
 Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 }
 
