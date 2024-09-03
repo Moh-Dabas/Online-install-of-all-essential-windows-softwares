@@ -37,6 +37,7 @@ Ins-AcrobatPro #Install Adobe Acrobat Pro DC
 Ins-WinRAR #Install WinRAR
 Ins-KLiteMega #Install K-Lite Codec Pack Mega
 Ins-VLC #Install VLC Player
+Ins-PaintDotNet # Install Paint.Net
 Ins-OpenAl #Install OpenAl
 Ins-WhatsApp #Install WhatsApp
 #Pin-WhatsappWebChrome #Pin Chrome whatsapp web to taskbar

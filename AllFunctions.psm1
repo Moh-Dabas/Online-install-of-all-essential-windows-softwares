@@ -698,6 +698,12 @@ Function Ins-VLC
     winget install -e --id 'XPDM1ZW6815MQM' --silent --accept-source-agreements --accept-package-agreements
 }
 
+Function Ins-PaintDotNet
+{
+    Write-Host -f C "Installing Paint.net"
+    winget install -e --id 'dotPDN.PaintDotNet' --silent --accept-source-agreements --accept-package-agreements
+}
+
 Function Ins-OpenAl
 {
     Write-Host -f C "Installing OpenAl"
