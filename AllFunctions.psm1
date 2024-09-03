@@ -477,7 +477,7 @@ Function Set-en-GB-Culture
 {
     Import-Module International
     Start-Job -Name CultureENGB {Set-Culture -CultureInfo en-GB} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-sleep 2
+    Start-sleep 1
     $culture = Get-Culture
     $culture.DateTimeFormat.LongDatePattern = 'dd MMMM yyyy'
     $culture.DateTimeFormat.ShortDatePattern = 'dd/MM/yyyy'
@@ -491,6 +491,7 @@ Function Set-en-GB-Culture
     # $culture | Format-List -Property *
     # $culture.DateTimeFormat
     # $culture.NumberFormat
+    Start-sleep 1
     AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
     reg add "HKCU\Control Panel\International" /V sLongDate /T REG_SZ /D "dd MMMM yyyy" /F
     AddRegEntry 'HKCU:\Control Panel\International' 'sShortDate' 'dd/MM/yyyy' 'String'
