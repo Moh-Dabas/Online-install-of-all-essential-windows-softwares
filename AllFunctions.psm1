@@ -725,69 +725,6 @@ Function Unins-Devhome
     winget uninstall --id 'Microsoft.DevHome'
 }
 
-Function Winget-UpdateAll
-{
-    Write-Host -f C "`r`n*** Updating all installed applications using Winget ***`r`n"
-    winget upgrade --all --silent --accept-source-agreements --accept-package-agreements --force
-}
-
-Function Ins-DirectX
-{
-    Write-Host -f C "`r`n*** Installing DirectX Extra Files ***`r`n"
-    # Run on windows terminal to work
-    Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '-p "Windows PowerShell"', 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
-}
-
-Function Windows-Update
-{
-    Write-Host -f C "`r`n*** Starting Windows Updates ***`r`n"
-    # Update reg entries
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'DeferUpgrade' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'DeferUpgradePeriod' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'DeferUpdatePeriod' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsStore\WindowsUpdate' 'AutoDownload' '4' 'DWord' #Store auto download updates
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore' 'AutoDownload' '4' 'DWord' #Store auto download updates all users policy
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'DoNotConnectToWindowsUpdateInternetLocations' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Services\7971F918-A847-4430-9279-4A52D1EFE18D' 'RegisteredWithAU' '1' 'DWord' #Microsoft Update
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Services\855E8A7C-ECB4-4CA3-B045-1DFA50104289' 'RegisteredWithAU' '1' 'DWord' #Windows Store (DCat Prod)
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\wuauserv' 'Start' '3' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\UsoSvc' 'Start' '3' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WaaSMedicSvc' 'Start' '3' 'DWord'
-    # Start Services
-    Start-Service -Name "wuauserv" -ea silentlycontinue | out-null
-    Start-Service -Name "UsoSvc" -ea silentlycontinue | out-null
-    # Use PSWindowsUpdate Module
-    Start-Job -Name PSWindowsUpdate {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Import-Module PSWindowsUpdate -Force -ea silentlycontinue
-    Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -ea silentlycontinue | out-null}
-    Get-WindowsUpdate -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
-    (New-Object -ComObject Microsoft.Update.ServiceManager).Services | Select Name,ServiceID | foreach {if($_.Name -match "Store"){$StoreServiceID=$_.ServiceID}} #Get Store Service ID
-    Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
-    # Use kbupdate Module
-    Start-Job -Name kbupdate {Install-Module -Name kbupdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-List -Wrap -AutoSize -Property Name,State
-    Import-Module kbupdate -Force -ea silentlycontinue
-    Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
-    # Older versions
-    (New-Object -ComObject Microsoft.Update.AutoUpdate).DetectNow()
-    usoclient ScanInstallWait
-    UsoClient RefreshSettings
-    UsoClient StartScan
-    UsoClient StartDownload
-    usoclient StartInstall
-    wuauclt /detectnow /updatenow
-}
-
-Function Unins-MSTeams
-{
-    Write-Host -f C "`r`n*** Uninstalling Microsoft Teams ***`r`n"
-    Start-Job -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Import-Module UninstallTeams -Force -ea silentlycontinue | out-null
-    Install-Script UninstallTeams -Confirm:$False -Force -ea silentlycontinue | out-null
-    UninstallTeams -DisableChatWidget -AllUsers
-    UninstallTeams -DisableOfficeTeamsInstall
-    UninstallTeams
-}
-
 Function Unins-DropboxPromotion
 {
     Write-Host -f C "`r`n*** Uninstalling Dropbox promotion ***`r`n"
@@ -843,6 +780,70 @@ Function Unins-Xbox
     #  Disable Game Bar
     AddRegEntry 'HKCU:\Software\Microsoft\GameBar' 'AllowAutoGameMode' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\GameBar' 'AutoGameModeEnabled' '0' 'DWord'
+}
+
+Function Unins-MSTeams
+{
+    Write-Host -f C "`r`n*** Uninstalling Microsoft Teams ***`r`n"
+    Start-Job -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-List -Property Name,State
+    Import-Module UninstallTeams -Force -ea silentlycontinue | out-null
+    Install-Script UninstallTeams -Confirm:$False -Force -ea silentlycontinue | out-null
+    UninstallTeams -DisableChatWidget -AllUsers
+    UninstallTeams -DisableOfficeTeamsInstall
+    UninstallTeams
+}
+
+Function Winget-UpdateAll
+{
+    Write-Host -f C "`r`n*** Updating all installed applications using Winget ***`r`n"
+    winget upgrade --all --silent --accept-source-agreements --accept-package-agreements --force
+}
+
+Function Ins-DirectX
+{
+    Write-Host -f C "`r`n*** Installing DirectX Extra Files ***`r`n"
+    # Run on command prompt
+    cmd /c "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements"
+    #Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '-p "Windows PowerShell"', '-w new', 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
+}
+
+Function Windows-Update
+{
+    Write-Host -f C "`r`n*** Starting Windows Updates ***`r`n"
+    # Update reg entries
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'DeferUpgrade' '0' 'DWord'
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'DeferUpgradePeriod' '0' 'DWord'
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'DeferUpdatePeriod' '0' 'DWord'
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsStore\WindowsUpdate' 'AutoDownload' '4' 'DWord' #Store auto download updates
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore' 'AutoDownload' '4' 'DWord' #Store auto download updates all users policy
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' 'DoNotConnectToWindowsUpdateInternetLocations' '0' 'DWord'
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Services\7971F918-A847-4430-9279-4A52D1EFE18D' 'RegisteredWithAU' '1' 'DWord' #Microsoft Update
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Services\855E8A7C-ECB4-4CA3-B045-1DFA50104289' 'RegisteredWithAU' '1' 'DWord' #Windows Store (DCat Prod)
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\wuauserv' 'Start' '3' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\UsoSvc' 'Start' '3' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WaaSMedicSvc' 'Start' '3' 'DWord'
+    # Start Services
+    Start-Service -Name "wuauserv" -ea silentlycontinue | out-null
+    Start-Service -Name "UsoSvc" -ea silentlycontinue | out-null
+    # Use PSWindowsUpdate Module
+    Start-Job -Name PSWindowsUpdate {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Import-Module PSWindowsUpdate -Force -ea silentlycontinue
+    Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -ea silentlycontinue | out-null}
+    Get-WindowsUpdate -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
+    (New-Object -ComObject Microsoft.Update.ServiceManager).Services | Select Name,ServiceID | foreach {if($_.Name -match "Store"){$StoreServiceID=$_.ServiceID}} #Get Store Service ID
+    Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
+    # Use kbupdate Module
+    Start-Job -Name kbupdate {Install-Module -Name kbupdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-List -Property Name,State
+    Import-Module kbupdate -Force -ea silentlycontinue
+    Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
+    # Older versions
+    (New-Object -ComObject Microsoft.Update.AutoUpdate).DetectNow()
+    usoclient ScanInstallWait
+    UsoClient RefreshSettings
+    UsoClient StartScan
+    UsoClient StartDownload
+    usoclient StartInstall
+    wuauclt /detectnow /updatenow
 }
 
 Function Move-OneDriveUserFolders
