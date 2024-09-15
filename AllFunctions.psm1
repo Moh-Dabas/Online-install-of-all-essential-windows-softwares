@@ -504,7 +504,10 @@ Function Set-en-GB-Culture
     reg add "HKCU\Control Panel\International" /V iFirstDayOfWeek /T REG_SZ /D "5" /F
     AddRegEntry 'HKCU:\Control Panel\International' 'NumShape' '0' 'String' # Native digits number shape # 0 - Context # 1 - default # 2 - Always local
     reg add "HKCU\Control Panel\International" /V NumShape /T REG_SZ /D "0" /F
+    reg add "HKCU\Control Panel\International" /V iCalendarType /T REG_SZ /D "1" /F
     AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
+    Set-WinSystemLocale -SystemLocale ar-SA
+    Copy-UserInternationalSettingsToSystem -WelcomeScreen $True -NewUser $True
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 }
@@ -704,6 +707,12 @@ Function Ins-PaintDotNet
     winget install -e --id 'dotPDN.PaintDotNet' --silent --accept-source-agreements --accept-package-agreements
 }
 
+Function Ins-GIMP
+{
+    Write-Host -f C "Installing GIMP"
+    winget install -e --id 'GIMP.GIMP' --silent --accept-source-agreements --accept-package-agreements
+}
+
 Function Ins-OpenAl
 {
     Write-Host -f C "Installing OpenAl"
@@ -712,7 +721,7 @@ Function Ins-OpenAl
 
 Function Ins-WhatsApp
 {
-    Write-Host -f C "Installing WhatsApp"
+    Write-Host -f C "Installing MS store WhatsApp"
     winget install -e --name 'WhatsApp' --id '9NKSQGP7F2NH' --source 'msstore' --silent --accept-source-agreements --accept-package-agreements
     # Pin MS store Whatsapp to taskbar
     Pin-to-taskbar -IDorPath "WhatsAppDesktop" -PinType "AppUserModelID" -SearchID
