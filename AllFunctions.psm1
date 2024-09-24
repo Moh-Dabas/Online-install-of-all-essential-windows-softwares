@@ -674,9 +674,27 @@ Function Ins-AcrobatRdr
 
 Function Ins-AcrobatPro
 {
+    # Get installed programs for both 32-bit and 64-bit architectures
+    $paths = @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\')
+    $installedPrograms = foreach ($registryPath in $paths) {
+    try {
+        Get-ChildItem -LiteralPath $registryPath -ea silentlycontinue | Get-ItemProperty | Where-Object { $_.PSChildName -ne $null }
+    } catch {Write-warning "Error reaging registry"}
+    }
+    # Filter programs with Adobe Acrobat in their display name
+    $adobeacrobatEntries = $installedPrograms | Where-Object {$_.DisplayName -like '*Adobe Acrobat*'}
+    # Try to uninstall Adobe Acrobat for each matching entry
+    foreach ($entry in $adobeacrobatEntries) {
+    $productCode = $entry.PSChildName
+    try {
+        # Use the MSIExec command to uninstall the product
+        Write-Host -f C "Uninstalling $entry.DisplayName"
+        Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $productCode /qb-! /norestart" -Wait -PassThru
+    } catch {Write-warning "Failed to uninstall $entry.DisplayName with product code $productCode. Error: $_"}
+    }
     Write-Host -f C "Installing Adobe Acrobat Pro DC"
-    #1DQQejJcydZ-c5az3V0HaUY_p_9YC3oL6
-    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1DQQejJcydZ-c5az3V0HaUY_p_9YC3oL6?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe"  -ea SilentlyContinue | out-null
+    #1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk
+    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe"  -ea SilentlyContinue | out-null
     Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
@@ -811,8 +829,12 @@ Function Winget-UpdateAll
 Function Ins-DirectX
 {
     Write-Host -f C "`r`n*** Installing DirectX Extra Files ***`r`n"
+    # Run on Latest PowerShell
+    pwsh -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements"
     # Run on command prompt
     cmd /c "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements"
+    # Run on Windows Terminal
+    wt winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements
     #Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '-p "Windows PowerShell"', '-w new', 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
 }
 
