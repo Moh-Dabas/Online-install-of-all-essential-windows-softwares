@@ -672,7 +672,7 @@ Function Ins-AcrobatRdr
     }
 }
 
-Function Ins-AcrobatPro
+Function Unins-Acrobat
 {
     # Get installed programs for both 32-bit and 64-bit architectures
     $paths = @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\')
@@ -685,13 +685,19 @@ Function Ins-AcrobatPro
     $adobeacrobatEntries = $installedPrograms | Where-Object {$_.DisplayName -like '*Adobe Acrobat*'}
     # Try to uninstall Adobe Acrobat for each matching entry
     foreach ($entry in $adobeacrobatEntries) {
-    $productCode = $entry.PSChildName
+    $ProductCode = $entry.PSChildName
+    $DisplayName = $entry.DisplayName
     try {
         # Use the MSIExec command to uninstall the product
-        Write-Host -f C "Uninstalling $entry.DisplayName"
-        Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $productCode /qb-! /norestart" -Wait -PassThru
-    } catch {Write-warning "Failed to uninstall $entry.DisplayName with product code $productCode. Error: $_"}
+        Write-Host -f C "Uninstalling $DisplayName"
+        Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $ProductCode /qb-! /norestart" -Wait -PassThru
+    } catch {Write-warning "Failed to uninstall $DisplayName with product code $ProductCode. Error: $_"}
     }
+}
+
+Function Ins-AcrobatPro
+{
+    Unins-Acrobat
     Write-Host -f C "Installing Adobe Acrobat Pro DC"
     #1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk
     Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe"  -ea SilentlyContinue | out-null
