@@ -406,9 +406,9 @@ Function Ins-Choco
 Function Ins-Scoop-git
 {
     try {$scoopInstalled = Get-Command -Name scoop -ea silentlycontinue} catch {}
-    if ($scoopInstalled) {write-host "scoop is already installed"} else {write-host "Installing scoop";iex "& {$(irm get.scoop.sh)} -RunAsAdmin"}
+    if ($scoopInstalled) {write-host "scoop is already installed"} else {write-host "`r`n *** Installing scoop *** `r`n";iex "& {$(irm get.scoop.sh)} -RunAsAdmin"}
     try {$gitInstalled = Get-Command -Name git -ea silentlycontinue} catch {}
-    if ($gitInstalled) {write-host "git is already installed`r`nTrying to update git";scoop update git} else {write-host "Installing git";scoop install git}
+    if ($gitInstalled) {write-host "git is already installed `r`n Trying to update git";scoop update git} else {write-host "Installing git";scoop install git}
     if (Get-Command -Name scoop) {write-host "Trying to update scoop";scoop update}
 }
 
@@ -458,7 +458,7 @@ Function Install-Winget
     }
     Start-Job -Name ConfigWinget1 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Start-Job -Name ConfigWinget2 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    write-host -f C "Updating Winget"
+    write-host -f C "`r`n *** Updating Winget ***"
     Install-Script winget-install -Force
     Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     winget-install -CheckForUpdate
@@ -475,6 +475,7 @@ Function Ins-arSALang
 
 Function Set-en-GB-Culture
 {
+    Write-Host -f C "`r`n*** Setting en-GB Culture (Regional format) ***`r`n"
     Import-Module International
     Start-Job -Name CultureENGB {Set-Culture -CultureInfo en-GB} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Start-sleep 1
