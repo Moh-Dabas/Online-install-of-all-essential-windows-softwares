@@ -554,13 +554,13 @@ Function Tweak-Language
 
 Function Ins-LatestPowershell
 {
-    Write-Host -f C "`r`n Installing Latest Stable Powershell"
+    Write-Host -f C "`r`n *** Installing Latest Stable Powershell *** `r`n"
     winget install --id 'Microsoft.Powershell' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-Terminal
 {
-    Write-Host -f C "`r`n Installing Windows Terminal"
+    Write-Host -f C "`r`n *** Installing Windows Terminal *** `r`n"
     winget install -e --id 'Microsoft.WindowsTerminal' --silent --accept-source-agreements --accept-package-agreements
     AddRegEntry 'HKCU:Console\%%Startup' "DelegationConsole" "{2EACA947-7F5F-4CFA-BA87-8F7FBEEFBE69}" 'String'
     AddRegEntry 'HKCU:Console\%%Startup' "DelegationTerminal" "{E12CFF52-A866-4C77-9A90-F570A7AA2C6B}" 'String'
@@ -568,7 +568,7 @@ Function Ins-Terminal
 
 Function Ins-DotNetRuntime
 {
-    Write-Host -f C "`r`n Installing .Net Runtime All versions"
+    Write-Host -f C "`r`n *** Installing .Net Runtime All versions *** `r`n"
     if (choco list --lo -r -e dotnet-all) {Choco upgrade dotnet-all} else {Choco install dotnet-all}
     (Find-WinGetPackage "Microsoft.DotNet.DesktopRuntime").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
     (Find-WinGetPackage "Microsoft.DotNet.Runtime").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
@@ -577,55 +577,55 @@ Function Ins-DotNetRuntime
 
 Function Ins-VCPPRuntime
 {
-    Write-Host -f C "`r`n Installing Visual C++ Runtime All versions"
+    Write-Host -f C "`r`n *** Installing Visual C++ Runtime All versions *** `r`n"
     if (choco list --lo -r -e vcredist-all) {Choco upgrade vcredist-all} else {Choco install vcredist-all}
     (Find-WinGetPackage "Microsoft.VCRedist").Id | Where-Object {-not $_.EndsWith("arm64")} | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
 }
 
 Function Ins-JavaRuntime
 {
-    Write-Host -f C "`r`n Installing Java Runtime Environment"
+    Write-Host -f C "`r`n *** Installing Java Runtime Environment *** `r`n"
     winget install -e --id Oracle.JavaRuntimeEnvironment --silent --accept-source-agreements --accept-package-agreements
     if (choco list --lo -r -e javaruntime) {Choco upgrade javaruntime} else {Choco install javaruntime}
 }
 
 Function Ins-XNA
 {
-    Write-Host -f C "`r`n Installing Microsoft XNA Framework Redistributable"
+    Write-Host -f C "`r`n *** Installing Microsoft XNA Framework Redistributable *** `r`n"
     if (choco list --lo -r -e xna) {Choco upgrade xna} else {Choco install xna}
     winget install -e --id Microsoft.XNARedist --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-AdobeAIRRuntime
 {
-    Write-Host -f C "`r`n Installing Adobe AIR Runtime"
+    Write-Host -f C "`r`n *** Installing Adobe AIR Runtime *** `r`n"
     if (choco list --lo -r -e adobeair) {Choco upgrade adobeair} else {Choco install adobeair}
     winget install -e --id HARMAN.AdobeAIR --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-WScan
 {
-    Write-Host -f C "`r`n Installing Windows Scan"
+    Write-Host -f C "`r`n *** Installing Windows Scan *** `r`n"
     winget install -e --name 'Windows Scan' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-HpSmart
 {
-    Write-Host -f C "Installing Hp Smart App"
+    Write-Host -f C "`r`n *** Installing Hp Smart App *** `r`n"
     winget install -e --name 'HP Smart' --silent --accept-source-agreements --accept-package-agreements
 }
 
 
 Function Ins-NotepadPP
 {
-    Write-Host -f C "`r`n Installing Notepad++"
+    Write-Host -f C "`r`n *** Installing Notepad++ *** `r`n"
     winget install -e --name 'Notepad++' --silent --accept-source-agreements --accept-package-agreements
     if (choco list --lo -r -e notepadplusplus.install) {Choco upgrade notepadplusplus.install} else {Choco install notepadplusplus.install}
 }
 
 Function Ins-Chrome
 {
-    Write-Host -f C "`r`n Installing Chrome"
+    Write-Host -f C "`r`n *** Installing Chrome *** `r`n"
     if (choco list --lo -r -e googlechrome) {Choco upgrade googlechrome --ignore-checksums} else {Choco install googlechrome --ignore-checksums}
     winget install -e --id 'Google.Chrome' --silent --accept-source-agreements --accept-package-agreements
     # remove logon chrome
@@ -642,7 +642,7 @@ Function Ins-Chrome
 
 Function Tweak-Edge
 {
-    Write-Host -f C '`r`n Tweaking Edge'
+    Write-Host -f C "`r`n *** Tweaking Edge *** `r`n"
     # edge
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' 'AutofillCreditCardEnabled' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Browser' 'AllowAddressBarDropdown' '0' 'DWord'
@@ -663,7 +663,7 @@ Function Tweak-Edge
 
 Function Ins-AcrobatRdr
 {
-    Write-Host -f C "`r`n Installing Adobe Acrobat Reader DC"
+    Write-Host -f C "`r`n *** Installing Adobe Acrobat Reader DC *** `r`n"
     try {$Acrobat = Get-Package -Name 'Adobe Acrobat (64-bit)' -ea silentlycontinue} catch {}
     if ($Acrobat) {Write-Host -f C "Adobe Acrobat (64-bit) found installed"}
     else
@@ -690,7 +690,7 @@ Function Unins-Acrobat
     $DisplayName = $entry.DisplayName
     try {
         # Use the MSIExec command to uninstall the product
-        Write-Host -f C "`r`n Uninstalling $DisplayName"
+        Write-Host -f C "`r`n *** Uninstalling $DisplayName *** `r`n"
         Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $ProductCode /qb-! /norestart" -Wait -PassThru
     } catch {Write-warning "Failed to uninstall $DisplayName with product code $ProductCode. Error: $_"}
     }
@@ -699,7 +699,7 @@ Function Unins-Acrobat
 Function Ins-AcrobatPro
 {
     Unins-Acrobat
-    Write-Host -f C " `r`n Installing Adobe Acrobat Pro DC"
+    Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
     #1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk
     Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe"  -ea SilentlyContinue | out-null
     Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
@@ -707,46 +707,46 @@ Function Ins-AcrobatPro
 
 Function Ins-WinRAR
 {
-    Write-Host -f C "`r`n Installing WinRAR"
+    Write-Host -f C "`r`n *** Installing WinRAR *** `r`n"
     if (choco list --lo -r -e winrar) {Choco upgrade winrar} else {Choco install winrar}
     winget install -e --id 'RARLab.WinRAR' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-KLiteMega
 {
-    Write-Host -f C "`r`n Installing K-Lite Codec Pack Mega"
+    Write-Host -f C "`r`n Installing K-Lite Codec Pack Mega *** `r`n"
     if (choco list --lo -r -e k-litecodecpackmega) {Choco upgrade k-litecodecpackmega} else {Choco install k-litecodecpackmega}
     winget install -e --id 'CodecGuide.K-LiteCodecPack.Mega' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-VLC
 {
-    Write-Host -f C "`r`n Installing VLC"
+    Write-Host -f C "`r`n *** Installing VLC *** `r`n"
     winget install -e --id 'VideoLAN.VLC' --silent --accept-source-agreements --accept-package-agreements
     winget install -e --id 'XPDM1ZW6815MQM' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-PaintDotNet
 {
-    Write-Host -f C "`r`n Installing Paint.net"
+    Write-Host -f C "`r`n *** Installing Paint.net *** `r`n"
     winget install -e --id 'dotPDN.PaintDotNet' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-GIMP
 {
-    Write-Host -f C "`r`n Installing GIMP"
+    Write-Host -f C "`r`n *** Installing GIMP *** `r`n"
     winget install -e --id 'GIMP.GIMP' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-OpenAl
 {
-    Write-Host -f C "`r`n Installing OpenAl"
+    Write-Host -f C "`r`n *** Installing OpenAl *** `r`n"
     if (choco list --lo -r -e openal) {Choco upgrade openal} else {Choco install openal}
 }
 
 Function Ins-WhatsApp
 {
-    Write-Host -f C "`r`n Installing MS store WhatsApp"
+    Write-Host -f C "`r`n *** Installing MS store WhatsApp *** `r`n"
     winget install -e --name 'WhatsApp' --id '9NKSQGP7F2NH' --source 'msstore' --silent --accept-source-agreements --accept-package-agreements
     # Pin MS store Whatsapp to taskbar
     Pin-to-taskbar -IDorPath "WhatsAppDesktop" -PinType "AppUserModelID" -SearchID
@@ -1178,7 +1178,7 @@ Function Fix-Share
 
 Function Tweak-schtasks
 {
-    Write-Host -f C "`r`n *** Disabling scheduled tasks that are considered unnecessary ***"
+    Write-Host -f C "`r`n *** Disabling scheduled tasks that are considered unnecessary *** `r`n"
     Get-ScheduledTask -TaskName 'Consolidator' | Disable-ScheduledTask -ea SilentlyContinue | out-null
     Get-ScheduledTask -TaskName 'UsbCeip' | Disable-ScheduledTask -ea SilentlyContinue | out-null
     Get-ScheduledTask -TaskName 'DmClient' | Disable-ScheduledTask -ea SilentlyContinue | out-null
@@ -1416,7 +1416,7 @@ Function ShrinkC-MakeNew
     [Parameter(Mandatory=$true, Position=0)]
     [string]$DriveLetter
     )
-    if (Get-Volume -DriveLetter $DriveLetter -ea SilentlyContinue) {Write-Host -f C "Partition $DriveLetter already exist";return}
+    if (Get-Volume -DriveLetter $DriveLetter -ea SilentlyContinue) {Write-warning "Partition $DriveLetter already exist";return}
     $CSizeMax = (Get-PartitionSupportedSize -DriveLetter C).SizeMax
     $CSizeMin = (Get-PartitionSupportedSize -DriveLetter C).SizeMin
     $CShrink = ($CSizeMax - $CSizeMin)/1000000000 #Shrinkable amount in GB
@@ -1719,7 +1719,7 @@ Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Fo
 
 Function uninsSara-Office
 {
-    Write-Host -f C "`r`n Removing currently installed MS office products using SaraCmd"
+    Write-Host -f C "`r`n *** Removing currently installed MS office products using SaraCmd *** `r`n"
     # Remove MS Store Office 365
     RmAppx "Microsoft.Office.Desktop"
     # Run SaraCMD non-interactive Script
@@ -1734,7 +1734,7 @@ Function uninsSara-Office
 
 Function uninsITPRO-Office
 {
-    Write-Host -f C "`r`n Removing currently installed MS office products using ITPRO codes"
+    Write-Host -f C "`r`n *** Removing currently installed MS office products using ITPRO codes *** `r`n"
     $outputdir = "$env:TEMP\IA\office"
     $weburl = "https://github.com/OfficeDev/Office-IT-Pro-Deployment-Scripts/tree/master/Office-ProPlus-Deployment/Remove-PreviousOfficeInstalls/"
     for ($i = 1; $i -le 30; $i++){
@@ -1755,7 +1755,7 @@ Function uninsITPRO-Office
 
 Function ActivateofficeKMS
 {
-    Write-Host -f C "`r`n Activating office using KMS"
+    Write-Host -f C "`r`n *** Activating office using KMS *** `r`n"
     $Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs";$Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
     if (Test-Path -Path $Officeospp64 -ea SilentlyContinue) {$office64 = $true}
     elseif (Test-Path -Path $Officeospp32 -ea SilentlyContinue) {$office64 = $false}
@@ -1836,7 +1836,7 @@ $ConfigurationFile =
 <Display Level="None" AcceptEULA="TRUE" />
 </Configuration>
 "@
-Write-Host -f C "`r`n *** Downloading & extracting Office Deployment Tool ***"
+Write-Host -f C "`r`n *** Downloading & extracting Office Deployment Tool *** `r`n"
 Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
 for ($i = 1; $i -le 50; $i++) {
 $webpage2 = Repeatiwr -Uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
@@ -1845,7 +1845,7 @@ if ($Filelink -ne $null) {break}
 }
 if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
 if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -ea SilentlyContinue | out-null}
-Write-Host -f C "`r`n*** Installing Office 2021 Pro Plus ... ***`r`n"
+Write-Host -f C "`r`n *** Installing Office 2021 Pro Plus ... *** `r`n"
 if (Test-Path -Path "$env:TEMP\IA\office\setup.exe" -ea SilentlyContinue) {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -ea SilentlyContinue | out-null}
 else {Write-Host -f C "`r`n Failed to download & extract Office Deployment Tool"}
 ActivateofficeKMS
@@ -2013,14 +2013,14 @@ Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 
 Function Ins-ExtraFonts
 {
-    Write-Host -f C "`r`n *** Installing Extra Fonts ***"
+    Write-Host -f C "`r`n *** Installing Extra Fonts *** `r`n"
     if (choco list --lo -r -e dejavufonts) {Write-Host -f C "dejavufonts already installed"} else {Choco install dejavufonts}
     if (choco list --lo -r -e victormononf) {Choco upgrade victormononf} else {Choco install victormononf}
 }
 
 Function Pin-WhatsappWebChrome
 {
-    Write-Host -f C "`r`n Pining Chrome whatsapp web to taskbar"
+    Write-Host -f C "`r`n *** Pining Chrome whatsapp web to taskbar *** `r`n"
     $key = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe'
     $Chrome=(Get-ItemProperty -Path $key -Name '(Default)').'(default)'
     if ($chrome -eq $null)
