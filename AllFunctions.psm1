@@ -675,6 +675,8 @@ Function Ins-AcrobatRdr
 
 Function Unins-Acrobat
 {
+    kill -name acro* -force;
+    kill -name adobe* -force;
     # Get installed programs for both 32-bit and 64-bit architectures
     $paths = @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\')
     $installedPrograms = foreach ($registryPath in $paths) {
@@ -694,6 +696,10 @@ Function Unins-Acrobat
         Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $ProductCode /qb-! /norestart" -Wait -PassThru
     } catch {Write-warning "Failed to uninstall $DisplayName with product code $ProductCode. Error: $_"}
     }
+    #16etkp4rCcon2NyGGh0oYSocHhB_054cm
+    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/16etkp4rCcon2NyGGh0oYSocHhB_054cm?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcroCleaner.exe"  -ea SilentlyContinue | out-null
+    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=0","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=1","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
 Function Ins-AcrobatPro
@@ -702,7 +708,7 @@ Function Ins-AcrobatPro
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
     #1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk
     Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe"  -ea SilentlyContinue | out-null
-    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
 Function Ins-WinRAR
@@ -871,7 +877,7 @@ Function Windows-Update
     (New-Object -ComObject Microsoft.Update.ServiceManager).Services | Select Name,ServiceID | foreach {if($_.Name -match "Store"){$StoreServiceID=$_.ServiceID}} #Get Store Service ID
     Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
     # Use kbupdate Module
-    Start-Job -Name kbupdate {Install-Module -Name kbupdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Install-Module -Name kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Import-Module kbupdate -Force -ea silentlycontinue
     Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
     # Older versions
