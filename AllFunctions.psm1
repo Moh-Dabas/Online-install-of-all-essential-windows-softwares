@@ -877,7 +877,7 @@ Function Windows-Update
     (New-Object -ComObject Microsoft.Update.ServiceManager).Services | Select Name,ServiceID | foreach {if($_.Name -match "Store"){$StoreServiceID=$_.ServiceID}} #Get Store Service ID
     Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
     # Use kbupdate Module
-    Install-Module -Name kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Install-Module -Name kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue
     Import-Module kbupdate -Force -ea silentlycontinue
     Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
     # Older versions
