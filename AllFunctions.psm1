@@ -1761,7 +1761,12 @@ Function uninsITPRO-Office
     & "$outputdir\Remove-PreviousOfficeInstalls.ps1"
 }
 
-Function ActivateofficeKMS
+Function Uninscomponents-Office
+{
+    Get-Package -Name "*Office*" | Uninstall-Package
+}
+
+Function ActivateOfficeKMS
 {
     Write-Host -f C "`r`n *** Activating office using KMS *** `r`n"
     $Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs";$Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
@@ -1791,72 +1796,8 @@ Function ActivateofficeKMS
     }
 }
 
-Function Ins-Office21PP
+Function Config-Office
 {
-Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Start Installing Office 2021 Pro Plus *****************************"
-Write-Host -f C "======================================================================================================================`r`n"
-uninsSara-Office
-uninsITPRO-Office
-$ConfigurationFile =
-@"
-<Configuration ID="d66f0ad9-6e2f-47dc-a4fe-de1b73dfddff">
-<Remove All="TRUE" />
-<Add OfficeClientEdition="64" Channel="PerpetualVL2021">
-<Product ID="ProPlus2021Volume" PIDKEY="FXYTK-NJJ8C-GB6DW-3DYQT-6F7TH">
-<Language ID="MatchOS" />
-<Language ID="ar-sa" />
-<Language ID="en-us" />
-<ExcludeApp ID="Lync" />
-<ExcludeApp ID="OneDrive" />
-<ExcludeApp ID="OneNote" />
-<ExcludeApp ID="Publisher" />
-</Product>
-<Product ID="LanguagePack">
-<Language ID="MatchOS" />
-<Language ID="ar-sa" />
-<Language ID="en-us" />
-</Product>
-<Product ID="ProofingTools">
-<Language ID="ar-sa" />
-<Language ID="en-us" />
-</Product>
-</Add>
-<Property Name="SharedComputerLicensing" Value="0" />
-<Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
-<Property Name="DeviceBasedLicensing" Value="0" />
-<Property Name="SCLCacheOverride" Value="0" />
-<Property Name="AUTOACTIVATE" Value="1" />
-<Updates Enabled="FALSE" />
-<RemoveMSI />
-<AppSettings>
-<User Key="software\microsoft\office\16.0\excel\options" Name="recognizesmarttags" Value="2" Type="REG_DWORD" App="office16" Id="L_EnableAdditionalActionsInExcel" />
-<User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizesentence" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizefirstletterofsentence" />
-<User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizenamesofdays" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizenamesofdays" />
-<User Key="software\microsoft\shared tools\proofing tools\1.0\office" Name="flagrepeatedword" Value="1" Type="REG_DWORD" App="office16" Id="L_FlagRepeatedWords" />
-<User Key="software\microsoft\office\16.0\word\options\vpref" Name="wspell_1112_8" Value="3" Type="REG_DWORD" App="office16" Id="L_Arabicmodes" />
-<User Key="software\microsoft\office\16.0\common\ptwatson" Name="ptwoptin" Value="0" Type="REG_DWORD" App="office16" Id="L_ImproveProofingTools" />
-<User Key="software\microsoft\office\16.0\common\general" Name="shownfirstrunoptin" Value="1" Type="REG_DWORD" App="office16" Id="L_DisableOptinWizard" />
-<User Key="software\microsoft\office\16.0\common" Name="qmenable" Value="0" Type="REG_DWORD" App="office16" Id="L_EnableCustomerExperienceImprovementProgram" />
-<User Key="software\microsoft\office\16.0\common" Name="updatereliabilitydata" Value="0" Type="REG_DWORD" App="office16" Id="L_UpdateReliabilityPolicy" />
-<User Key="software\microsoft\office\16.0\common\security\filevalidation" Name="disablereporting" Value="1" Type="REG_DWORD" App="office16" Id="L_TurnOffErrorReportingForFilesThatFailFileValidation" />
-</AppSettings>
-<Display Level="None" AcceptEULA="TRUE" />
-</Configuration>
-"@
-Write-Host -f C "`r`n *** Downloading & extracting Office Deployment Tool *** `r`n"
-Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
-for ($i = 1; $i -le 50; $i++) {
-$webpage2 = Repeatiwr -Uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
-$FileLink =$webpage2.Links | Where-Object href -like '*officedeploymenttool*exe' | select -Last 1 -expand href
-if ($Filelink -ne $null) {break}
-}
-if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
-if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -ea SilentlyContinue | out-null}
-Write-Host -f C "`r`n *** Installing Office 2021 Pro Plus ... *** `r`n"
-if (Test-Path -Path "$env:TEMP\IA\office\setup.exe" -ea SilentlyContinue) {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -ea SilentlyContinue | out-null}
-else {Write-Host -f C "`r`n Failed to download & extract Office Deployment Tool"}
-ActivateofficeKMS
 # Office
 AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'EnableAutomaticUpdates' '0' 'DWord'
 AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'HideEnableDisableUpdates' '1' 'DWord'
@@ -1908,6 +1849,147 @@ AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'recog
 AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Office\16.0\Word\Wizards' 'PageSize' 'A4' 'String'
 Get-printer | ForEach-Object {set-printconfiguration -printerobject $_ -Papersize A4 -DuplexingMode OneSided}
 $Printers = Get-Printer;Foreach ($Printer in $Printers){Set-PrintConfiguration -PrinterName $Printer.name -PaperSize A4 -DuplexingMode OneSided}
+}
+
+Function Deploy-Office
+{
+    Write-Host -f C "`r`n *** Downloading & extracting Office Deployment Tool *** `r`n"
+    for ($i = 1; $i -le 50; $i++) {
+    $webpage2 = Repeatiwr -Uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
+    $FileLink =$webpage2.Links | Where-Object href -like '*officedeploymenttool*exe' | select -Last 1 -expand href
+    if ($Filelink -ne $null) {break}
+    }
+    if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
+    if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -ea SilentlyContinue | out-null}
+    Write-Host -f C "`r`n *** Installing Office ... *** `r`n"
+    if (Test-Path -Path "$env:TEMP\IA\office\setup.exe" -ea SilentlyContinue) {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -ea SilentlyContinue | out-null}
+    else {Write-Host -f C "`r`n Failed to download & extract Office Deployment Tool"}
+}
+
+Function configurationFile21PP
+{
+$ConfigurationFile =
+@"
+<Configuration ID="d66f0ad9-6e2f-47dc-a4fe-de1b73dfddff">
+<Add OfficeClientEdition="64" Channel="PerpetualVL2021">
+<Product ID="ProPlus2021Volume" PIDKEY="FXYTK-NJJ8C-GB6DW-3DYQT-6F7TH">
+      <Language ID="MatchOS" />
+      <Language ID="ar-sa" />
+      <Language ID="en-us" />
+      <ExcludeApp ID="Lync" />
+      <ExcludeApp ID="OneDrive" />
+      <ExcludeApp ID="OneNote" />
+      <ExcludeApp ID="Publisher" />
+    </Product>
+    <Product ID="ProofingTools">
+      <Language ID="ar-sa" />
+      <Language ID="en-us" />
+    </Product>
+  </Add>
+  <Property Name="SharedComputerLicensing" Value="0" />
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+  <Property Name="DeviceBasedLicensing" Value="0" />
+  <Property Name="SCLCacheOverride" Value="0" />
+  <Property Name="AUTOACTIVATE" Value="1" />
+  <Updates Enabled="FALSE" />
+  <RemoveMSI />
+  <Remove All="TRUE">
+  </Remove>
+  <AppSettings>
+    <User Key="software\microsoft\office\16.0\excel\options" Name="recognizesmarttags" Value="2" Type="REG_DWORD" App="office16" Id="L_EnableAdditionalActionsInExcel" />
+    <User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizesentence" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizefirstletterofsentence" />
+    <User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizenamesofdays" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizenamesofdays" />
+    <User Key="software\microsoft\office\16.0\common\internet" Name="donotupdatelinksonsave" Value="0" Type="REG_DWORD" App="office16" Id="L_Updatelinksonsave" />
+    <User Key="software\microsoft\shared tools\proofing tools\1.0\office" Name="flagrepeatedword" Value="1" Type="REG_DWORD" App="office16" Id="L_FlagRepeatedWords" />
+    <User Key="software\microsoft\office\16.0\word\options\vpref" Name="wspell_1112_8" Value="3" Type="REG_DWORD" App="office16" Id="L_Arabicmodes" />
+    <User Key="software\microsoft\office\16.0\common\ptwatson" Name="ptwoptin" Value="0" Type="REG_DWORD" App="office16" Id="L_ImproveProofingTools" />
+    <User Key="software\microsoft\office\16.0\common\general" Name="shownfirstrunoptin" Value="1" Type="REG_DWORD" App="office16" Id="L_DisableOptinWizard" />
+    <User Key="software\microsoft\office\16.0\common" Name="qmenable" Value="0" Type="REG_DWORD" App="office16" Id="L_EnableCustomerExperienceImprovementProgram" />
+    <User Key="software\microsoft\office\16.0\common" Name="updatereliabilitydata" Value="0" Type="REG_DWORD" App="office16" Id="L_UpdateReliabilityPolicy" />
+    <User Key="software\microsoft\office\16.0\common\signatures" Name="verifyversion" Value="0" Type="REG_DWORD" App="office16" Id="L_SetSignatureVerificationLevel" />
+    <User Key="software\microsoft\office\16.0\common\security\filevalidation" Name="disablereporting" Value="1" Type="REG_DWORD" App="office16" Id="L_TurnOffErrorReportingForFilesThatFailFileValidation" />
+  </AppSettings>
+  <Display Level="None" AcceptEULA="TRUE" />
+</Configuration>
+"@
+Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
+}
+
+Function configurationFile24PP
+{
+$ConfigurationFile =
+@"
+<Configuration ID="0ba18fea-354d-4d3a-bb5f-b5c04d3eca9d">
+  <Add OfficeClientEdition="64" Channel="PerpetualVL2024">
+    <Product ID="ProPlus2024Volume" PIDKEY="XJ2XN-FW8RK-P4HMP-DKDBV-GCVGB">
+      <Language ID="MatchOS" />
+      <Language ID="ar-sa" />
+      <Language ID="en-us" />
+      <ExcludeApp ID="Lync" />
+      <ExcludeApp ID="OneDrive" />
+      <ExcludeApp ID="OneNote" />
+      <ExcludeApp ID="Publisher" />
+    </Product>
+    <Product ID="ProofingTools">
+      <Language ID="ar-sa" />
+      <Language ID="en-us" />
+    </Product>
+  </Add>
+  <Property Name="SharedComputerLicensing" Value="0" />
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+  <Property Name="DeviceBasedLicensing" Value="0" />
+  <Property Name="SCLCacheOverride" Value="0" />
+  <Property Name="AUTOACTIVATE" Value="1" />
+  <Updates Enabled="FALSE" />
+  <Remove All="TRUE">
+  </Remove>
+  <RemoveMSI />
+  <AppSettings>
+    <User Key="software\microsoft\office\16.0\excel\options" Name="recognizesmarttags" Value="2" Type="REG_DWORD" App="office16" Id="L_EnableAdditionalActionsInExcel" />
+    <User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizesentence" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizefirstletterofsentence" />
+    <User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizenamesofdays" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizenamesofdays" />
+    <User Key="software\microsoft\office\16.0\common\internet" Name="donotupdatelinksonsave" Value="0" Type="REG_DWORD" App="office16" Id="L_Updatelinksonsave" />
+    <User Key="software\microsoft\shared tools\proofing tools\1.0\office" Name="flagrepeatedword" Value="1" Type="REG_DWORD" App="office16" Id="L_FlagRepeatedWords" />
+    <User Key="software\microsoft\office\16.0\word\options\vpref" Name="wspell_1112_8" Value="3" Type="REG_DWORD" App="office16" Id="L_Arabicmodes" />
+    <User Key="software\microsoft\office\16.0\common\ptwatson" Name="ptwoptin" Value="0" Type="REG_DWORD" App="office16" Id="L_ImproveProofingTools" />
+    <User Key="software\microsoft\office\16.0\common\general" Name="shownfirstrunoptin" Value="1" Type="REG_DWORD" App="office16" Id="L_DisableOptinWizard" />
+    <User Key="software\microsoft\office\16.0\common" Name="qmenable" Value="0" Type="REG_DWORD" App="office16" Id="L_EnableCustomerExperienceImprovementProgram" />
+    <User Key="software\microsoft\office\16.0\common" Name="updatereliabilitydata" Value="0" Type="REG_DWORD" App="office16" Id="L_UpdateReliabilityPolicy" />
+    <User Key="software\microsoft\office\16.0\common\signatures" Name="verifyversion" Value="0" Type="REG_DWORD" App="office16" Id="L_SetSignatureVerificationLevel" />
+    <User Key="software\microsoft\office\16.0\common\security\filevalidation" Name="disablereporting" Value="1" Type="REG_DWORD" App="office16" Id="L_TurnOffErrorReportingForFilesThatFailFileValidation" />
+  </AppSettings>
+  <Display Level="None" AcceptEULA="TRUE" />
+</Configuration>
+"@
+Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
+}
+
+Function Ins-Office21PP
+{
+Write-Host -f C "`r`n======================================================================================================================"
+Write-Host -f C "***************************** Start Installing Office 2021 Pro Plus *****************************"
+Write-Host -f C "======================================================================================================================`r`n"
+uninsSara-Office
+uninsITPRO-Office
+Uninscomponents-Office
+configurationFile21PP
+Deploy-Office
+ActivateOfficeKMS
+Config-Office
+}
+
+Function Ins-Office24PP
+{
+Write-Host -f C "`r`n======================================================================================================================"
+Write-Host -f C "***************************** Start Installing Office 2024 Pro Plus *****************************"
+Write-Host -f C "======================================================================================================================`r`n"
+uninsSara-Office
+uninsITPRO-Office
+Uninscomponents-Office
+configurationFile24PP
+Deploy-Office
+ActivateOfficeKMS
+Config-Office
 }
 
 Function OpenMSStoreUpdate #Not used
