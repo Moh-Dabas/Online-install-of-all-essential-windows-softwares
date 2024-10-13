@@ -1761,6 +1761,46 @@ Function uninsITPRO-Office
     & "$outputdir\Remove-PreviousOfficeInstalls.ps1"
 }
 
+Function Stop-OfficeProcess {
+    Write-Host "Stopping running Office applications ..."
+    $OfficeProcessesArray = "lync", "winword", "excel", "msaccess", "mstore", "infopath", "setlang", "msouc", "ois", "onenote", "outlook", "powerpnt", "mspub", "groove", "visio", "winproj", "graph", "teams"
+    foreach ($ProcessName in $OfficeProcessesArray) {
+        if (get-process -Name $ProcessName -ErrorAction SilentlyContinue) {
+            if (Stop-Process -Name $ProcessName -Force -ErrorAction SilentlyContinue) {
+                Write-Output "Process $ProcessName was stopped."
+            }
+            else {
+                Write-Warning "Process $ProcessName could not be stopped."
+            }
+        } 
+    }
+}
+
+Function Unins-MSOffice
+{
+    Write-Host -f C "`r`n *** Uninstalling Microsoft Office *** `r`n"
+    Stop-OfficeProcess
+    # Get installed programs for both 32-bit and 64-bit architectures
+    $paths = @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\')
+    $installedPrograms = foreach ($registryPath in $paths) {
+    try {
+        Get-ChildItem -LiteralPath $registryPath -ea silentlycontinue | Get-ItemProperty | Where-Object { $_.PSChildName -ne $null }
+    } catch {Write-warning "Error reading registry"}
+    }
+    # Filter programs with Microsoft Office in their display name
+    $MicrosoftOfficeEntries = $installedPrograms | Where-Object {$_.DisplayName -like '*Microsoft Office*'}
+    # Try to uninstall Microsoft Office for each matching entry
+    foreach ($entry in $MicrosoftOfficeEntries) {
+    $ProductCode = $entry.PSChildName
+    $DisplayName = $entry.DisplayName
+    try {
+        # Use the MSIExec command to uninstall the product
+        Write-Host -f C "`r`n *** Uninstalling $DisplayName *** `r`n"
+        Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $ProductCode /qb-! /norestart" -Wait -PassThru
+    } catch {Write-warning "Failed to uninstall $DisplayName with product code $ProductCode. Error: $_"}
+    }
+}
+
 Function Uninscomponents-Office
 {
     Get-Package -Name "*Office*" | Uninstall-Package
@@ -1969,6 +2009,7 @@ Function Ins-Office21PP
 Write-Host -f C "`r`n======================================================================================================================"
 Write-Host -f C "***************************** Start Installing Office 2021 Pro Plus *****************************"
 Write-Host -f C "======================================================================================================================`r`n"
+Unins-MSOffice
 uninsSara-Office
 uninsITPRO-Office
 Uninscomponents-Office
@@ -1983,6 +2024,7 @@ Function Ins-Office24PP
 Write-Host -f C "`r`n======================================================================================================================"
 Write-Host -f C "***************************** Start Installing Office 2024 Pro Plus *****************************"
 Write-Host -f C "======================================================================================================================`r`n"
+Unins-MSOffice
 uninsSara-Office
 uninsITPRO-Office
 Uninscomponents-Office
