@@ -556,6 +556,10 @@ Function Ins-LatestPowershell
 {
     Write-Host -f C "`r`n *** Installing Latest Stable Powershell *** `r`n"
     winget install --id 'Microsoft.Powershell' --silent --accept-source-agreements --accept-package-agreements
+    try {$PSLatestInstalled = Get-Command -Name pwsh -ea silentlycontinue} catch {}
+    $Relunched = Get-ItemProperty 'HKLM:SOFTWARE\OnlineInstaller' | Select-Object -ExpandProperty Relaunched
+    if ($PSLatestInstalled -and $Relunched) {write-host "Latest Powershell is installed"}
+    else {AddRegEntry 'HKLM:SOFTWARE\OnlineInstaller' 'Relaunched' '1';Relaunch}
 }
 
 Function Ins-Terminal
@@ -711,6 +715,10 @@ Function Ins-AcrobatPro
     #1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk
     Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe"  -ea SilentlyContinue | out-null
     Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Remove-Item -path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -ea silentlycontinue | Out-Null
+    cmd /c "DEL /F /S /Q /A %LocalAppData%\Microsoft\Windows\Explorer\thumbcache_*.db"
+    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
+    Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 }
 
 Function Ins-WinRAR
