@@ -59,8 +59,8 @@ Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
 Registry-Tweaks #Applye Registry Tweaks
 D-ScanFolder #Create Drive D (If not found)& Create shared Scan folder in it
 Adj-Hosts #Adjust Hosts file
-#Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions
-Ins-Office24PP #Start Install Office 2024 Pro Plus & remove old versions
+Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions
+#Ins-Office24PP #Start Install Office 2024 Pro Plus & remove old versions
 Ins-ExtraFonts #Install Extra Fonts
 Fix-MSWindows #Fix Windows
 Clean-up

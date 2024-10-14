@@ -1728,8 +1728,6 @@ Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Fo
 Function uninsSara-Office
 {
     Write-Host -f C "`r`n *** Removing currently installed MS office products using SaraCmd *** `r`n"
-    # Remove MS Store Office 365
-    RmAppx "Microsoft.Office.Desktop"
     # Run SaraCMD non-interactive Script
     New-Item -Path "$env:TEMP\IA\office" -ItemType Directory -ea SilentlyContinue | out-null
     Invoke-WebRequest -Uri "https://aka.ms/SaRAEnterpriseHelper" -OutFile "$env:TEMP\IA\office\ExecuteSaraCmd.zip"
@@ -1761,7 +1759,8 @@ Function uninsITPRO-Office
     & "$outputdir\Remove-PreviousOfficeInstalls.ps1"
 }
 
-Function Stop-OfficeProcess {
+Function Stop-OfficeProcess
+{
     Write-Host "Stopping running Office applications ..."
     $OfficeProcessesArray = "lync", "winword", "excel", "msaccess", "mstore", "infopath", "setlang", "msouc", "ois", "onenote", "outlook", "powerpnt", "mspub", "groove", "visio", "winproj", "graph", "teams"
     foreach ($ProcessName in $OfficeProcessesArray) {
@@ -1780,30 +1779,19 @@ Function Unins-MSOffice
 {
     Write-Host -f C "`r`n *** Uninstalling Microsoft Office *** `r`n"
     Stop-OfficeProcess
-    # Get installed programs for both 32-bit and 64-bit architectures
-    $paths = @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\')
-    $installedPrograms = foreach ($registryPath in $paths) {
-    try {
-        Get-ChildItem -LiteralPath $registryPath -ea silentlycontinue | Get-ItemProperty | Where-Object { $_.PSChildName -ne $null }
-    } catch {Write-warning "Error reading registry"}
-    }
-    # Filter programs with Microsoft Office in their display name
-    $MicrosoftOfficeEntries = $installedPrograms | Where-Object {$_.DisplayName -like '*Microsoft Office*'}
-    # Try to uninstall Microsoft Office for each matching entry
-    foreach ($entry in $MicrosoftOfficeEntries) {
-    $ProductCode = $entry.PSChildName
-    $DisplayName = $entry.DisplayName
-    try {
-        # Use the MSIExec command to uninstall the product
-        Write-Host -f C "`r`n *** Uninstalling $DisplayName *** `r`n"
-        Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $ProductCode /qb-! /norestart" -Wait -PassThru
-    } catch {Write-warning "Failed to uninstall $DisplayName with product code $ProductCode. Error: $_"}
-    }
+    
+    #Expand-Archive -LiteralPath "$env:TEMP\IA\office\OfficeToolPlus.zip" -DestinationPath "$env:TEMP\IA\office" -Force
+    #Start-Job -Name OfficeToolPlus {if (Test-Path -Path "$env:TEMP\IA\office" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\IA\office" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    #./"Office Tool Plus.Console.exe" deploy /rmall /display false
+    #./"Office Tool Plus.Console.exe" ospp /clall
 }
 
 Function Uninscomponents-Office
 {
     Get-Package -Name "*Office*" | Uninstall-Package
+    # Remove MS Store Office 365
+    RmAppx "Microsoft.Office.Desktop"
+    Get-AppxProvisionedPackage -online | %{if ($_.packagename -match "Microsoft.Office.Desktop") {$_ | Remove-AppxProvisionedPackage -AllUsers}}
 }
 
 Function ActivateOfficeKMS
@@ -1930,7 +1918,7 @@ $ConfigurationFile =
   <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
   <Property Name="DeviceBasedLicensing" Value="0" />
   <Property Name="SCLCacheOverride" Value="0" />
-  <Property Name="AUTOACTIVATE" Value="1" />
+  <Property Name="AUTOACTIVATE" Value="0" />
   <Updates Enabled="FALSE" />
   <RemoveMSI />
   <Remove All="TRUE">
@@ -1979,7 +1967,7 @@ $ConfigurationFile =
   <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
   <Property Name="DeviceBasedLicensing" Value="0" />
   <Property Name="SCLCacheOverride" Value="0" />
-  <Property Name="AUTOACTIVATE" Value="1" />
+  <Property Name="AUTOACTIVATE" Value="0" />
   <Updates Enabled="FALSE" />
   <Remove All="TRUE">
   </Remove>
