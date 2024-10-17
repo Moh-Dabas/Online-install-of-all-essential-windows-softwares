@@ -682,6 +682,7 @@ Function Unins-Acrobat
     Write-Host -f C "`r`n *** Killing Acrobat processes *** `r`n"
     kill -name acro* -force;
     kill -name adobe* -force;
+    try {Choco uninstall adobereader} catch {}
     # Get installed programs for both 32-bit and 64-bit architectures
     $paths = @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\')
     $installedPrograms = foreach ($registryPath in $paths) {
@@ -853,12 +854,13 @@ Function Ins-DirectX
 {
     Write-Host -f C "`r`n *** Installing DirectX Extra Files *** `r`n"
     # Run on Latest PowerShell
-    pwsh -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements"
+    try {$PSLatestInstalled = Get-Command -Name pwsh -ea silentlycontinue} catch {}
+    if ($PSLatestInstalled) {pwsh -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements"}
     # Run on command prompt
-    cmd /c "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements"
+    cmd /c "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements 2>nul"
     # Run on Windows Terminal
-    wt winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements
-    #Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '-p "Windows PowerShell"', '-w new', 'winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
+    #wt winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements
+    #Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '-p "Windows PowerShell"','winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
 }
 
 Function Windows-Update
@@ -887,9 +889,11 @@ Function Windows-Update
     (New-Object -ComObject Microsoft.Update.ServiceManager).Services | Select Name,ServiceID | foreach {if($_.Name -match "Store"){$StoreServiceID=$_.ServiceID}} #Get Store Service ID
     Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
     # Use kbupdate Module
-    Install-Module kbupdate -ea silentlycontinue
+    try {
+    Install-Module kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue
     Import-Module kbupdate -ea silentlycontinue
     Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
+    } catch {}
     # Old Windows
     (New-Object -ComObject Microsoft.Update.AutoUpdate).DetectNow()
     usoclient ScanInstallWait
