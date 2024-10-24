@@ -1073,9 +1073,9 @@ Function Dis-BitLocker
 {
     Write-Host -f C "`r`n *** Disabling BitLocker *** `r`n"
     Get-BitLockerVolume | foreach {manage-bde -unlock $_.MountPoint -recoverypassword (Get-BitLockerVolume -MountPoint $_.MountPoint).KeyProtector.RecoveryPassword -ea SilentlyContinue} | out-null
-    Clear-BitLockerAutoUnlock -ea SilentlyContinue | out-null
-    Get-BitLockerVolume | foreach {Disable-BitLocker -MountPoint $_.MountPoint -ea SilentlyContinue} | out-null
     Get-BitLockerVolume | foreach {manage-bde -off $_.MountPoint} | out-null
+    #Clear-BitLockerAutoUnlock -ea SilentlyContinue | out-null
+    #Get-BitLockerVolume | foreach {Disable-BitLocker -MountPoint $_.MountPoint -ea SilentlyContinue} | out-null
 }
 
 Function EnableSMB1Protocol-Client
