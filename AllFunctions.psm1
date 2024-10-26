@@ -556,10 +556,10 @@ Function Ins-LatestPowershell
 {
     Write-Host -f C "`r`n *** Installing Latest Stable Powershell *** `r`n"
     winget install --id 'Microsoft.Powershell' --silent --accept-source-agreements --accept-package-agreements
-    try {$PSLatestInstalled = Get-Command -Name pwsh -ea silentlycontinue} catch {}
-    $Relunched = Get-ItemProperty 'HKLM:SOFTWARE\OnlineInstaller' | Select-Object -ExpandProperty Relaunched
-    if ($PSLatestInstalled -and $Relunched) {write-host "Latest Powershell is installed"}
-    else {AddRegEntry 'HKLM:SOFTWARE\OnlineInstaller' 'Relaunched' '1';Relaunch}
+    #try {$PSLatestInstalled = Get-Command -Name pwsh -ea silentlycontinue} catch {}
+    #$Relunched = Get-ItemProperty 'HKLM:SOFTWARE\OnlineInstaller' | Select-Object -ExpandProperty Relaunched
+    #if ($PSLatestInstalled -and $Relunched) {write-host "Latest Powershell is installed"}
+    #else {AddRegEntry 'HKLM:SOFTWARE\OnlineInstaller' 'Relaunched' '1';Relaunch}
 }
 
 Function Ins-Terminal
