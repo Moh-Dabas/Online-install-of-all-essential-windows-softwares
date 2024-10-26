@@ -853,6 +853,9 @@ Function Winget-UpdateAll
 Function Ins-DirectX
 {
     Write-Host -f C "`r`n *** Installing DirectX Extra Files *** `r`n"
+    if (choco list --lo -r -e directx) {Choco upgrade directx} else {Choco install directx}
+    scoop bucket add games
+    scoop install games/dxwrapper
     # Run on Latest PowerShell
     try {$PSLatestInstalled = Get-Command -Name pwsh -ea silentlycontinue} catch {}
     if ($PSLatestInstalled) {pwsh -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements"}
