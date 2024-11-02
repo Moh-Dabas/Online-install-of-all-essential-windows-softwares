@@ -717,6 +717,9 @@ Function Ins-AcrobatPro
     Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe"  -ea SilentlyContinue | out-null
     Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Remove-Item -path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -ea silentlycontinue | Out-Null
+    $printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
+    Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
+    (New-Object -ComObject WScript.Network).SetDefaultPrinter('Adobe PDF')
     cmd /c "DEL /F /S /Q /A %LocalAppData%\Microsoft\Windows\Explorer\thumbcache_*.db"
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
