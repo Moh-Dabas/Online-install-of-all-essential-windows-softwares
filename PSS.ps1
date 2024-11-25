@@ -50,7 +50,7 @@ Unins-MSTeams #Uninstall Microsoft Teams
 Unins-Cortana #Uninstall & disable Cortana & tweak search
 Unins-Copilot #Uninstall & disable Copilot
 Unins-Xbox #UnInstall Xbox & Game Bar
-#Unins-OneDrive #Remove One Drive
+Unins-OneDrive #Remove One Drive
 Winget-UpdateAll #Update all Installd applications use Winget
 DeepTweaks
 Dis-BitLocker #Disable BitLocker
