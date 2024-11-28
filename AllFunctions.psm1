@@ -467,8 +467,7 @@ Function Install-Winget
     winget-install -CheckForUpdate
     Ins-winget-ps
     winget source reset --force
-    winget upgrade Microsoft.AppInstaller
-    winget upgrade --all
+    winget upgrade Microsoft.AppInstaller --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-arSALang
