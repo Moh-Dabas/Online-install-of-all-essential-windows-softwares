@@ -476,6 +476,8 @@ Function Ins-arSALang
     Start-Job -Name InsAr {Install-Language -Language ar-SA} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Set-WinHomeLocation 0xcd
     Set-WinDefaultInputMethodOverride -InputTip "0401:00000401" #Default input language Arabic
+    Set-WinSystemLocale -SystemLocale ar-SA
+    Copy-UserInternationalSettingsToSystem -WelcomeScreen $True -NewUser $True
 }
 
 Function Set-en-GB-Culture
@@ -497,7 +499,7 @@ Function Set-en-GB-Culture
     # $culture | Format-List -Property *
     # $culture.DateTimeFormat
     # $culture.NumberFormat
-    Start-sleep 1
+    Start-sleep 2
     AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
     reg add "HKCU\Control Panel\International" /V sLongDate /T REG_SZ /D "dd MMMM yyyy" /F
     AddRegEntry 'HKCU:\Control Panel\International' 'sShortDate' 'dd/MM/yyyy' 'String'
@@ -512,8 +514,6 @@ Function Set-en-GB-Culture
     reg add "HKCU\Control Panel\International" /V NumShape /T REG_SZ /D "0" /F
     reg add "HKCU\Control Panel\International" /V iCalendarType /T REG_SZ /D "1" /F
     AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
-    Set-WinSystemLocale -SystemLocale ar-SA
-    Copy-UserInternationalSettingsToSystem -WelcomeScreen $True -NewUser $True
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 }
