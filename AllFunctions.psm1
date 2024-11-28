@@ -446,11 +446,14 @@ Function Install-Winget
     }
     else {Write-Host -f C "UI Xaml already installed"}
     try {$WingetInstalled = Get-Command -Name winget -ea silentlycontinue} catch {}
-    if ($WingetInstalled) {write-host -f C "Winget is already installed"}
+    try {$latestAppInstaller = Find-WinGetPackage -id "Microsoft.AppInstaller" -MatchOption Equals | Select-Object -ExpandProperty Version} catch {$AppInstallerUpdated = $false}
+    try {$InstalledAppInstaller = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' | select -ExpandProperty Version } catch {$AppInstallerUpdated = $false}
+    if ($latestAppInstaller -eq $InstalledAppInstaller) {$AppInstallerUpdated = $true} else {$AppInstallerUpdated = $false}
+    if ($WingetInstalled -And $AppInstallerUpdated) {write-host -f C "Winget is already installed"}
     else {
-        Start-BitsTransfer -Source "https://aka.ms/getwinget" -Destination "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null
-        Start-Job -Name InstallWinget1 {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name InstallWinget1 {Start-BitsTransfer -Source "https://aka.ms/getwinget" -Destination "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null;Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
         Start-Job -Name InstallWinget2 {Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name InstallWinget3 {Start-BitsTransfer -Source "https://cdn.winget.microsoft.com/cache/source.msix" -Destination "$env:TEMP\IA\Winget\Source.msix" -ea SilentlyContinue | out-null;Add-AppxPackage -Path "$env:TEMP\IA\Winget\Source.msix" | out-null;DISM.EXE /Online /Add-ProvisionedAppxPackage /PackagePath:"$env:TEMP\IA\Winget\Source.msix" /SkipLicense | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
         Install-Script winget-install -Force
         Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
         Start-Sleep 1
@@ -463,6 +466,9 @@ Function Install-Winget
     Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     winget-install -CheckForUpdate
     Ins-winget-ps
+    winget source reset --force
+    winget upgrade Microsoft.AppInstaller
+    winget upgrade --all
 }
 
 Function Ins-arSALang
@@ -556,10 +562,6 @@ Function Ins-LatestPowershell
 {
     Write-Host -f C "`r`n *** Installing Latest Stable Powershell *** `r`n"
     winget install --id 'Microsoft.Powershell' --silent --accept-source-agreements --accept-package-agreements
-    #try {$PSLatestInstalled = Get-Command -Name pwsh -ea silentlycontinue} catch {}
-    #$Relunched = Get-ItemProperty 'HKLM:SOFTWARE\OnlineInstaller' | Select-Object -ExpandProperty Relaunched
-    #if ($PSLatestInstalled -and $Relunched) {write-host "Latest Powershell is installed"}
-    #else {AddRegEntry 'HKLM:SOFTWARE\OnlineInstaller' 'Relaunched' '1';Relaunch}
 }
 
 Function Ins-Terminal
@@ -859,14 +861,15 @@ Function Ins-DirectX
     if (choco list --lo -r -e directx) {Choco upgrade directx} else {Choco install directx}
     scoop bucket add games
     scoop install games/dxwrapper
-    # Run on Latest PowerShell
-    try {$PSLatestInstalled = Get-Command -Name pwsh -ea silentlycontinue} catch {}
-    if ($PSLatestInstalled) {pwsh -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements"}
+    Start-Job -Name DX-Extra {winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements} | Wait-Job -Timeout 999 | Format-List -Property Name,State
     # Run on command prompt
-    cmd /c "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements 2>nul"
+    #cmd /c "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements 2>nul"
     # Run on Windows Terminal
     #wt winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements
     #Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '-p "Windows PowerShell"','winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
+    # Run on Latest PowerShell
+    #try {$PSLatestInstalled = Get-Command -Name pwsh -ea silentlycontinue} catch {}
+    #if ($PSLatestInstalled) {pwsh -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements"}
 }
 
 Function Windows-Update
@@ -888,12 +891,12 @@ Function Windows-Update
     Start-Service -Name "wuauserv" -ea silentlycontinue | out-null
     Start-Service -Name "UsoSvc" -ea silentlycontinue | out-null
     # Use PSWindowsUpdate Module
-    Start-Job -Name PSWindowsUpdate {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name PSWindowsUpdateModule {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Import-Module PSWindowsUpdate -Force -ea silentlycontinue
     Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -ea silentlycontinue | out-null}
-    Get-WindowsUpdate -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
+    Start-Job -Name WindowsUpdate {Get-WindowsUpdate -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue}
     (New-Object -ComObject Microsoft.Update.ServiceManager).Services | Select Name,ServiceID | foreach {if($_.Name -match "Store"){$StoreServiceID=$_.ServiceID}} #Get Store Service ID
-    Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue
+    Start-Job -Name WindowsStoreAppsUpdate {Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue}
     # Use kbupdate Module
     try {
     Install-Module kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue
@@ -1214,6 +1217,12 @@ Function Tweak-schtasks
 Function Registry-Tweaks
 {
     Write-Host -f C "`r`n *** Applying Registry Tweaks *** `r`n"
+    #Desktop Icons
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{018D5C66-4533-4307-9B53-224DE2ED1FE6}" '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{59031a47-3f72-44a7-89c5-5595fe6b30ee}" '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{20D04FE0-3AEA-1069-A2D8-08002B30309D}" '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}" '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}" '0' 'DWord'
     # SmartScreen
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' 'SmartScreenEnabled' 'Off' 'String'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'EnableSmartScreen' '0' 'DWord'
