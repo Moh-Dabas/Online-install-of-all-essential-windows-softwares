@@ -91,51 +91,6 @@ Function RmAppx
     catch {Write-Host -f red "Appx provisioned package " + $PartName + "  remove failed"}
 }
 
-Function Set-Hibernate
-{
-    # Control Hibernate Default = 'Off' ,'Boot' ,'Full'
-    Param
-    (
-    [Parameter(Mandatory=$false, Position=0)]
-    [string]$Status = 'Off'
-    )
-    if ($Status = 'Full')
-    {
-        # Enable hibernate full
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabled' '1' 'DWord'
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabledDefault' '1' 'DWord'
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '1' 'DWord'
-        powercfg hibernate size 0 | out-null
-        powercfg /h /type full | out-null
-        powercfg.exe /hibernate on | out-null
-        # Enable hibernate button
-        AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '1' 'DWord'
-    }
-    elseif ($Status = 'Boot')
-    {
-        # Enable hibernate Boot
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabled' '1' 'DWord'
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabledDefault' '1' 'DWord'
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '1' 'DWord'
-        powercfg hibernate size 0 | out-null
-        powercfg /h /type reduced | out-null
-        powercfg.exe /hibernate on | out-null
-        # Disable hibernate button
-        AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '0' 'DWord'
-    }
-    else
-    {
-        # Disable hibernate
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabled' '0' 'DWord'
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabledDefault' '0' 'DWord'
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '0' 'DWord'
-        powercfg hibernate size 0 | out-null
-        powercfg.exe /hibernate off | out-null
-        # Disable hibernate button
-        AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '0' 'DWord'
-        }
-}
-
 Function Repeatiwr
 {
     Param
@@ -214,6 +169,53 @@ Function InitializeCommands
     w32tm /resync #Sync time now
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\BITS' 'Start' '2' 'DWord'
     Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State # Service needed for fast download
+}
+
+Function Set-Hibernate
+{
+    # Control Hibernate Default = 'Off' ,'Boot' ,'Full'
+    Param
+    (
+    [Parameter(Mandatory=$false, Position=0)]
+    [string]$Status = 'Off'
+    )
+    if ($Status = 'Full')
+    {
+        # Enable hibernate full
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabledDefault' '1' 'DWord'
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabled' '1' 'DWord'
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '1' 'DWord'
+        powercfg hibernate size 0 | out-null
+        powercfg /h /type full | out-null
+        powercfg.exe /hibernate on | out-null
+        # Enable hibernate button
+        AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '1' 'DWord'
+        # Disabling HyperBoot to avoid it's issues
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '0' 'DWord'
+    }
+    elseif ($Status = 'Boot')
+    {
+        # Enable hibernate Boot
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabled' '1' 'DWord'
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabledDefault' '1' 'DWord'
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '1' 'DWord'
+        powercfg hibernate size 0 | out-null
+        powercfg /h /type reduced | out-null
+        powercfg.exe /hibernate on | out-null
+        # Disable hibernate button
+        AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '0' 'DWord'
+    }
+    else
+    {
+        # Disable hibernate
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabled' '0' 'DWord'
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabledDefault' '0' 'DWord'
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '0' 'DWord'
+        powercfg hibernate size 0 | out-null
+        powercfg.exe /hibernate off | out-null
+        # Disable hibernate button
+        AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '0' 'DWord'
+        }
 }
 
 Function MaxPowerPlan
