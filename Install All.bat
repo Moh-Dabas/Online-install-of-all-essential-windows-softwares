@@ -31,7 +31,7 @@ REG DELETE "HKLM\SOFTWARE\Microsoft\Windows Script Host\Settings" /v Enabled /f 
 
 
 Echo Setting Powershell Excution Policy to Bypass
-Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Set-ExecutionPolicy Bypass -Force"
+Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -NonInteractive -Command "Set-ExecutionPolicy Bypass -Force"
 reg add "HKCU\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /v "ExecutionPolicy" /t REG_SZ /d "Unrestricted" /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /v "ExecutionPolicy" /t REG_SZ /d "Unrestricted" /f >nul 2>&1
 
@@ -40,7 +40,7 @@ cd /d "%~dp0"
 Echo.
 Echo Start installing programms
 Echo.
-Powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%~dp0PSS.ps1"
+Powershell -NoProfile -ExecutionPolicy Bypass -nologo -NonInteractive -File "%~dp0PSS.ps1"
 start "" wt -p "Windows PowerShell" winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements
 
 REM Commands end

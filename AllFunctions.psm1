@@ -145,6 +145,7 @@ Function InitializeCommands
     Set-ExecutionPolicy Bypass -Force -ea SilentlyContinue | out-null
     $ErrorActionPreference = 'SilentlyContinue'
     $progressPreference = 'SilentlyContinue'
+    $ConfirmPreference = 'None'
     #UAC
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableLUA' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ValidateAdminCodeSignatures' '0' 'DWord'
@@ -377,14 +378,14 @@ Function Ins-Nuget
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Installing Nuget provider *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    $NuGetInstalled = Get-PackageProvider -Name NuGet -ListAvailable -ea silentlycontinue
-    if (-not $NuGetInstalled) {
-        Start-Job -Name PackageProviderNuGet {Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-        if (get-packageprovider -Name NuGet -ea silentlycontinue) {Write-Host -f C "Successfully Installed"}
-    }
-    else {Write-Host -f C "Already Installed"}
+    # Nuget PackageProvider
+    if ((Get-PackageProvider -Name NuGet -ListAvailable -ea silentlycontinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget PackageProvider already exists"}
+    else {Start-Job -Name PackageProviderNuGet {Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State;if (get-packageprovider -Name NuGet -ea silentlycontinue) {Write-Host -f C "Successfully Installed"}}
     Import-PackageProvider -Name NuGet -Force -ea silentlycontinue | out-null
-    Start-Job -Name ModuleNuGet {Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    # NuGet Module
+    if ((Get-Module -Name NuGet -ListAvailable -ea silentlycontinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget Module already exists"}
+    else {Start-Job -Name ModuleNuGet {Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State}
+    Import-Module NuGet -Force -ea silentlycontinue | out-null
 }
 
 Function Ins-Choco
