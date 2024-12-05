@@ -51,7 +51,7 @@ Unins-Cortana #Uninstall & disable Cortana & tweak search
 Unins-Copilot #Uninstall & disable Copilot
 Unins-Xbox #UnInstall Xbox & Game Bar
 Unins-OneDrive #Remove One Drive
-Winget-UpdateAll #Update all Installd applications use Winget
+UpdateAll #Update all Installd applications use Winget
 DeepTweaks
 Dis-BitLocker #Disable BitLocker
 #EnableSMB1Protocol-Client #Old legacy security threat sharing protocol

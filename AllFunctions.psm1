@@ -400,10 +400,11 @@ Function Ins-Choco
         Start-Sleep 1
         Relaunch
     }
-    Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
-    Choco upgrade Chocolatey
-    if (choco list --lo -r -e Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension} else {Choco install Chocolatey-core.extension}
     Choco feature enable -n=allowGlobalConfirmation
+    Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
+    Choco upgrade Chocolatey -y
+    if (choco list --lo -r -e Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension} else {Choco install Chocolatey-core.extension}
+    
 }
 
 Function Ins-Scoop-git
@@ -857,10 +858,11 @@ Function Unins-MSTeams
     UninstallTeams
 }
 
-Function Winget-UpdateAll
+Function UpdateAll
 {
     Write-Host -f C "`r`n *** Updating all installed applications using Winget *** `r`n"
     winget upgrade --all --silent --accept-source-agreements --accept-package-agreements --force
+    choco upgrade all -y
 }
 
 Function Ins-DirectX
