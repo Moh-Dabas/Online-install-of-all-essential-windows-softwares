@@ -486,7 +486,7 @@ Function Ins-arSALang
 Function Set-en-GB-Culture
 {
     Write-Host -f C "`r`n *** Setting en-GB Culture (Regional format) *** `r`n"
-    Import-Module International
+    Import-Module International -Force -ea silentlycontinue | out-null
     Start-Job -Name CultureENGB {Set-Culture -CultureInfo en-GB} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Start-sleep 1
     $culture = Get-Culture
@@ -848,7 +848,8 @@ Function Unins-Xbox
 Function Unins-MSTeams
 {
     Write-Host -f C "`r`n *** Uninstalling Microsoft Teams *** `r`n"
-    Start-Job -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-List -Property Name,State
+    if ((Get-Module -Name NuGet -ListAvailable -ea silentlycontinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget Module already exists"}
+    else {Start-Job -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-List -Property Name,State}
     Import-Module UninstallTeams -Force -ea silentlycontinue | out-null
     Install-Script UninstallTeams -Confirm:$False -Force -ea silentlycontinue | out-null
     UninstallTeams -DisableChatWidget -AllUsers
@@ -899,7 +900,7 @@ Function Windows-Update
     Start-Service -Name "UsoSvc" -ea silentlycontinue | out-null
     # Use PSWindowsUpdate Module
     Start-Job -Name PSWindowsUpdateModule {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Import-Module PSWindowsUpdate -Force -ea silentlycontinue
+    Import-Module PSWindowsUpdate -Force -ea silentlycontinue | out-null
     Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -ea silentlycontinue | out-null}
     Start-Job -Name WindowsUpdate {Get-WindowsUpdate -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue}
     (New-Object -ComObject Microsoft.Update.ServiceManager).Services | Select Name,ServiceID | foreach {if($_.Name -match "Store"){$StoreServiceID=$_.ServiceID}} #Get Store Service ID
@@ -907,7 +908,7 @@ Function Windows-Update
     # Use kbupdate Module
     try {
     Install-Module kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue
-    Import-Module kbupdate -ea silentlycontinue
+    Import-Module kbupdate -Force -ea silentlycontinue | out-null
     Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
     } catch {}
     # Old Windows
