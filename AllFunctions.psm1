@@ -143,7 +143,9 @@ Function WifiPriority
     Get-NetIPInterface| Select-Object -ExpandProperty InterfaceAlias | Where-Object {$_ -match 'wi' -and $_ -match 'fi'} | foreach-object {netsh wlan set profileorder name='SPC_5GHz' interface=$_ priority=1}
     Get-NetIPInterface| Select-Object -ExpandProperty InterfaceAlias | Where-Object {$_ -match 'wi' -and $_ -match 'fi'} | foreach-object {netsh wlan set profileorder name='SPC_2.4GHz' interface=$_ priority=2}
     netsh wlan connect name="SPC_5GHz"
+    Start-Sleep 2
     if (Test-Connection -ComputerName www.google.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
+    if (Test-Connection -ComputerName www.microsoft.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
 }
 
 Function InitializeCommands
