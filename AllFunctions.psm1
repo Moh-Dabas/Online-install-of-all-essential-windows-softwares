@@ -137,6 +137,15 @@ Function AdminTakeownership
     else {Write-Host -f red "Path is wrong or not supported"}
 }
 
+Function WifiPriority
+{
+    netsh wlan set profileparameter name='SPC_5GHz' connectionmode=auto
+    Get-NetIPInterface| Select-Object -ExpandProperty InterfaceAlias | Where-Object {$_ -match 'wi' -and $_ -match 'fi'} | foreach-object {netsh wlan set profileorder name='SPC_5GHz' interface=$_ priority=1}
+    Get-NetIPInterface| Select-Object -ExpandProperty InterfaceAlias | Where-Object {$_ -match 'wi' -and $_ -match 'fi'} | foreach-object {netsh wlan set profileorder name='SPC_2.4GHz' interface=$_ priority=2}
+    netsh wlan connect name="SPC_5GHz"
+    if (Test-Connection -ComputerName www.google.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
+}
+
 Function InitializeCommands
 {
     Write-Host -f C "`r`n======================================================================================================================"
@@ -170,6 +179,7 @@ Function InitializeCommands
     w32tm /resync #Sync time now
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\BITS' 'Start' '2' 'DWord'
     Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State # Service needed for fast download
+    WifiPriority
 }
 
 Function Set-Hibernate
