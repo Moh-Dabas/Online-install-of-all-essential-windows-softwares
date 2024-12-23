@@ -730,8 +730,8 @@ Function Ins-AcrobatPro
     Unins-Acrobat
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
     #17200187s8_3DHLMwa3lUSMXRF1yYFUz2
-    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/17200187s8_3DHLMwa3lUSMXRF1yYFUz2?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe"  -ea SilentlyContinue | out-null
-    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/17200187s8_3DHLMwa3lUSMXRF1yYFUz2?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null
+    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Remove-Item -path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -ea silentlycontinue | Out-Null
     $printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
     Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
