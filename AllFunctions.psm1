@@ -411,6 +411,7 @@ Function Ins-Choco
     Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
     Choco upgrade Chocolatey -y
     if (choco list --lo -r -e Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension} else {Choco install Chocolatey-core.extension}
+    Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1 -Force -ea silentlycontinue | out-null
     refreshenv
 }
 
@@ -510,7 +511,7 @@ Function Set-en-GB-Culture
     # $culture | Format-List -Property *
     # $culture.DateTimeFormat
     # $culture.NumberFormat
-    Start-sleep 2
+    Start-sleep 4
     AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
     reg add "HKCU\Control Panel\International" /V sLongDate /T REG_SZ /D "dd MMMM yyyy" /F
     AddRegEntry 'HKCU:\Control Panel\International' 'sShortDate' 'dd/MM/yyyy' 'String'
@@ -880,6 +881,7 @@ Function Ins-DirectX
     if (choco list --lo -r -e directx) {Choco upgrade directx} else {Choco install directx}
     scoop bucket add games
     scoop install games/dxwrapper
+    scoop update dxwrapper
     Start-Job -Name DX-Extra {winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements} | Wait-Job -Timeout 999 | Format-List -Property Name,State
     # Run on command prompt
     #cmd /c "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements 2>nul"
@@ -1062,12 +1064,15 @@ Function Unins-OneDrive
     cmd /c 'taskkill /f /im OneDrive.exe >nul 2>nul'
     winget uninstall OneDrive
     (Find-WinGetPackage "OneDrive").Id | ForEach-Object {winget uninstall -e --id $_ --silent}
-    $OneDriveUninstallString= Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\OneDriveSetup.exe' -Name 'UninstallString' | select -ExpandProperty 'UninstallString'
-    $OneDriveUninstallString= $OneDriveUninstallString -split('/',0)[0, -1]
-    $OneDriveUninstallString[0].trim()
-    $OneDriveUninstallString[1] = '/' + $OneDriveUninstallString[1]
-    Start-Process $OneDriveUninstallString[0] -Verb RunAs -WindowStyle Minimized -ArgumentList $OneDriveUninstallString[1]
-    Start-Process 'OneDriveSetup.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '/uninstall'
+    $OneDriveUninstallString= Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\OneDriveSetup.exe' -Name 'UninstallString' -ea SilentlyContinue | select -ExpandProperty 'UninstallString'
+    if ($OneDriveUninstallString)
+    {
+        $OneDriveUninstallString= $OneDriveUninstallString -split('/',0)[0, -1]
+        $OneDriveUninstallString[0].trim()
+        $OneDriveUninstallString[1] = '/' + $OneDriveUninstallString[1]
+        Start-Process $OneDriveUninstallString[0] -Verb RunAs -WindowStyle Minimized -ArgumentList $OneDriveUninstallString[1]
+    }
+    Start-Process 'OneDriveSetup.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '/uninstall' -ea SilentlyContinue | out-null
     Move-OneDriveUserFolders
     Get-ScheduledTask | Where-Object {$_.Taskname -match 'OneDrive'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
     # Clean Remaining
@@ -1150,19 +1155,19 @@ Function Fix-Share
     netsh advfirewall set currentprofile state on
     netsh advfirewall firewall set rule group="File and Printer Sharing" new enable=Yes
     netsh advfirewall firewall set rule group="Network Discovery" new enable=Yes
-    Start-Job -Name NFR1 {Get-NetFirewallRule -DisplayGroup "File and Printer Sharing" | Enable-NetFirewallRule} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name NFR2 {Get-NetFirewallRule -DisplayGroup "Network Discovery" | Enable-NetFirewallRule} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name NFR3 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Private} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name NFR4 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Private} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name NFR5 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Domain} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name NFR6 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Domain} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name NFR7 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Public} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name NFR8 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Public} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name NFR9 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Any} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name NFR10 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Any} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name NFR1 {Get-NetFirewallRule -DisplayGroup "File and Printer Sharing" | Enable-NetFirewallRule}
+    Start-Job -Name NFR2 {Get-NetFirewallRule -DisplayGroup "Network Discovery" | Enable-NetFirewallRule}
+    Start-Job -Name NFR3 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Private}
+    Start-Job -Name NFR4 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Private}
+    Start-Job -Name NFR5 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Domain}
+    Start-Job -Name NFR6 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Domain}
+    Start-Job -Name NFR7 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Public}
+    Start-Job -Name NFR8 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Public}
+    Start-Job -Name NFR9 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Any}
+    Start-Job -Name NFR10 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Any}
     # Make sure required protocols are enabled in the adapter (they should be by default)
-    Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "File and Printer Sharing for Microsoft Networks"}
-    Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "Client for Microsoft Networks"}
+    Start-Job -Name NetAdapter1 {Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "File and Printer Sharing for Microsoft Networks" -ea SilentlyContinue | out-null}}
+    Start-Job -Name NetAdapter2 {Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "Client for Microsoft Networks" -ea SilentlyContinue | out-null}}
     Remove-Item "$env:windir\System32\GroupPolicyUsers" -Recurse -Force -ea SilentlyContinue | out-null
     Remove-Item "$env:windir\System32\GroupPolicy" -Recurse -Force -ea SilentlyContinue | out-null
     gpupdate /force
