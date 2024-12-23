@@ -78,16 +78,10 @@ Function RmAppx
     [Parameter(Mandatory=$false, Position=1)]
     [ValidateSet("true", "false")][string]$RmProv="true"
     )
-    $PartName = '*' + $PartName + '*'
-    try
-    {
-        Start-Job -Name RmAppxjob {Get-AppxPackage -AllUsers | where-object{$_.name -like $PartName} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers -ea Ignore}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    }
+    if ($PartName = "") {return}
+    try {Start-Job -Name RmAppxjob {Get-AppxPackage -AllUsers | where-object{$_.name -match $PartName} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers -ea Ignore}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State}
     catch {Write-Host -f red "Appx Package " + $PartName + "  remove failed"}
-    try
-    {
-        Start-Job -Name RmAppxprovjob {if ($RmProv -ne "false") {Get-appxprovisionedpackage -online | where-object {$_.packagename -like $PartName} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -ea Ignore}}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    }
+    try {Start-Job -Name RmAppxprovjob {if ($RmProv -ne "false") {Get-appxprovisionedpackage -online | where-object {$_.packagename -match $PartName} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -ea Ignore}}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State}
     catch {Write-Host -f red "Appx provisioned package " + $PartName + "  remove failed"}
 }
 
@@ -735,8 +729,8 @@ Function Ins-AcrobatPro
 {
     Unins-Acrobat
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
-    #1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk
-    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1YJ1V5sAEtaPQX4zqK7qrXX_QQx58Wdlk?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe"  -ea SilentlyContinue | out-null
+    #17200187s8_3DHLMwa3lUSMXRF1yYFUz2
+    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/17200187s8_3DHLMwa3lUSMXRF1yYFUz2?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe"  -ea SilentlyContinue | out-null
     Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDC2024.002.21005x64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Remove-Item -path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -ea silentlycontinue | Out-Null
     $printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
@@ -756,7 +750,7 @@ Function Ins-WinRAR
 
 Function Ins-KLiteMega
 {
-    Write-Host -f C "`r`n Installing K-Lite Codec Pack Mega *** `r`n"
+    Write-Host -f C "`r`n *** Installing K-Lite Codec Pack Mega *** `r`n"
     if (choco list --lo -r -e k-litecodecpackmega) {Choco upgrade k-litecodecpackmega} else {Choco install k-litecodecpackmega}
     winget install -e --id 'CodecGuide.K-LiteCodecPack.Mega' --silent --accept-source-agreements --accept-package-agreements
 }
@@ -797,20 +791,20 @@ Function Ins-WhatsApp
 Function Unins-Devhome
 {
     Write-Host -f C "`r`n *** Uninstalling Dev Home *** `r`n"
-    RmAppx 'Windows.DevHome'
+    RmAppx "DevHome"
     winget uninstall --id 'Microsoft.DevHome'
 }
 
 Function Unins-DropboxPromotion
 {
     Write-Host -f C "`r`n *** Uninstalling Dropbox promotion *** `r`n"
-    RmAppx 'DropboxOEM'
+    RmAppx "DropboxOEM"
 }
 
 Function Unins-Cortana
 {
     Write-Host -f C "`r`n *** Uninstalling & disabling Cortana & tweaking search *** `r`n"
-    RmAppx 'Microsoft.549981C3F5F10'
+    RmAppx "Microsoft.549981C3F5F10"
     winget uninstall cortana
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'AllowCortana' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'AllowCortanaAboveLock' '0' 'DWord'
@@ -827,7 +821,7 @@ Function Unins-Cortana
 Function Unins-Copilot
 {
     Write-Host -f C "`r`n *** Uninstalling & disabling Copilot *** `r`n"
-    RmAppx 'Ai.Copilot'
+    RmAppx "Ai.Copilot"
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
     AddRegEntry 'HKU:\.DEFAULT\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
@@ -840,7 +834,7 @@ Function Unins-Copilot
 Function Unins-Xbox
 {
     Write-Host -f C "`r`n *** Uninstalling Xbox & Game Bar *** `r`n"
-    RmAppx 'Xbox'
+    RmAppx "Xbox"
     AddRegEntry "HKLM:\System\CurrentControlSet\Services\xbgm" "Start" '4' 'DWORD'
     Set-Service -Name XblAuthManager -StartupType Disabled -ea silentlycontinue | out-null
     Set-Service -Name XblGameSave -StartupType Disabled -ea silentlycontinue | out-null
