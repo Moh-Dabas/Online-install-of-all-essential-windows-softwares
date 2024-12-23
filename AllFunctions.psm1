@@ -392,6 +392,7 @@ Function Ins-Nuget
     if ((Get-Module -Name NuGet -ListAvailable -ea silentlycontinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget Module already exists"}
     else {Start-Job -Name ModuleNuGet {Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State}
     Import-Module NuGet -Force -ea silentlycontinue | out-null
+    refreshenv
 }
 
 Function Ins-Choco
@@ -410,7 +411,7 @@ Function Ins-Choco
     Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
     Choco upgrade Chocolatey -y
     if (choco list --lo -r -e Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension} else {Choco install Chocolatey-core.extension}
-    
+    refreshenv
 }
 
 Function Ins-Scoop-git
@@ -572,6 +573,7 @@ Function Ins-LatestPowershell
 {
     Write-Host -f C "`r`n *** Installing Latest Stable Powershell *** `r`n"
     winget install --id 'Microsoft.Powershell' --silent --accept-source-agreements --accept-package-agreements
+    refreshenv
 }
 
 Function Ins-Terminal
@@ -729,8 +731,8 @@ Function Ins-AcrobatPro
 {
     Unins-Acrobat
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
-    #17200187s8_3DHLMwa3lUSMXRF1yYFUz2
-    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/17200187s8_3DHLMwa3lUSMXRF1yYFUz2?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null
+    #1J__cfWkRhPfKRi0kANnxcu53rZ74Cyz1
+    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1J__cfWkRhPfKRi0kANnxcu53rZ74Cyz1?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null
     Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     Remove-Item -path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -ea silentlycontinue | Out-Null
     $printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
@@ -866,9 +868,10 @@ Function Unins-MSTeams
 
 Function UpdateAll
 {
-    Write-Host -f C "`r`n *** Updating all installed applications using Winget *** `r`n"
+    Write-Host -f C "`r`n *** Updating all installed applications *** `r`n"
     winget upgrade --all --silent --accept-source-agreements --accept-package-agreements --force
     choco upgrade all -y
+    refreshenv
 }
 
 Function Ins-DirectX
