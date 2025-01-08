@@ -463,7 +463,7 @@ Function Install-Winget
         Start-Job -Name UIXaml {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
     }
     else {Write-Host -f C "UI Xaml already installed"}
-    try {$WingetInstalled = Get-Command -Name winget -ea silentlycontinue} catch {}
+    try {$WingetInstalled = Get-Command -Name winget -ea silentlycontinue} catch {$WingetInstalled = $false}
     try {$latestAppInstaller = Find-WinGetPackage -id "Microsoft.AppInstaller" -MatchOption Equals | Select-Object -ExpandProperty Version} catch {$AppInstallerUpdated = $false}
     try {$InstalledAppInstaller = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' | select -ExpandProperty Version } catch {$AppInstallerUpdated = $false}
     if ($latestAppInstaller -eq $InstalledAppInstaller) {$AppInstallerUpdated = $true} else {$AppInstallerUpdated = $false}
@@ -2222,6 +2222,7 @@ Function Fix-MSWindows
     Write-Host -f C "======================================================================================================================`r`n"
     sfc /scannow
     DISM /Online /Cleanup-Image /RestoreHealth
+    #Start-Job -Name ReApps {Get-AppXPackage | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
 Function Clean-up
