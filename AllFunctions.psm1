@@ -74,22 +74,13 @@ Function RmAppx
     Param
     (
     [Parameter(Mandatory=$true, Position=0)]
-    [string]$PartName,
+    [string]$Name,
     [Parameter(Mandatory=$false, Position=1)]
     [ValidateSet("true", "false")][string]$RmProv="true"
     )
-    if ($PartName = "") {return}
-    $PartName = '*' + $PartName + '*'
-    try
-    {
-        Start-Job -Name RmAppxjob {Get-AppxPackage -AllUsers | where-object{$_.name -like $PartName} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers -ea Ignore}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    }
-    catch {Write-Host -f red "Appx Package " + $PartName + "  remove failed"}
-    try
-    {
-        Start-Job -Name RmAppxprovjob {if ($RmProv -ne "false") {Get-appxprovisionedpackage -online | where-object {$_.packagename -like $PartName} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -ea Ignore}}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    }
-    catch {Write-Host -f red "Appx provisioned package " + $PartName + "  remove failed"}
+    if ($Name.Length -lt 4) {Write-Host -f red "Short App name";return}
+    Get-AppxPackage -AllUsers | where-object{$_.name -match $Name} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers}
+    if ($RmProv) {Get-appxprovisionedpackage -online | where-object {$_.packagename -match $Name} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -ea SilentlyContinue}}
 }
 
 Function Repeatiwr
@@ -498,7 +489,7 @@ Function Ins-arSALang
     Copy-UserInternationalSettingsToSystem -WelcomeScreen $True -NewUser $True
 }
 
-Function Set-en-GB-Culture
+Function Set-en-GB-Culture #Need fix
 {
     Write-Host -f C "`r`n *** Setting en-GB Culture (Regional format) *** `r`n"
     Import-Module International -Force -ea silentlycontinue | out-null
@@ -2237,6 +2228,18 @@ Function Clean-up
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Cleaning up *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
+    # temp fix
+    AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
+    AddRegEntry 'HKCU:\Control Panel\International' 'sShortDate' 'dd/MM/yyyy' 'String'
+    AddRegEntry 'HKCU:\Control Panel\International' 'sTimeFormat' 'hh:mm:ss tt' 'String'
+    AddRegEntry 'HKCU:\Control Panel\International' 'sShortTime' 'hh:mm tt' 'String'
+    AddRegEntry 'HKCU:\Control Panel\International' 'iFirstDayOfWeek' '5' 'String' # Saturday
+    AddRegEntry 'HKCU:\Control Panel\International' 'NumShape' '0' 'String' # Native digits number shape # 0 - Context # 1 - default # 2 - Always local
+    reg add "HKCU\Control Panel\International" /V iCalendarType /T REG_SZ /D "1" /F
+    AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
+    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
+    Start-sleep 2
+    Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:TEMP" -Force -Recurse -ea SilentlyContinue | out-null
 }
