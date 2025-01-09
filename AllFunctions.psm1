@@ -137,7 +137,12 @@ Function WifiPriority
     netsh wlan connect name="SPC_5GHz"
     Start-Sleep 2
     if (Test-Connection -ComputerName www.google.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
+    Start-Sleep 2
     if (Test-Connection -ComputerName www.microsoft.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
+    Start-Sleep 2
+    if (Test-Connection -ComputerName www.facebook.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
+    Start-Sleep 2
+    if (Test-Connection -ComputerName www.youtube.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
 }
 
 Function InitializeCommands
@@ -504,10 +509,7 @@ Function Set-en-GB-Culture #Need fix
     $culture.DateTimeFormat.FirstDayOfWeek = 'Sunday'
     $culture.NumberFormat.DigitSubstitution = 'Context'
     Start-Job -Name CustomCulture {Set-Culture -CultureInfo $culture} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    # Use this to see all properties
-    # $culture | Format-List -Property *
-    # $culture.DateTimeFormat
-    # $culture.NumberFormat
+    # Use this to see all properties    # $culture | Format-List -Property *     # $culture.DateTimeFormat     # $culture.NumberFormat
     Start-sleep 4
     AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
     reg add "HKCU\Control Panel\International" /V sLongDate /T REG_SZ /D "dd MMMM yyyy" /F
