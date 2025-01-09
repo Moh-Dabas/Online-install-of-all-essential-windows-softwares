@@ -63,4 +63,5 @@ Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions
 #Ins-Office24PP #Start Install Office 2024 Pro Plus & remove old versions
 Ins-ExtraFonts #Install Extra Fonts
 Fix-MSWindows #Fix Windows
+OpenMSStoreUpdate
 Clean-up

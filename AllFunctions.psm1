@@ -1247,7 +1247,7 @@ Function Tweak-schtasks
 Function Registry-Tweaks
 {
     Write-Host -f C "`r`n *** Applying Registry Tweaks *** `r`n"
-    #Desktop Icons
+    # Desktop Icons
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{018D5C66-4533-4307-9B53-224DE2ED1FE6}" '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{59031a47-3f72-44a7-89c5-5595fe6b30ee}" '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{20D04FE0-3AEA-1069-A2D8-08002B30309D}" '0' 'DWord'
@@ -1350,6 +1350,7 @@ Function Registry-Tweaks
     Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunNotification"  -Recurse -force -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
+    # Services
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LicenseManager' 'Start' '3' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ssh-agent' 'Start' '3' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HPAppHelperCap' 'Start' '3' 'DWord'
@@ -1377,6 +1378,9 @@ Function Registry-Tweaks
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WSearch' 'WSearch' '3' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\SysMain' 'Start' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\dmwappushservice' 'Start' '4' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ExpressVPN App Service' 'Start' '4' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ExpressVPN System Service' 'Start' '4' 'DWord'
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ExpressVPN VPN Service' 'Start' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WerSvc' 'Start' '4' 'DWord' #Error reporting
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting' 'Disabled' '1' 'DWord'
     AddRegEntry 'HKCU:\Control Panel\Desktop' 'AutoEndTasks' '1' 'String'
@@ -1472,6 +1476,8 @@ Function Registry-Tweaks
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoLowDiskSpaceChecks' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Speech_OneCore\Preferences' 'ModelDownloadAllowed' '0' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'fullprivilegeauditing' '0' 'DWord'
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowAllTrustedApps' '1' 'DWord'
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowDevelopmentWithoutDevLicense' '1' 'DWord'
 }
 
 Function ShrinkC-MakeNew
@@ -1845,7 +1851,7 @@ Function Unins-MSOffice
 
 Function Uninscomponents-Office
 {
-    Get-Package -Name "*Office*" | Uninstall-Package
+    Get-Package -Name "*Office*" -ErrorAction SilentlyContinue | Uninstall-Package
     # Remove MS Store Office 365
     RmAppx "Microsoft.Office.Desktop"
     Get-AppxProvisionedPackage -online | %{if ($_.packagename -match "Microsoft.Office.Desktop") {$_ | Remove-AppxProvisionedPackage -AllUsers}}
@@ -2079,9 +2085,10 @@ ActivateOfficeKMS
 Config-Office
 }
 
-Function OpenMSStoreUpdate #Not used
+Function OpenMSStoreUpdate
 {
     Write-Host -f C "`r`n *** MS Store Apps Updates *** `r`n"
+    Get-CimInstance -Namespace "Root\cimv2\mdm\dmmap" -ClassName "MDM_EnterpriseModernAppManagement_AppManagement01" | Invoke-CimMethod -MethodName UpdateScanMethod
     Start-Process "ms-windows-store://downloadsandupdates"
 }
 
@@ -2231,4 +2238,5 @@ Function Clean-up
     Write-Host -f C "***************************** Cleaning up *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
     Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "$env:TEMP" -Force -Recurse -ea SilentlyContinue | out-null
 }
