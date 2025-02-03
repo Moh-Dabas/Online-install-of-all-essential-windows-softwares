@@ -23,7 +23,7 @@ Ins-XNA #Install Microsoft XNA Framework Redistributable
 Ins-AdobeAIRRuntime #Install Adobe AIR Runtime
 Ins-arSAlang #Install Arabic-SA language
 Ins-enUSLang #Install en-US language
-Set-en-GB-Culture # Make regional format en-GB with AM/PM
+Set-en-US-Culture # Make regional format en-GB with AM/PM
 Unins-enGBLang #remove en-GB language
 Tweak-Language
 Fix-Share #Fix Windows file sharing
