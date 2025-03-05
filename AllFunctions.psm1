@@ -131,10 +131,10 @@ Function AdminTakeownership
 
 Function WifiPriority
 {
-    netsh wlan set profileparameter name='SPC_5GHz' connectionmode=auto
-    Get-NetIPInterface| Select-Object -ExpandProperty InterfaceAlias | Where-Object {$_ -match 'wi' -and $_ -match 'fi'} | foreach-object {netsh wlan set profileorder name='SPC_5GHz' interface=$_ priority=1}
-    Get-NetIPInterface| Select-Object -ExpandProperty InterfaceAlias | Where-Object {$_ -match 'wi' -and $_ -match 'fi'} | foreach-object {netsh wlan set profileorder name='SPC_2.4GHz' interface=$_ priority=2}
-    netsh wlan connect name="SPC_5GHz"
+    #netsh wlan set profileparameter name='SPC_5GHz' connectionmode=auto
+    #Get-NetIPInterface| Select-Object -ExpandProperty InterfaceAlias | Where-Object {$_ -match 'wi' -and $_ -match 'fi'} | foreach-object {netsh wlan set profileorder name='SPC_5GHz' interface=$_ priority=1}
+    #Get-NetIPInterface| Select-Object -ExpandProperty InterfaceAlias | Where-Object {$_ -match 'wi' -and $_ -match 'fi'} | foreach-object {netsh wlan set profileorder name='SPC_2.4GHz' interface=$_ priority=2}
+    #netsh wlan connect name="SPC_5GHz"
     Start-Sleep 2
     if (Test-Connection -ComputerName www.google.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
     Start-Sleep 2
@@ -512,7 +512,7 @@ Function Set-en-US-Culture #Need fix
     # Use this to see all properties    # $culture | Format-List -Property *     # $culture.DateTimeFormat     # $culture.NumberFormat
     Start-sleep 4
     AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
-    reg add "HKCU\Control Panel\International" /V sLongDate /T REG_SZ /D "dd MMMM yyyy" /F
+    reg add "HKCU\Control Panel\International" /V sLongDate /T REG_SZ /D "dddd dd/MMMM/yyyy" /F
     AddRegEntry 'HKCU:\Control Panel\International' 'sShortDate' 'dd/MM/yyyy' 'String'
     reg add "HKCU\Control Panel\International" /V sShortDate /T REG_SZ /D "dd/MM/yyyy" /F
     AddRegEntry 'HKCU:\Control Panel\International' 'sTimeFormat' 'hh:mm:ss tt' 'String'
