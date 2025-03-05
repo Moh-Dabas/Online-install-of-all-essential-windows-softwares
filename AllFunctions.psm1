@@ -177,7 +177,7 @@ Function InitializeCommands
     Start-Service -Name "tzautoupdate" -ea silentlycontinue | out-null
     w32tm /resync #Sync time now
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\BITS' 'Start' '2' 'DWord'
-    Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State # Service needed for fast download
+    Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State # Service needed for fast download
     WifiPriority
 }
 
@@ -389,11 +389,11 @@ Function Ins-Nuget
     Write-Host -f C "======================================================================================================================`r`n"
     # Nuget PackageProvider
     if ((Get-PackageProvider -Name NuGet -ListAvailable -ea silentlycontinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget PackageProvider already exists"}
-    else {Start-Job -Name PackageProviderNuGet {Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State;if (get-packageprovider -Name NuGet -ea silentlycontinue) {Write-Host -f C "Successfully Installed"}}
+    else {Start-Job -Name PackageProviderNuGet {Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State;if (get-packageprovider -Name NuGet -ea silentlycontinue) {Write-Host -f C "Successfully Installed"}}
     Import-PackageProvider -Name NuGet -Force -ea silentlycontinue | out-null
     # NuGet Module
     if ((Get-Module -Name NuGet -ListAvailable -ea silentlycontinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget Module already exists"}
-    else {Start-Job -Name ModuleNuGet {Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State}
+    else {Start-Job -Name ModuleNuGet {Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State}
     Import-Module NuGet -Force -ea silentlycontinue | out-null
 }
 
@@ -432,7 +432,7 @@ Function Ins-winget-ps
     try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -ea silentlycontinue} catch {}
     if (!($WinGetClientInstalled))
     {
-        Start-Job -Name ModuleWinGet {Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name ModuleWinGet {Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
         Import-Module Microsoft.WinGet.Client -Force -ea silentlycontinue | out-null
         repair-wingetpackagemanager
         Relaunch
@@ -449,14 +449,14 @@ Function Install-Winget
     if ([int]$VCLibsVersion -lt 14)
     {
         Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null
-        Start-Job -Name VCLibs {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name VCLibs {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     }
     else {Write-Host -f C "VCLibs already installed"}
     $UIXamlVersion = Get-AppxPackage -Name Microsoft.UI.Xaml* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
     if ([int]$UIXamlVersion -lt 8)
     {
         Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
-        Start-Job -Name UIXaml {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name UIXaml {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     }
     else {Write-Host -f C "UI Xaml already installed"}
     try {$WingetInstalled = Get-Command -Name winget -ea silentlycontinue} catch {$WingetInstalled = $false}
@@ -465,19 +465,19 @@ Function Install-Winget
     if ($latestAppInstaller -eq $InstalledAppInstaller) {$AppInstallerUpdated = $true} else {$AppInstallerUpdated = $false}
     if ($WingetInstalled -And $AppInstallerUpdated) {write-host -f C "Winget is already installed"}
     else {
-        Start-Job -Name InstallWinget1 {Start-BitsTransfer -Source "https://aka.ms/getwinget" -Destination "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null;Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-        Start-Job -Name InstallWinget2 {Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle -ea SilentlyContinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-        Start-Job -Name InstallWinget3 {Start-BitsTransfer -Source "https://cdn.winget.microsoft.com/cache/source.msix" -Destination "$env:TEMP\IA\Winget\Source.msix" -ea SilentlyContinue | out-null;Add-AppxPackage -Path "$env:TEMP\IA\Winget\Source.msix" | out-null;DISM.EXE /Online /Add-ProvisionedAppxPackage /PackagePath:"$env:TEMP\IA\Winget\Source.msix" /SkipLicense | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name InstallWinget1 {Start-BitsTransfer -Source "https://aka.ms/getwinget" -Destination "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null;Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name InstallWinget2 {Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle -ea SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name InstallWinget3 {Start-BitsTransfer -Source "https://cdn.winget.microsoft.com/cache/source.msix" -Destination "$env:TEMP\IA\Winget\Source.msix" -ea SilentlyContinue | out-null;Add-AppxPackage -Path "$env:TEMP\IA\Winget\Source.msix" | out-null;DISM.EXE /Online /Add-ProvisionedAppxPackage /PackagePath:"$env:TEMP\IA\Winget\Source.msix" /SkipLicense | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
         Install-Script winget-install -Force
-        Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+        Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
         Start-Sleep 1
         Relaunch
     }
-    Start-Job -Name ConfigWinget1 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name ConfigWinget2 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name ConfigWinget1 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name ConfigWinget2 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     write-host -f C "`r`n *** Updating Winget ***"
     Install-Script winget-install -Force
-    Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     winget-install -CheckForUpdate
     Ins-winget-ps
     winget source reset --force
@@ -487,7 +487,7 @@ Function Install-Winget
 Function Ins-arSALang
 {
     Write-Host -f C "`r`n *** Installing Arabic-SA language *** `r`n"
-    Start-Job -Name InsAr {Install-Language -Language ar-SA} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name InsAr {Install-Language -Language ar-SA} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     Set-WinHomeLocation 0xcd
     Set-WinDefaultInputMethodOverride -InputTip "0401:00000401" #Default input language Arabic
     Set-WinSystemLocale -SystemLocale ar-SA
@@ -498,7 +498,7 @@ Function Set-en-US-Culture #Need fix
 {
     Write-Host -f C "`r`n *** Setting en-US Culture (Regional format) *** `r`n"
     Import-Module International -Force -ea silentlycontinue | out-null
-    Start-Job -Name CultureENGB {Set-Culture -CultureInfo en-US} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name CultureENGB {Set-Culture -CultureInfo en-US} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     Start-sleep 1
     $culture = Get-Culture
     $culture.DateTimeFormat.LongDatePattern = 'dd MMMM yyyy'
@@ -508,7 +508,7 @@ Function Set-en-US-Culture #Need fix
     $culture.DateTimeFormat.ShortDatePattern = 'd/MM/yyyy'
     $culture.DateTimeFormat.FirstDayOfWeek = 'Saturday'
     $culture.NumberFormat.DigitSubstitution = 'Context'
-    Start-Job -Name CustomCulture {Set-Culture -CultureInfo $culture} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name CustomCulture {Set-Culture -CultureInfo $culture} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     # Use this to see all properties    # $culture | Format-List -Property *     # $culture.DateTimeFormat     # $culture.NumberFormat
     Start-sleep 4
     AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
@@ -533,7 +533,7 @@ Function Set-en-US-Culture #Need fix
 Function Ins-enUSLang
 {
     Write-Host -f C "`r`n *** Installing English-US language *** `r`n"
-    Start-Job -Name InsEng {Install-Language -Language en-US -CopyToSettings} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name InsEng {Install-Language -Language en-US -CopyToSettings} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     Set-WinSystemLocale en-US
     Set-WinUILanguageOverride en-US
     Set-WinDefaultInputMethodOverride "0409:00000409"
@@ -723,8 +723,8 @@ Function Unins-Acrobat
     Write-Host -f C "`r`n *** Removing All Acrobat left overs *** `r`n"
     #16etkp4rCcon2NyGGh0oYSocHhB_054cm
     Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/16etkp4rCcon2NyGGh0oYSocHhB_054cm?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcroCleaner.exe"  -ea SilentlyContinue | out-null
-    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=0","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=1","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=0","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=1","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
 Function Ins-AcrobatPro
@@ -733,7 +733,7 @@ Function Ins-AcrobatPro
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
     #1J__cfWkRhPfKRi0kANnxcu53rZ74Cyz1
     Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1J__cfWkRhPfKRi0kANnxcu53rZ74Cyz1?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null
-    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     Remove-Item -path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -ea silentlycontinue | Out-Null
     $printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
     Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
@@ -858,7 +858,7 @@ Function Unins-MSTeams
 {
     Write-Host -f C "`r`n *** Uninstalling Microsoft Teams *** `r`n"
     if ((Get-Module -Name NuGet -ListAvailable -ea silentlycontinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget Module already exists"}
-    else {Start-Job -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-List -Property Name,State}
+    else {Start-Job -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-List -Property Name,State}
     Import-Module UninstallTeams -Force -ea silentlycontinue | out-null
     Install-Script UninstallTeams -Confirm:$False -Force -ea silentlycontinue | out-null
     UninstallTeams -DisableChatWidget -AllUsers
@@ -881,7 +881,7 @@ Function Ins-DirectX
     scoop bucket add games
     scoop install games/dxwrapper
     scoop update dxwrapper
-    Start-Job -Name DX-Extra {winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements} | Wait-Job -Timeout 999 | Format-List -Property Name,State
+    Start-Job -Name DX-Extra {winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements} | Wait-Job -Timeout 400 | Format-List -Property Name,State
     # Run on command prompt
     #cmd /c "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements 2>nul"
     # Run on Windows Terminal
@@ -911,7 +911,7 @@ Function Windows-Update
     Start-Service -Name "wuauserv" -ea silentlycontinue | out-null
     Start-Service -Name "UsoSvc" -ea silentlycontinue | out-null
     # Use PSWindowsUpdate Module
-    Start-Job -Name PSWindowsUpdateModule {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name PSWindowsUpdateModule {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     Import-Module PSWindowsUpdate -Force -ea silentlycontinue | out-null
     Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -ea silentlycontinue | out-null}
     Start-Job -Name WindowsUpdate {Get-WindowsUpdate -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue}
@@ -1837,7 +1837,7 @@ Function Unins-MSOffice
     Stop-OfficeProcess
     
     #Expand-Archive -LiteralPath "$env:TEMP\IA\office\OfficeToolPlus.zip" -DestinationPath "$env:TEMP\IA\office" -Force
-    #Start-Job -Name OfficeToolPlus {if (Test-Path -Path "$env:TEMP\IA\office" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\IA\office" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    #Start-Job -Name OfficeToolPlus {if (Test-Path -Path "$env:TEMP\IA\office" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\IA\office" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     #./"Office Tool Plus.Console.exe" deploy /rmall /display false
     #./"Office Tool Plus.Console.exe" ospp /clall
 }
@@ -2252,7 +2252,7 @@ Function Fix-MSWindows
     Write-Host -f C "======================================================================================================================`r`n"
     sfc /scannow
     DISM /Online /Cleanup-Image /RestoreHealth
-    #Start-Job -Name ReApps {Get-AppXPackage | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}} | Wait-Job -Timeout 999 | Format-Table -Wrap -AutoSize -Property Name,State
+    #Start-Job -Name ReApps {Get-AppXPackage | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
 Function Clean-up
