@@ -69,18 +69,29 @@ Function AddRegEntry
     }
 }
 
-Function RmAppx
-{
-    Param
-    (
-    [Parameter(Mandatory=$true, Position=0)]
-    [string]$Name,
-    [Parameter(Mandatory=$false, Position=1)]
-    [ValidateSet("true", "false")][string]$RmProv="true"
+function Remove-AppxApp {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$AppName
     )
-    if ($Name.Length -lt 4) {Write-Host -f red "Short App name";return}
-    Get-AppxPackage -AllUsers | where-object{$_.name -match $Name} | Foreach-Object {Remove-AppxPackage -Package $_ -AllUsers}
-    if ($RmProv) {Get-appxprovisionedpackage -online | where-object {$_.packagename -match $Name} | Foreach-Object {Remove-AppxProvisionedPackage -online -Packagename $_.Packagename -AllUsers -ea SilentlyContinue}}
+
+    Write-Host "Removing AppxPackage for all users..." -ForegroundColor Yellow
+    $users = Get-WmiObject Win32_UserProfile | Where-Object { $_.Special -eq $false }
+    foreach ($user in $users) {
+        $sid = $user.SID
+        Get-AppxPackage -AllUsers | Where-Object { $_.Name -like "*$AppName*" } | ForEach-Object {
+            Write-Host "Removing package: $($_.PackageFullName) for user $sid" -ForegroundColor Cyan
+            Remove-AppxPackage -Package $_.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+        }
+    }
+
+    Write-Host "Removing AppxProvisionedPackage..." -ForegroundColor Yellow
+    Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like "*$AppName*" } | ForEach-Object {
+        Write-Host "Removing provisioned package: $($_.PackageName)" -ForegroundColor Cyan
+        Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue
+    }
+
+    Write-Host "Operation completed." -ForegroundColor Green
 }
 
 Function Repeatiwr
@@ -402,6 +413,12 @@ Function Ins-Choco
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Installing Chocolatey *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
+    # Ensure Chocolatey is installed
+    if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+    Write-Host "Chocolatey not found. Installing..." -ForegroundColor Yellow
+    Set-ExecutionPolicy Bypass -Scope Process -Force;
+    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+    }
     try {$ChocoInstalled = Get-Command -Name choco -ea silentlycontinue} catch {}
     if ($ChocoInstalled) {write-host "Choco is already installed"}
     else {
@@ -428,6 +445,12 @@ Function Ins-Scoop-git
 
 Function Ins-winget-ps
 {
+    # Ensure winget is installed
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Host "winget not found. Installing..." -ForegroundColor Yellow
+    Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+    Start-Job -Name InstallingWinGet {Add-AppxPackage -Path "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle" -ea silentlycontinue | out-null} | Wait-Job -Timeout 300 | Format-Table -Wrap -AutoSize -Property Name,State
+    }
     Ins-Scoop-git
     try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -ea silentlycontinue} catch {}
     if (!($WinGetClientInstalled))
@@ -587,7 +610,7 @@ Function Ins-Terminal
 Function Ins-DotNetRuntime
 {
     Write-Host -f C "`r`n *** Installing .Net Runtime All versions *** `r`n"
-    if (choco list --lo -r -e dotnet-all) {Choco upgrade dotnet-all} else {Choco install dotnet-all}
+    if (choco list --lo -r -e dotnet-all) {Choco upgrade dotnet-all} else {Choco install dotnet-all -y}
     (Find-WinGetPackage "Microsoft.DotNet.DesktopRuntime").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
     (Find-WinGetPackage "Microsoft.DotNet.Runtime").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
     (Find-WinGetPackage "Microsoft.DotNet.AspNetCore").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
@@ -596,7 +619,7 @@ Function Ins-DotNetRuntime
 Function Ins-VCPPRuntime
 {
     Write-Host -f C "`r`n *** Installing Visual C++ Runtime All versions *** `r`n"
-    if (choco list --lo -r -e vcredist-all) {Choco upgrade vcredist-all} else {Choco install vcredist-all}
+    if (choco list --lo -r -e vcredist-all) {Choco upgrade vcredist-all} else {Choco install vcredist-all -y}
     (Find-WinGetPackage "Microsoft.VCRedist").Id | Where-Object {-not $_.EndsWith("arm64")} | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
 }
 
@@ -604,20 +627,20 @@ Function Ins-JavaRuntime
 {
     Write-Host -f C "`r`n *** Installing Java Runtime Environment *** `r`n"
     winget install -e --id Oracle.JavaRuntimeEnvironment --silent --accept-source-agreements --accept-package-agreements
-    if (choco list --lo -r -e javaruntime) {Choco upgrade javaruntime} else {Choco install javaruntime}
+    if (choco list --lo -r -e javaruntime) {Choco upgrade javaruntime} else {Choco install javaruntime -y}
 }
 
 Function Ins-XNA
 {
     Write-Host -f C "`r`n *** Installing Microsoft XNA Framework Redistributable *** `r`n"
-    if (choco list --lo -r -e xna) {Choco upgrade xna} else {Choco install xna}
+    if (choco list --lo -r -e xna) {Choco upgrade xna} else {Choco install xna -y}
     winget install -e --id Microsoft.XNARedist --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-AdobeAIRRuntime
 {
     Write-Host -f C "`r`n *** Installing Adobe AIR Runtime *** `r`n"
-    if (choco list --lo -r -e adobeair) {Choco upgrade adobeair} else {Choco install adobeair}
+    if (choco list --lo -r -e adobeair) {Choco upgrade adobeair} else {Choco install adobeair -y}
     winget install -e --id HARMAN.AdobeAIR --silent --accept-source-agreements --accept-package-agreements
 }
 
@@ -638,13 +661,13 @@ Function Ins-NotepadPP
 {
     Write-Host -f C "`r`n *** Installing Notepad++ *** `r`n"
     winget install -e --name 'Notepad++' --silent --accept-source-agreements --accept-package-agreements
-    if (choco list --lo -r -e notepadplusplus.install) {Choco upgrade notepadplusplus.install} else {Choco install notepadplusplus.install}
+    if (choco list --lo -r -e notepadplusplus.install) {Choco upgrade notepadplusplus.install} else {Choco install notepadplusplus.install -y}
 }
 
 Function Ins-Chrome
 {
     Write-Host -f C "`r`n *** Installing Chrome *** `r`n"
-    if (choco list --lo -r -e googlechrome) {Choco upgrade googlechrome --ignore-checksums} else {Choco install googlechrome --ignore-checksums}
+    if (choco list --lo -r -e googlechrome) {Choco upgrade googlechrome --ignore-checksums} else {Choco install googlechrome --ignore-checksums -y}
     winget install -e --id 'Google.Chrome' --silent --accept-source-agreements --accept-package-agreements
     # remove logon chrome
     Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{8A69D345-D564-463c-AFF1-A69D9E530F96}"  -Recurse -force -ea SilentlyContinue | out-null
@@ -686,7 +709,7 @@ Function Ins-AcrobatRdr
     if ($Acrobat) {Write-Host -f C "Adobe Acrobat (64-bit) found installed"}
     else
     {
-        if (choco list --lo -r -e adobereader) {Choco upgrade adobereader} else {Choco install adobereader}
+        if (choco list --lo -r -e adobereader) {Choco upgrade adobereader} else {Choco install adobereader -y}
         winget install -e --id 'Adobe.Acrobat.Reader.64-bit' --silent --accept-source-agreements --accept-package-agreements
     }
 }
@@ -749,14 +772,14 @@ Function Ins-AcrobatPro
 Function Ins-WinRAR
 {
     Write-Host -f C "`r`n *** Installing WinRAR *** `r`n"
-    if (choco list --lo -r -e winrar) {Choco upgrade winrar} else {Choco install winrar}
+    if (choco list --lo -r -e winrar) {Choco upgrade winrar} else {Choco install winrar -y}
     winget install -e --id 'RARLab.WinRAR' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-KLiteMega
 {
     Write-Host -f C "`r`n *** Installing K-Lite Codec Pack Mega *** `r`n"
-    if (choco list --lo -r -e k-litecodecpackmega) {Choco upgrade k-litecodecpackmega} else {Choco install k-litecodecpackmega}
+    if (choco list --lo -r -e k-litecodecpackmega) {Choco upgrade k-litecodecpackmega} else {Choco install k-litecodecpackmega -y}
     winget install -e --id 'CodecGuide.K-LiteCodecPack.Mega' --silent --accept-source-agreements --accept-package-agreements
 }
 
@@ -782,7 +805,7 @@ Function Ins-GIMP
 Function Ins-OpenAl
 {
     Write-Host -f C "`r`n *** Installing OpenAl *** `r`n"
-    if (choco list --lo -r -e openal) {Choco upgrade openal} else {Choco install openal}
+    if (choco list --lo -r -e openal) {Choco upgrade openal} else {Choco install openal -y}
 }
 
 Function Ins-WhatsApp
@@ -796,20 +819,20 @@ Function Ins-WhatsApp
 Function Unins-Devhome
 {
     Write-Host -f C "`r`n *** Uninstalling Dev Home *** `r`n"
-    RmAppx "DevHome"
+    Remove-AppxApp "DevHome"
     winget uninstall --id 'Microsoft.DevHome'
 }
 
 Function Unins-DropboxPromotion
 {
     Write-Host -f C "`r`n *** Uninstalling Dropbox promotion *** `r`n"
-    RmAppx "DropboxOEM"
+    Remove-AppxApp "DropboxOEM"
 }
 
 Function Unins-Cortana
 {
     Write-Host -f C "`r`n *** Uninstalling & disabling Cortana & tweaking search *** `r`n"
-    RmAppx "Microsoft.549981C3F5F10"
+    Remove-AppxApp "Microsoft.549981C3F5F10"
     winget uninstall cortana
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'AllowCortana' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'AllowCortanaAboveLock' '0' 'DWord'
@@ -826,7 +849,7 @@ Function Unins-Cortana
 Function Unins-Copilot
 {
     Write-Host -f C "`r`n *** Uninstalling & disabling Copilot *** `r`n"
-    RmAppx "Ai.Copilot"
+    Remove-AppxApp "Ai.Copilot"
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
     AddRegEntry 'HKU:\.DEFAULT\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
@@ -839,7 +862,7 @@ Function Unins-Copilot
 Function Unins-Xbox
 {
     Write-Host -f C "`r`n *** Uninstalling Xbox & Game Bar *** `r`n"
-    RmAppx "Xbox"
+    Remove-AppxApp "Xbox"
     AddRegEntry "HKLM:\System\CurrentControlSet\Services\xbgm" "Start" '4' 'DWORD'
     Set-Service -Name XblAuthManager -StartupType Disabled -ea silentlycontinue | out-null
     Set-Service -Name XblGameSave -StartupType Disabled -ea silentlycontinue | out-null
@@ -880,7 +903,7 @@ Function UpdateAll
 Function Ins-DirectX
 {
     Write-Host -f C "`r`n *** Installing DirectX Extra Files *** `r`n"
-    if (choco list --lo -r -e directx) {Choco upgrade directx} else {Choco install directx}
+    if (choco list --lo -r -e directx) {Choco upgrade directx} else {Choco install directx -y}
     scoop bucket add games
     scoop install games/dxwrapper
     scoop update dxwrapper
@@ -1849,7 +1872,7 @@ Function Uninscomponents-Office
 {
     Get-Package -Name "*Office*" -ErrorAction SilentlyContinue | Uninstall-Package
     # Remove MS Store Office 365
-    RmAppx "Microsoft.Office.Desktop"
+    Remove-AppxApp "Microsoft.Office.Desktop"
     Get-AppxProvisionedPackage -online | %{if ($_.packagename -match "Microsoft.Office.Desktop") {$_ | Remove-AppxProvisionedPackage -AllUsers}}
 }
 
