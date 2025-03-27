@@ -42,8 +42,28 @@ del /f /s /q "%tmp%\IA" >nul 2>nul
 del /f /s /q "%tmp%\IAGit\*.zip" "%tmp%\IAGit\*.ps1" "%tmp%\IAGit\*.psm1" >nul 2>nul
 mkdir "%tmp%\IAGit"
 reg add "HKLM\SYSTEM\CurrentControlSet\Services\BITS" /v "Start" /t REG_DWORD /d "2" /f >nul 2>nul
-sc Start "BITS"
+
+:: Set URL and file paths
+set URL=https://github.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/archive/refs/heads/main.zip
+set ZIP_FILE=%tmp%\IAGit\main.zip
+set EXTRACTED_FOLDER=Online-install-of-all-essential-windows-softwares-main
+set INSTALL_FILE=%tmp%\IAGit\%EXTRACTED_FOLDER%\Install All.bat
+
+:: Check if the BITS service is running, and start it if necessary
+echo Checking BITS service status...
+sc query bits | findstr /i "running"
+if %errorlevel% neq 0 (
+    echo BITS service is not running. Starting BITS service...
+    net start bits
+    if %errorlevel% neq 0 (
+        echo Failed to start the BITS service. Exiting...
+        goto :DnR
+    )
+) else (
+    echo BITS service is already running.
+)
 TIMEOUT /nobreak /t 2 >nul 2>nul
+
 Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} | Wait-Job -Timeout 999"
 Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Start-BitsTransfer -Source 'https://github.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/archive/refs/heads/main.zip' -Destination '%tmp%\IAGit\IAGit.zip';Expand-Archive -LiteralPath '%tmp%\IAGit\IAGit.zip' -DestinationPath '%tmp%\IAGit' -Force" >nul 2>nul
 if %errorlevel% neq 0 (goto :DnR)

@@ -772,7 +772,7 @@ Function Ins-AcrobatPro
 Function Ins-WinRAR
 {
     Write-Host -f C "`r`n *** Installing WinRAR *** `r`n"
-    if (choco list --lo -r -e winrar) {Choco upgrade winrar} else {Choco install winrar -y}
+    if (choco list --lo -r -e winrar) {Choco upgrade winrar --ignore-checksums} else {Choco install winrar --ignore-checksums -y}
     winget install -e --id 'RARLab.WinRAR' --silent --accept-source-agreements --accept-package-agreements
 }
 
