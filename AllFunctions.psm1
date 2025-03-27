@@ -445,12 +445,6 @@ Function Ins-Scoop-git
 
 Function Ins-winget-ps
 {
-    # Ensure winget is installed
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Host "winget not found. Installing..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
-    Start-Job -Name InstallingWinGet {Add-AppxPackage -Path "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle" -ea silentlycontinue | out-null} | Wait-Job -Timeout 300 | Format-Table -Wrap -AutoSize -Property Name,State
-    }
     Ins-Scoop-git
     try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -ea silentlycontinue} catch {}
     if (!($WinGetClientInstalled))
@@ -467,6 +461,12 @@ Function Install-Winget
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Installing Winget and its dependencies & scoop & git *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
+    # Ensure winget is installed
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+    Write-Host "winget not found. Installing..." -ForegroundColor Yellow
+    Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+    Start-Job -Name InstallingWinGet {Add-AppxPackage -Path "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle" -ea silentlycontinue | out-null} | Wait-Job -Timeout 300 | Format-Table -Wrap -AutoSize -Property Name,State
+    }
     New-Item -Path "$env:TEMP\IA\Winget" -ItemType Directory -ea SilentlyContinue | out-null
     $VCLibsVersion = Get-AppxPackage -Name Microsoft.VCLibs* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
     if ([int]$VCLibsVersion -lt 14)
