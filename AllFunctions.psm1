@@ -71,10 +71,10 @@ Function AddRegEntry
 
 function Remove-AppxApp {
     param (
-        [Parameter(Mandatory = $true)]
-        [string]$AppName
+    [Parameter(Mandatory = $true)]
+    [string]$AppName
     )
-
+    
     Write-Host "Removing AppxPackage for all users..." -ForegroundColor Yellow
     $users = Get-WmiObject Win32_UserProfile | Where-Object { $_.Special -eq $false }
     foreach ($user in $users) {
@@ -84,13 +84,13 @@ function Remove-AppxApp {
             Remove-AppxPackage -Package $_.PackageFullName -AllUsers -ErrorAction SilentlyContinue
         }
     }
-
+    
     Write-Host "Removing AppxProvisionedPackage..." -ForegroundColor Yellow
     Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like "*$AppName*" } | ForEach-Object {
         Write-Host "Removing provisioned package: $($_.PackageName)" -ForegroundColor Cyan
         Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue
     }
-
+    
     Write-Host "Operation completed." -ForegroundColor Green
 }
 
@@ -142,18 +142,93 @@ Function AdminTakeownership
 
 Function WifiPriority
 {
-    #netsh wlan set profileparameter name='SPC_5GHz' connectionmode=auto
-    #Get-NetIPInterface| Select-Object -ExpandProperty InterfaceAlias | Where-Object {$_ -match 'wi' -and $_ -match 'fi'} | foreach-object {netsh wlan set profileorder name='SPC_5GHz' interface=$_ priority=1}
-    #Get-NetIPInterface| Select-Object -ExpandProperty InterfaceAlias | Where-Object {$_ -match 'wi' -and $_ -match 'fi'} | foreach-object {netsh wlan set profileorder name='SPC_2.4GHz' interface=$_ priority=2}
-    #netsh wlan connect name="SPC_5GHz"
-    Start-Sleep 2
-    if (Test-Connection -ComputerName www.google.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
-    Start-Sleep 2
-    if (Test-Connection -ComputerName www.microsoft.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
-    Start-Sleep 2
-    if (Test-Connection -ComputerName www.facebook.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
-    Start-Sleep 2
-    if (Test-Connection -ComputerName www.youtube.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
+    # Get all interfaces that contain both "wi" and "fi" in the name (case-insensitive)
+    $wifiInterfaces = Get-NetAdapter | Where-Object {
+        $_.Status -eq 'Up' -and
+        $_.Name -match '(?i)wi' -and
+        $_.Name -match '(?i)fi'
+    }
+    
+    if ($null -eq $wifiInterfaces) {
+        Write-Host "No Wi-Fi interface found." -ForegroundColor Red
+        return
+    }
+    
+    # Get all saved Wi-Fi profiles
+    $savedProfiles = netsh wlan show profiles | Select-String "All User Profile" | ForEach-Object {
+        ($_ -split ":")[1].Trim()
+    }
+    
+    # Find saved profiles if the corresponding network is currently in range and broadcasting on 5GHz
+    
+    # Scan visible networks with BSSID info (includes frequency)
+    Add-Type -AssemblyName System.Runtime.InteropServices
+    $wlanClient = New-Object -ComObject "Wlan.WlanClient"
+    foreach ($iface in $wlanClient.Interfaces) {
+    Write-Host "Triggering scan on interface: $($iface.InterfaceDescription)"
+    $iface.Scan()
+    }
+    #explorer.exe ms-availablenetworks:
+    $scanResults = netsh wlan show networks mode=bssid
+    
+    # Get 5GHz network names from scan results
+$fiveGhzSSIDs = @()
+    $ssid = ""
+    
+    foreach ($line in $scanResults){
+        if ($line -match "^\s*SSID\s+\d+\s+:\s+(.*)") {
+            $ssid = $Matches[1].Trim()
+        }
+        elseif ($line -match "^\s*Frequency\s+:\s+(\d+)") {
+            $freq = [int]$Matches[1]
+            if ($freq -ge 4900 -and $freq -le 5900) {
+                if ($ssid -and -not ($fiveGhzSSIDs -contains $ssid)) {
+                    $fiveGhzSSIDs += $ssid
+                }
+            }
+        }
+    }
+    
+    # Match saved profiles against 5GHz SSIDs
+    $fiveGhzProfiles = $savedProfiles | Where-Object { $fiveGhzSSIDs -contains $_ }
+    
+    if ($null -eq $fiveGhzProfiles) {
+        Write-Host "No Wi-Fi 5Ghz profiles found in range" -ForegroundColor Red
+        return
+    }
+    
+    # Set priority (1 = highest), in order
+    $priority = 1
+    foreach ($profile in $fiveGhzProfiles) {
+        Write-Host "Setting profile '$profile' on interface '$interfaceAlias' to priority $priority"
+        # Set the profile order
+        netsh wlan set profileorder name="$profile" interface="$interfaceAlias" priority=$priority
+        # Set the profile to auto-connect
+        netsh wlan set profileparameter name="$profile" connectionmode=auto
+        $priority++
+    }
+
+    $interfaceAlias = $wifiInterfaces | select -ExpandProperty Name -First 1
+    # Get the profiles for this interface in order of priority
+    $profileLines = netsh wlan show profiles interface="$interfaceAlias" | Select-String "All User Profile" | ForEach-Object { ($_ -split ":")[1].Trim() }
+
+    if (-not $profileLines) {
+    Write-Host "No Wi-Fi profiles found for interface '$interfaceAlias'." -ForegroundColor Yellow
+    return
+}
+
+# Get the profile with highest priority (first one)
+$topProfile = $profileLines[0]
+Write-Host "Connecting to top priority profile: $topProfile"
+
+# Connect to the profile
+netsh wlan connect name="$topProfile" interface="$interfaceAlias"
+
+Start-Sleep 2
+if (Test-Connection -ComputerName www.google.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
+if (Test-Connection -ComputerName www.microsoft.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
+if (Test-Connection -ComputerName www.facebook.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
+if (Test-Connection -ComputerName www.youtube.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
 }
 
 Function InitializeCommands
@@ -236,7 +311,7 @@ Function Set-Hibernate
         powercfg.exe /hibernate off | out-null
         # Disable hibernate button
         AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '0' 'DWord'
-        }
+    }
 }
 
 Function MaxPowerPlan
@@ -415,9 +490,9 @@ Function Ins-Choco
     Write-Host -f C "======================================================================================================================`r`n"
     # Ensure Chocolatey is installed
     if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
-    Write-Host "Chocolatey not found. Installing..." -ForegroundColor Yellow
-    Set-ExecutionPolicy Bypass -Scope Process -Force;
-    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        Write-Host "Chocolatey not found. Installing..." -ForegroundColor Yellow
+        Set-ExecutionPolicy Bypass -Scope Process -Force;
+        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
     }
     try {$ChocoInstalled = Get-Command -Name choco -ea silentlycontinue} catch {}
     if ($ChocoInstalled) {write-host "Choco is already installed"}
@@ -463,9 +538,9 @@ Function Install-Winget
     Write-Host -f C "======================================================================================================================`r`n"
     # Ensure winget is installed
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Host "winget not found. Installing..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
-    Start-Job -Name InstallingWinGet {Add-AppxPackage -Path "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle" -ea silentlycontinue | out-null} | Wait-Job -Timeout 300 | Format-Table -Wrap -AutoSize -Property Name,State
+        Write-Host "winget not found. Installing..." -ForegroundColor Yellow
+        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
+        Start-Job -Name InstallingWinGet {Add-AppxPackage -Path "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle" -ea silentlycontinue | out-null} | Wait-Job -Timeout 300 | Format-Table -Wrap -AutoSize -Property Name,State
     }
     New-Item -Path "$env:TEMP\IA\Winget" -ItemType Directory -ea SilentlyContinue | out-null
     $VCLibsVersion = Get-AppxPackage -Name Microsoft.VCLibs* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
@@ -723,21 +798,21 @@ Function Unins-Acrobat
     # Get installed programs for both 32-bit and 64-bit architectures
     $paths = @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\')
     $installedPrograms = foreach ($registryPath in $paths) {
-    try {
-        Get-ChildItem -LiteralPath $registryPath -ea silentlycontinue | Get-ItemProperty | Where-Object { $_.PSChildName -ne $null }
-    } catch {Write-warning "Error reaging registry"}
+        try {
+            Get-ChildItem -LiteralPath $registryPath -ea silentlycontinue | Get-ItemProperty | Where-Object { $_.PSChildName -ne $null }
+        } catch {Write-warning "Error reaging registry"}
     }
     # Filter programs with Adobe Acrobat in their display name
     $adobeacrobatEntries = $installedPrograms | Where-Object {$_.DisplayName -like '*Adobe Acrobat*'}
     # Try to uninstall Adobe Acrobat for each matching entry
     foreach ($entry in $adobeacrobatEntries) {
-    $ProductCode = $entry.PSChildName
-    $DisplayName = $entry.DisplayName
-    try {
-        # Use the MSIExec command to uninstall the product
-        Write-Host -f C "`r`n *** Uninstalling $DisplayName *** `r`n"
-        Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $ProductCode /qb-! /norestart" -Wait -PassThru
-    } catch {Write-warning "Failed to uninstall $DisplayName with product code $ProductCode. Error: $_"}
+        $ProductCode = $entry.PSChildName
+        $DisplayName = $entry.DisplayName
+        try {
+            # Use the MSIExec command to uninstall the product
+            Write-Host -f C "`r`n *** Uninstalling $DisplayName *** `r`n"
+            Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $ProductCode /qb-! /norestart" -Wait -PassThru
+        } catch {Write-warning "Failed to uninstall $DisplayName with product code $ProductCode. Error: $_"}
     }
     # Uninstall Using winget
     winget uninstall -e --id "Adobe.Acrobat.Reader.32-bit"
@@ -754,7 +829,7 @@ Function Ins-AcrobatPro
 {
     Unins-Acrobat
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
-    Set-MpPreference -DisableRealtimeMonitoring $true
+    Try{Set-MpPreference -DisableRealtimeMonitoring $true -ea SilentlyContinue | out-null} Catch{}
     Stop-Service -Name "WinDefend" -Force -ea SilentlyContinue | out-null
     #1J__cfWkRhPfKRi0kANnxcu53rZ74Cyz1
     Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1J__cfWkRhPfKRi0kANnxcu53rZ74Cyz1?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null
@@ -945,9 +1020,9 @@ Function Windows-Update
     Start-Job -Name WindowsStoreAppsUpdate {Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue}
     # Use kbupdate Module
     try {
-    Install-Module kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue
-    Import-Module kbupdate -Force -ea silentlycontinue | out-null
-    Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
+        Install-Module kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue
+        Import-Module kbupdate -Force -ea silentlycontinue | out-null
+        Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
     } catch {}
     # Old Windows
     (New-Object -ComObject Microsoft.Update.AutoUpdate).DetectNow()
@@ -1545,12 +1620,12 @@ Function D-ScanFolder
 
 Function Adj-Hosts
 {
-Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Adjusting Hosts file *****************************"
-Write-Host -f C "======================================================================================================================`r`n"
-Write-Host -f C "`r`n Taking ownership of hosts file"
-AdminTakeownership -Path "$env:WinDir\System32\drivers\etc\hosts"
-$HostsFile =
+    Write-Host -f C "`r`n======================================================================================================================"
+    Write-Host -f C "***************************** Adjusting Hosts file *****************************"
+    Write-Host -f C "======================================================================================================================`r`n"
+    Write-Host -f C "`r`n Taking ownership of hosts file"
+    AdminTakeownership -Path "$env:WinDir\System32\drivers\etc\hosts"
+    $HostsFile =
 @"
 #<localhost>
 127.0.0.1 localhost
@@ -1559,7 +1634,7 @@ $HostsFile =
 ::1 localhost
 127.0.0.1 local
 #</localhost>
-
+   
 #<block-iobit>
 127.0.0.1 pf.iobit.com
 127.0.0.1 iunins.iobit.com
@@ -1569,7 +1644,7 @@ $HostsFile =
 127.0.0.1 is360.iobit.com
 127.0.0.1 asc.iobit.com
 #</block-iobit>
-
+    
 #<block-wondershare>
 127.0.0.1 account.wondershare.com
 127.0.0.1 platform.wondershare.com
@@ -1585,7 +1660,7 @@ $HostsFile =
 127.0.0.1 wondershare.com
 127.0.0.1 mail.insidews.wondershare.com
 #</block-wondershare>
-
+    
 #<block-adobe>
 127.0.0.1 activate.adobe.com
 127.0.0.1 practivate.adobe.com
@@ -1804,7 +1879,7 @@ $HostsFile =
 127.0.0.1 secure.asap-utilities.com
 127.0.0.1 server2.asap-utilities.com
 "@
-Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Force -ea SilentlyContinue | out-null
+    Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Force -ea SilentlyContinue | out-null
 }
 
 Function uninsSara-Office
@@ -1908,96 +1983,96 @@ Function ActivateOfficeKMS
 
 Function Config-Office
 {
-# Office
-AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'EnableAutomaticUpdates' '0' 'DWord'
-AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'HideEnableDisableUpdates' '1' 'DWord'
-AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'PreventTeamsInstall' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Common\MailSettings' 'InlineTextPrediction' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel' 'AutoSaveInterval' '2' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel' 'ExcelWorkbookAutoRecoverDirty' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'A4Letter' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'AutoRecoverTime' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'DeveloperTools' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'DisableBootToOfficeStart' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'EnableAccChecker' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'Maximized' '3' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'Xl9_hijri' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'AraDate' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'BackgroundOpen' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'BkgrndPag' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DeveloperTools' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DisableBootToOfficeStart' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DisableDarkMode' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'NumForm' '2' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'PreferredView' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'Ruler' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'ShowBkg' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\Common\ClientTelemetry' 'DisableTelemetry' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'ActiveDictationLanguage' 'en-US' 'String'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'QMEnable' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'SendCustomerData' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'SendCustomerDataOptIn' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'SendCustomerDataOptInReason' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'UI Theme' '3' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'UpdateReliabilityData' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Feedback' 'Enabled' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Feedback' 'IncludeEmail' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Feedback' 'SurveyEnabled' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'ControllerConnectedServicesEnabled' '2' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'DisconnectedState' '2' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'DownloadContentDisabled' '2' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'UserContentDisabled' '2' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\osm' 'EnableFileObfuscation' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\osm' 'EnableUpload' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\osm' 'Enablelogging' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\Common\ClientTelemetry' 'SendTelemetry' '3' 'DWord'
-AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecoverdelay' '1' 'DWord'
-AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecoverenabled' '1' 'DWord'
-AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecovertime' '1' 'DWord'
-AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'disableboottoofficestart' '1' 'DWord'
-AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'keepunsavedchanges' '1' 'DWord'
-AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'recognizesmarttags' '2' 'DWord'
-AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Office\16.0\Word\Wizards' 'PageSize' 'A4' 'String'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'DataConnectionWarnings' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'WorkbookLinkWarnings' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'RichDataConnectionWarnings' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'DisableDDEServerLaunch' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'VBAWarnings' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'AccessVBOM' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'OpenInProtectedView' '2' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL4Workbooks' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL4Worksheets' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL4Macros' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL3Workbooks' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL3Worksheets' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL3Macros' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL2Workbooks' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL2Worksheets' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL2Macros' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableInternetFilesInPV' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableAttachmentsInPV' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableUnsafeLocationsInPV' '0' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations' 'AllowNetworkLocations' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location90' 'Path' 'C:\\' 'String'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location90' 'AllowSubfolders' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location91' 'Path' 'D:\\' 'String'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location91' 'AllowSubfolders' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location92' 'Path' '\\' 'String'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location92' 'AllowSubfolders' '1' 'DWord'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location93' 'Path' '//' 'String'
-AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location93' 'AllowSubfolders' '1' 'DWord'
-
-Get-printer | ForEach-Object {set-printconfiguration -printerobject $_ -Papersize A4 -DuplexingMode OneSided}
-$Printers = Get-Printer;Foreach ($Printer in $Printers){Set-PrintConfiguration -PrinterName $Printer.name -PaperSize A4 -DuplexingMode OneSided}
+    # Office
+    AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'EnableAutomaticUpdates' '0' 'DWord'
+    AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'HideEnableDisableUpdates' '1' 'DWord'
+    AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'PreventTeamsInstall' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Common\MailSettings' 'InlineTextPrediction' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel' 'AutoSaveInterval' '2' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel' 'ExcelWorkbookAutoRecoverDirty' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'A4Letter' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'AutoRecoverTime' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'DeveloperTools' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'DisableBootToOfficeStart' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'EnableAccChecker' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'Maximized' '3' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'Xl9_hijri' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'AraDate' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'BackgroundOpen' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'BkgrndPag' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DeveloperTools' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DisableBootToOfficeStart' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DisableDarkMode' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'NumForm' '2' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'PreferredView' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'Ruler' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'ShowBkg' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\Common\ClientTelemetry' 'DisableTelemetry' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'ActiveDictationLanguage' 'en-US' 'String'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'QMEnable' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'SendCustomerData' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'SendCustomerDataOptIn' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'SendCustomerDataOptInReason' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'UI Theme' '3' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'UpdateReliabilityData' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Feedback' 'Enabled' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Feedback' 'IncludeEmail' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Feedback' 'SurveyEnabled' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'ControllerConnectedServicesEnabled' '2' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'DisconnectedState' '2' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'DownloadContentDisabled' '2' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'UserContentDisabled' '2' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\osm' 'EnableFileObfuscation' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\osm' 'EnableUpload' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\osm' 'Enablelogging' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\Common\ClientTelemetry' 'SendTelemetry' '3' 'DWord'
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecoverdelay' '1' 'DWord'
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecoverenabled' '1' 'DWord'
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecovertime' '1' 'DWord'
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'disableboottoofficestart' '1' 'DWord'
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'keepunsavedchanges' '1' 'DWord'
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'recognizesmarttags' '2' 'DWord'
+    AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Office\16.0\Word\Wizards' 'PageSize' 'A4' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'DataConnectionWarnings' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'WorkbookLinkWarnings' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'RichDataConnectionWarnings' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'DisableDDEServerLaunch' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'VBAWarnings' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'AccessVBOM' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'OpenInProtectedView' '2' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL4Workbooks' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL4Worksheets' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL4Macros' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL3Workbooks' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL3Worksheets' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL3Macros' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL2Workbooks' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL2Worksheets' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL2Macros' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableInternetFilesInPV' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableAttachmentsInPV' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableUnsafeLocationsInPV' '0' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations' 'AllowNetworkLocations' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location90' 'Path' 'C:\\' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location90' 'AllowSubfolders' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location91' 'Path' 'D:\\' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location91' 'AllowSubfolders' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location92' 'Path' '\\' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location92' 'AllowSubfolders' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location93' 'Path' '//' 'String'
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location93' 'AllowSubfolders' '1' 'DWord'
+    
+    Get-printer | ForEach-Object {set-printconfiguration -printerobject $_ -Papersize A4 -DuplexingMode OneSided}
+    $Printers = Get-Printer;Foreach ($Printer in $Printers){Set-PrintConfiguration -PrinterName $Printer.name -PaperSize A4 -DuplexingMode OneSided}
 }
 
 Function Deploy-Office
 {
     Write-Host -f C "`r`n *** Downloading & extracting Office Deployment Tool *** `r`n"
     for ($i = 1; $i -le 50; $i++) {
-    $webpage2 = Repeatiwr -Uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
-    $FileLink =$webpage2.Links | Where-Object href -like '*officedeploymenttool*exe' | select -Last 1 -expand href
-    if ($Filelink -ne $null) {break}
+        $webpage2 = Repeatiwr -Uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
+        $FileLink =$webpage2.Links | Where-Object href -like '*officedeploymenttool*exe' | select -Last 1 -expand href
+        if ($Filelink -ne $null) {break}
     }
     if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
     if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -ea SilentlyContinue | out-null}
@@ -2008,130 +2083,130 @@ Function Deploy-Office
 
 Function configurationFile21PP
 {
-$ConfigurationFile =
+    $ConfigurationFile =
 @"
 <Configuration ID="d66f0ad9-6e2f-47dc-a4fe-de1b73dfddff">
 <Add OfficeClientEdition="64" Channel="PerpetualVL2021">
 <Product ID="ProPlus2021Volume" PIDKEY="FXYTK-NJJ8C-GB6DW-3DYQT-6F7TH">
-      <Language ID="MatchOS" />
-      <Language ID="ar-sa" />
-      <Language ID="en-us" />
-      <ExcludeApp ID="Lync" />
-      <ExcludeApp ID="OneDrive" />
-      <ExcludeApp ID="OneNote" />
-      <ExcludeApp ID="Publisher" />
-    </Product>
-    <Product ID="ProofingTools">
-      <Language ID="ar-sa" />
-      <Language ID="en-us" />
-    </Product>
-  </Add>
-  <Property Name="SharedComputerLicensing" Value="0" />
-  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
-  <Property Name="DeviceBasedLicensing" Value="0" />
-  <Property Name="SCLCacheOverride" Value="0" />
-  <Property Name="AUTOACTIVATE" Value="0" />
-  <Updates Enabled="FALSE" />
-  <RemoveMSI />
-  <Remove All="TRUE">
-  </Remove>
-  <AppSettings>
-    <User Key="software\microsoft\office\16.0\excel\options" Name="recognizesmarttags" Value="2" Type="REG_DWORD" App="office16" Id="L_EnableAdditionalActionsInExcel" />
-    <User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizesentence" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizefirstletterofsentence" />
-    <User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizenamesofdays" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizenamesofdays" />
-    <User Key="software\microsoft\office\16.0\common\internet" Name="donotupdatelinksonsave" Value="0" Type="REG_DWORD" App="office16" Id="L_Updatelinksonsave" />
-    <User Key="software\microsoft\shared tools\proofing tools\1.0\office" Name="flagrepeatedword" Value="1" Type="REG_DWORD" App="office16" Id="L_FlagRepeatedWords" />
-    <User Key="software\microsoft\office\16.0\word\options\vpref" Name="wspell_1112_8" Value="3" Type="REG_DWORD" App="office16" Id="L_Arabicmodes" />
-    <User Key="software\microsoft\office\16.0\common\ptwatson" Name="ptwoptin" Value="0" Type="REG_DWORD" App="office16" Id="L_ImproveProofingTools" />
-    <User Key="software\microsoft\office\16.0\common\general" Name="shownfirstrunoptin" Value="1" Type="REG_DWORD" App="office16" Id="L_DisableOptinWizard" />
-    <User Key="software\microsoft\office\16.0\common" Name="qmenable" Value="0" Type="REG_DWORD" App="office16" Id="L_EnableCustomerExperienceImprovementProgram" />
-    <User Key="software\microsoft\office\16.0\common" Name="updatereliabilitydata" Value="0" Type="REG_DWORD" App="office16" Id="L_UpdateReliabilityPolicy" />
-    <User Key="software\microsoft\office\16.0\common\signatures" Name="verifyversion" Value="0" Type="REG_DWORD" App="office16" Id="L_SetSignatureVerificationLevel" />
-    <User Key="software\microsoft\office\16.0\common\security\filevalidation" Name="disablereporting" Value="1" Type="REG_DWORD" App="office16" Id="L_TurnOffErrorReportingForFilesThatFailFileValidation" />
-  </AppSettings>
-  <Display Level="None" AcceptEULA="TRUE" />
+<Language ID="MatchOS" />
+<Language ID="ar-sa" />
+<Language ID="en-us" />
+<ExcludeApp ID="Lync" />
+<ExcludeApp ID="OneDrive" />
+<ExcludeApp ID="OneNote" />
+<ExcludeApp ID="Publisher" />
+</Product>
+<Product ID="ProofingTools">
+<Language ID="ar-sa" />
+<Language ID="en-us" />
+</Product>
+</Add>
+<Property Name="SharedComputerLicensing" Value="0" />
+<Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+<Property Name="DeviceBasedLicensing" Value="0" />
+<Property Name="SCLCacheOverride" Value="0" />
+<Property Name="AUTOACTIVATE" Value="0" />
+<Updates Enabled="FALSE" />
+<RemoveMSI />
+<Remove All="TRUE">
+</Remove>
+<AppSettings>
+<User Key="software\microsoft\office\16.0\excel\options" Name="recognizesmarttags" Value="2" Type="REG_DWORD" App="office16" Id="L_EnableAdditionalActionsInExcel" />
+<User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizesentence" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizefirstletterofsentence" />
+<User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizenamesofdays" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizenamesofdays" />
+<User Key="software\microsoft\office\16.0\common\internet" Name="donotupdatelinksonsave" Value="0" Type="REG_DWORD" App="office16" Id="L_Updatelinksonsave" />
+<User Key="software\microsoft\shared tools\proofing tools\1.0\office" Name="flagrepeatedword" Value="1" Type="REG_DWORD" App="office16" Id="L_FlagRepeatedWords" />
+<User Key="software\microsoft\office\16.0\word\options\vpref" Name="wspell_1112_8" Value="3" Type="REG_DWORD" App="office16" Id="L_Arabicmodes" />
+<User Key="software\microsoft\office\16.0\common\ptwatson" Name="ptwoptin" Value="0" Type="REG_DWORD" App="office16" Id="L_ImproveProofingTools" />
+<User Key="software\microsoft\office\16.0\common\general" Name="shownfirstrunoptin" Value="1" Type="REG_DWORD" App="office16" Id="L_DisableOptinWizard" />
+<User Key="software\microsoft\office\16.0\common" Name="qmenable" Value="0" Type="REG_DWORD" App="office16" Id="L_EnableCustomerExperienceImprovementProgram" />
+<User Key="software\microsoft\office\16.0\common" Name="updatereliabilitydata" Value="0" Type="REG_DWORD" App="office16" Id="L_UpdateReliabilityPolicy" />
+<User Key="software\microsoft\office\16.0\common\signatures" Name="verifyversion" Value="0" Type="REG_DWORD" App="office16" Id="L_SetSignatureVerificationLevel" />
+<User Key="software\microsoft\office\16.0\common\security\filevalidation" Name="disablereporting" Value="1" Type="REG_DWORD" App="office16" Id="L_TurnOffErrorReportingForFilesThatFailFileValidation" />
+</AppSettings>
+<Display Level="None" AcceptEULA="TRUE" />
 </Configuration>
 "@
-Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
+    Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
 }
 
 Function configurationFile24PP
 {
-$ConfigurationFile =
+    $ConfigurationFile =
 @"
 <Configuration ID="0ba18fea-354d-4d3a-bb5f-b5c04d3eca9d">
-  <Add OfficeClientEdition="64" Channel="PerpetualVL2024">
-    <Product ID="ProPlus2024Volume" PIDKEY="XJ2XN-FW8RK-P4HMP-DKDBV-GCVGB">
-      <Language ID="MatchOS" />
-      <Language ID="ar-sa" />
-      <Language ID="en-us" />
-      <ExcludeApp ID="Lync" />
-      <ExcludeApp ID="OneDrive" />
-      <ExcludeApp ID="OneNote" />
-      <ExcludeApp ID="Publisher" />
-    </Product>
-    <Product ID="ProofingTools">
-      <Language ID="ar-sa" />
-      <Language ID="en-us" />
-    </Product>
-  </Add>
-  <Property Name="SharedComputerLicensing" Value="0" />
-  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
-  <Property Name="DeviceBasedLicensing" Value="0" />
-  <Property Name="SCLCacheOverride" Value="0" />
-  <Property Name="AUTOACTIVATE" Value="0" />
-  <Updates Enabled="FALSE" />
-  <Remove All="TRUE">
-  </Remove>
-  <RemoveMSI />
-  <AppSettings>
-    <User Key="software\microsoft\office\16.0\excel\options" Name="recognizesmarttags" Value="2" Type="REG_DWORD" App="office16" Id="L_EnableAdditionalActionsInExcel" />
-    <User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizesentence" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizefirstletterofsentence" />
-    <User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizenamesofdays" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizenamesofdays" />
-    <User Key="software\microsoft\office\16.0\common\internet" Name="donotupdatelinksonsave" Value="0" Type="REG_DWORD" App="office16" Id="L_Updatelinksonsave" />
-    <User Key="software\microsoft\shared tools\proofing tools\1.0\office" Name="flagrepeatedword" Value="1" Type="REG_DWORD" App="office16" Id="L_FlagRepeatedWords" />
-    <User Key="software\microsoft\office\16.0\word\options\vpref" Name="wspell_1112_8" Value="3" Type="REG_DWORD" App="office16" Id="L_Arabicmodes" />
-    <User Key="software\microsoft\office\16.0\common\ptwatson" Name="ptwoptin" Value="0" Type="REG_DWORD" App="office16" Id="L_ImproveProofingTools" />
-    <User Key="software\microsoft\office\16.0\common\general" Name="shownfirstrunoptin" Value="1" Type="REG_DWORD" App="office16" Id="L_DisableOptinWizard" />
-    <User Key="software\microsoft\office\16.0\common" Name="qmenable" Value="0" Type="REG_DWORD" App="office16" Id="L_EnableCustomerExperienceImprovementProgram" />
-    <User Key="software\microsoft\office\16.0\common" Name="updatereliabilitydata" Value="0" Type="REG_DWORD" App="office16" Id="L_UpdateReliabilityPolicy" />
-    <User Key="software\microsoft\office\16.0\common\signatures" Name="verifyversion" Value="0" Type="REG_DWORD" App="office16" Id="L_SetSignatureVerificationLevel" />
-    <User Key="software\microsoft\office\16.0\common\security\filevalidation" Name="disablereporting" Value="1" Type="REG_DWORD" App="office16" Id="L_TurnOffErrorReportingForFilesThatFailFileValidation" />
-  </AppSettings>
-  <Display Level="None" AcceptEULA="TRUE" />
+<Add OfficeClientEdition="64" Channel="PerpetualVL2024">
+<Product ID="ProPlus2024Volume" PIDKEY="XJ2XN-FW8RK-P4HMP-DKDBV-GCVGB">
+<Language ID="MatchOS" />
+<Language ID="ar-sa" />
+<Language ID="en-us" />
+<ExcludeApp ID="Lync" />
+<ExcludeApp ID="OneDrive" />
+<ExcludeApp ID="OneNote" />
+<ExcludeApp ID="Publisher" />
+</Product>
+<Product ID="ProofingTools">
+<Language ID="ar-sa" />
+<Language ID="en-us" />
+</Product>
+</Add>
+<Property Name="SharedComputerLicensing" Value="0" />
+<Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+<Property Name="DeviceBasedLicensing" Value="0" />
+<Property Name="SCLCacheOverride" Value="0" />
+<Property Name="AUTOACTIVATE" Value="0" />
+<Updates Enabled="FALSE" />
+<Remove All="TRUE">
+</Remove>
+<RemoveMSI />
+<AppSettings>
+<User Key="software\microsoft\office\16.0\excel\options" Name="recognizesmarttags" Value="2" Type="REG_DWORD" App="office16" Id="L_EnableAdditionalActionsInExcel" />
+<User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizesentence" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizefirstletterofsentence" />
+<User Key="software\microsoft\office\16.0\common\autocorrect" Name="capitalizenamesofdays" Value="1" Type="REG_DWORD" App="office16" Id="L_Capitalizenamesofdays" />
+<User Key="software\microsoft\office\16.0\common\internet" Name="donotupdatelinksonsave" Value="0" Type="REG_DWORD" App="office16" Id="L_Updatelinksonsave" />
+<User Key="software\microsoft\shared tools\proofing tools\1.0\office" Name="flagrepeatedword" Value="1" Type="REG_DWORD" App="office16" Id="L_FlagRepeatedWords" />
+<User Key="software\microsoft\office\16.0\word\options\vpref" Name="wspell_1112_8" Value="3" Type="REG_DWORD" App="office16" Id="L_Arabicmodes" />
+<User Key="software\microsoft\office\16.0\common\ptwatson" Name="ptwoptin" Value="0" Type="REG_DWORD" App="office16" Id="L_ImproveProofingTools" />
+<User Key="software\microsoft\office\16.0\common\general" Name="shownfirstrunoptin" Value="1" Type="REG_DWORD" App="office16" Id="L_DisableOptinWizard" />
+<User Key="software\microsoft\office\16.0\common" Name="qmenable" Value="0" Type="REG_DWORD" App="office16" Id="L_EnableCustomerExperienceImprovementProgram" />
+<User Key="software\microsoft\office\16.0\common" Name="updatereliabilitydata" Value="0" Type="REG_DWORD" App="office16" Id="L_UpdateReliabilityPolicy" />
+<User Key="software\microsoft\office\16.0\common\signatures" Name="verifyversion" Value="0" Type="REG_DWORD" App="office16" Id="L_SetSignatureVerificationLevel" />
+<User Key="software\microsoft\office\16.0\common\security\filevalidation" Name="disablereporting" Value="1" Type="REG_DWORD" App="office16" Id="L_TurnOffErrorReportingForFilesThatFailFileValidation" />
+</AppSettings>
+<Display Level="None" AcceptEULA="TRUE" />
 </Configuration>
 "@
-Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
+    Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
 }
 
 Function Ins-Office21PP
 {
-Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Start Installing Office 2021 Pro Plus *****************************"
-Write-Host -f C "======================================================================================================================`r`n"
-Unins-MSOffice
-uninsSara-Office
-uninsITPRO-Office
-Uninscomponents-Office
-configurationFile21PP
-Deploy-Office
-ActivateOfficeKMS
-Config-Office
+    Write-Host -f C "`r`n======================================================================================================================"
+    Write-Host -f C "***************************** Start Installing Office 2021 Pro Plus *****************************"
+    Write-Host -f C "======================================================================================================================`r`n"
+    Unins-MSOffice
+    uninsSara-Office
+    uninsITPRO-Office
+    Uninscomponents-Office
+    configurationFile21PP
+    Deploy-Office
+    ActivateOfficeKMS
+    Config-Office
 }
 
 Function Ins-Office24PP
 {
-Write-Host -f C "`r`n======================================================================================================================"
-Write-Host -f C "***************************** Start Installing Office 2024 Pro Plus *****************************"
-Write-Host -f C "======================================================================================================================`r`n"
-Unins-MSOffice
-uninsSara-Office
-uninsITPRO-Office
-Uninscomponents-Office
-configurationFile24PP
-Deploy-Office
-ActivateOfficeKMS
-Config-Office
+    Write-Host -f C "`r`n======================================================================================================================"
+    Write-Host -f C "***************************** Start Installing Office 2024 Pro Plus *****************************"
+    Write-Host -f C "======================================================================================================================`r`n"
+    Unins-MSOffice
+    uninsSara-Office
+    uninsITPRO-Office
+    Uninscomponents-Office
+    configurationFile24PP
+    Deploy-Office
+    ActivateOfficeKMS
+    Config-Office
 }
 
 Function OpenMSStoreUpdate
@@ -2143,28 +2218,28 @@ Function OpenMSStoreUpdate
 
 Function Pin-to-taskbar
 {
-Param
-(
-[Parameter(Mandatory=$false, Position=0)]
-[string]$IDorPath,
-[Parameter(Mandatory=$false, Position=1)]
-[string]$PinType,
-[Parameter(Mandatory=$false, Position=2)]
-[switch]$SearchID = $false,
-[Parameter(Mandatory=$false, Position=3)]
-[switch]$Replace = $false,
-[Parameter(Mandatory=$false, Position=4)]
-[switch]$ClearAll = $false
-)
-If (($ClearAll -eq $false) -and (($IDorPath -eq "") -or ($PinType -eq ""))) {Write-Host -f red 'You must provide IDorPath and PinType unless you use -ClearAll';return}
-# For $IDorPath provide the appID or desktopID or part of it & set search or provide the path
-# for PinType provied "AppUserModelID" or "DesktopApplicationID" or "DesktopApplicationLinkPath"
-# To understand this visit: https://learn.microsoft.com/en-us/windows/configuration/taskbar/pinned-apps?tabs=intune&pivots=windows-11#taskbar-layout-example
-# To get UWP App ID "AppUserModelID" use PS command> Get-AppxPackage | select @{n='name';e={"$($_.PackageFamilyName)!app"}} 
-# also choose whether to keep the previous pins or to remove them by setting Replace
-# or use-ClearAll to remove all pins without adding any ie: Pin-to-taskbar -ClearAll
-# All other parameters are useless when using -ClearAll as it will just clear all pins anyway so you should use for that> Pin-to-taskbar -ClearAll
-$taskbar_layout1 =
+    Param
+    (
+    [Parameter(Mandatory=$false, Position=0)]
+    [string]$IDorPath,
+    [Parameter(Mandatory=$false, Position=1)]
+    [string]$PinType,
+    [Parameter(Mandatory=$false, Position=2)]
+    [switch]$SearchID = $false,
+    [Parameter(Mandatory=$false, Position=3)]
+    [switch]$Replace = $false,
+    [Parameter(Mandatory=$false, Position=4)]
+    [switch]$ClearAll = $false
+    )
+    If (($ClearAll -eq $false) -and (($IDorPath -eq "") -or ($PinType -eq ""))) {Write-Host -f red 'You must provide IDorPath and PinType unless you use -ClearAll';return}
+    # For $IDorPath provide the appID or desktopID or part of it & set search or provide the path
+    # for PinType provied "AppUserModelID" or "DesktopApplicationID" or "DesktopApplicationLinkPath"
+    # To understand this visit: https://learn.microsoft.com/en-us/windows/configuration/taskbar/pinned-apps?tabs=intune&pivots=windows-11#taskbar-layout-example
+    # To get UWP App ID "AppUserModelID" use PS command> Get-AppxPackage | select @{n='name';e={"$($_.PackageFamilyName)!app"}} 
+    # also choose whether to keep the previous pins or to remove them by setting Replace
+    # or use-ClearAll to remove all pins without adding any ie: Pin-to-taskbar -ClearAll
+    # All other parameters are useless when using -ClearAll as it will just clear all pins anyway so you should use for that> Pin-to-taskbar -ClearAll
+    $taskbar_layout1 =
 @"
 <?xml version="1.0" encoding="utf-8"?>
 <LayoutModificationTemplate
@@ -2202,46 +2277,46 @@ $taskbar_layout3 =
 </CustomTaskbarLayoutCollection>
 </LayoutModificationTemplate>
 "@
-$taskbar_layout = $taskbar_layout1 + $Placement + $taskbar_layout2 + $pin + $taskbar_layout3
-#Write-Host $taskbar_layout #Debug only
-# prepare provisioning folder
-[System.IO.FileInfo]$provisioning = "$($env:ProgramData)\provisioning\taskbar_layout.xml"
-if (!$provisioning.Directory.Exists) {
-$provisioning.Directory.Create()
-}
-
-$taskbar_layout | Out-File $provisioning.FullName -Encoding utf8
-
-$settings = [PSCustomObject]@{
-Path= "SOFTWARE\Policies\Microsoft\Windows\Explorer"
-Value = $provisioning.FullName
-Name= "StartLayoutFile"
-Type= [Microsoft.Win32.RegistryValueKind]::ExpandString
-},
-[PSCustomObject]@{
-Path= "SOFTWARE\Policies\Microsoft\Windows\Explorer"
-Value = 1
-Name= "LockedStartLayout"
-} | group Path
-
-foreach ($setting in $settings) {
-$registry = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($setting.Name, $true)
-if ($null -eq $registry) {
-$registry = [Microsoft.Win32.Registry]::LocalMachine.CreateSubKey($setting.Name, $true)
-}
-$setting.Group | % {
-if (!$_.Type) {
-$registry.SetValue($_.name, $_.value)
-}
-else {
-$registry.SetValue($_.name, $_.value, $_.type)
-}
-}
-$registry.Dispose()
-}
-Write-Host -f C "Restarting explorer to pin application to taskbar"
-AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
-Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
+    $taskbar_layout = $taskbar_layout1 + $Placement + $taskbar_layout2 + $pin + $taskbar_layout3
+    #Write-Host $taskbar_layout #Debug only
+    # prepare provisioning folder
+    [System.IO.FileInfo]$provisioning = "$($env:ProgramData)\provisioning\taskbar_layout.xml"
+    if (!$provisioning.Directory.Exists) {
+        $provisioning.Directory.Create()
+    }
+    
+    $taskbar_layout | Out-File $provisioning.FullName -Encoding utf8
+    
+    $settings = [PSCustomObject]@{
+        Path= "SOFTWARE\Policies\Microsoft\Windows\Explorer"
+        Value = $provisioning.FullName
+        Name= "StartLayoutFile"
+        Type= [Microsoft.Win32.RegistryValueKind]::ExpandString
+    },
+    [PSCustomObject]@{
+        Path= "SOFTWARE\Policies\Microsoft\Windows\Explorer"
+        Value = 1
+        Name= "LockedStartLayout"
+    } | group Path
+    
+    foreach ($setting in $settings) {
+        $registry = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($setting.Name, $true)
+        if ($null -eq $registry) {
+            $registry = [Microsoft.Win32.Registry]::LocalMachine.CreateSubKey($setting.Name, $true)
+        }
+        $setting.Group | % {
+            if (!$_.Type) {
+                $registry.SetValue($_.name, $_.value)
+            }
+            else {
+                $registry.SetValue($_.name, $_.value, $_.type)
+            }
+        }
+        $registry.Dispose()
+    }
+    Write-Host -f C "Restarting explorer to pin application to taskbar"
+    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
+    Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
 }
 
 Function Ins-ExtraFonts
@@ -2300,4 +2375,4 @@ Function Clean-up
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:TEMP" -Force -Recurse -ea SilentlyContinue | out-null
-}
+    }    
