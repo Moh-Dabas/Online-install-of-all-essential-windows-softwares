@@ -2324,6 +2324,9 @@ Function Ins-ExtraFonts
     Write-Host -f C "`r`n *** Installing Extra Fonts *** `r`n"
     if (choco list --lo -r -e dejavufonts) {Write-Host -f C "dejavufonts already installed"} else {Choco install dejavufonts}
     if (choco list --lo -r -e victormononf) {Choco upgrade victormononf} else {Choco install victormononf}
+    if (choco list --lo -r -e montserrat.font) {Choco upgrade montserrat.font} else {Choco install montserrat.font}
+    if (choco list --lo -r -e opensans) {Choco upgrade opensans} else {Choco install opensans}
+    if (choco list --lo -r -e cascadiafonts) {Choco upgrade cascadiafonts} else {Choco install cascadiafonts}
 }
 
 Function Pin-WhatsappWebChrome
