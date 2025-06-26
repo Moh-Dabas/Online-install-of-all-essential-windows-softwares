@@ -82,6 +82,7 @@ function Remove-AppxApp {
         Get-AppxPackage -AllUsers | Where-Object { $_.Name -like "*$AppName*" } | ForEach-Object {
             Write-Host "Removing package: $($_.PackageFullName) for user $sid" -ForegroundColor Cyan
             Remove-AppxPackage -Package $_.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+            Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue
         }
     }
     
@@ -168,7 +169,7 @@ Function WifiPriority
     Write-Host "Triggering scan on interface: $($iface.InterfaceDescription)"
     $iface.Scan()
     }
-    #explorer.exe ms-availablenetworks:
+    explorer.exe ms-availablenetworks:
     $scanResults = netsh wlan show networks mode=bssid
     
     # Get 5GHz network names from scan results
@@ -1173,12 +1174,12 @@ Function Unins-OneDrive
         Start-Process $OneDriveUninstallString[0] -Verb RunAs -WindowStyle Minimized -ArgumentList $OneDriveUninstallString[1]
     }
     Start-Process 'OneDriveSetup.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '/uninstall' -ea SilentlyContinue | out-null
-    Move-OneDriveUserFolders
+    #Move-OneDriveUserFolders
     Get-ScheduledTask | Where-Object {$_.Taskname -match 'OneDrive'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
     # Clean Remaining
-    Remove-Item -LiteralPath "$env:LOCALAPPDATA\Microsoft\OneDrive" -Force -Recurse -ea SilentlyContinue | out-null
-    Remove-Item -LiteralPath "$env:PROGRAMDATA\Microsoft\OneDrive" -Force -Recurse -ea SilentlyContinue | out-null
-    Remove-Item -LiteralPath "$env:HOMEDRIVE\OneDriveTemp" -Force -Recurse -ea SilentlyContinue | out-null
+    #Remove-Item -LiteralPath "$env:LOCALAPPDATA\Microsoft\OneDrive" -Force -Recurse -ea SilentlyContinue | out-null
+    #Remove-Item -LiteralPath "$env:PROGRAMDATA\Microsoft\OneDrive" -Force -Recurse -ea SilentlyContinue | out-null
+    #Remove-Item -LiteralPath "$env:HOMEDRIVE\OneDriveTemp" -Force -Recurse -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "HKEY_CLASSES_ROOT:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"  -Recurse -force -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "HKEY_CLASSES_ROOT:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"  -Recurse -force -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive'  -Recurse -force -ea SilentlyContinue | out-null
