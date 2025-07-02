@@ -175,11 +175,13 @@ Function WifiPriority {
     } while ($status -ne 'Running')
 
     # Wait a few extra seconds to let networks appear
-    Start-Sleep -Seconds 5
     Write-Host "wlansvc is running. Proceeding with network scan..."
+    Start-Sleep -Seconds 1
+    $scanResults = netsh wlan show networks mode=bssid
+    $ssidCount = ($scanResults | Select-String -Pattern '^SSID\s+\d+\s*:').Count
+    if ($ssidCount -lt 2) {Start-Sleep -Seconds 4}
     
-    # Trigger scan on all interfaces using COM object (requires admin)
-    # Trigger background scan silently
+    # Trigger silent scan on all interfaces using COM object (requires admin)
     try {
         $wlanClient = New-Object -ComObject "Wlan.WlanClient"
         foreach ($iface in $wlanClient.Interfaces) {
@@ -187,7 +189,10 @@ Function WifiPriority {
             $iface.Scan()
         }
         # Wait a few seconds for scan to complete
-        Start-Sleep -Seconds 3
+        Start-Sleep -Seconds 1
+        $scanResults = netsh wlan show networks mode=bssid
+        $ssidCount = ($scanResults | Select-String -Pattern '^SSID\s+\d+\s*:').Count
+        if ($ssidCount -lt 2) {Start-Sleep -Seconds 4}
     } catch {
         Write-Warning "Failed to trigger Wi-Fi scan: $_"
     }
