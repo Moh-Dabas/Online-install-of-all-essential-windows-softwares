@@ -141,95 +141,131 @@ Function AdminTakeownership
     else {Write-Host -f red "Path is wrong or not supported"}
 }
 
-Function WifiPriority
-{
-    # Get all interfaces that contain both "wi" and "fi" in the name (case-insensitive)
+Function WifiPriority {
     $wifiInterfaces = Get-NetAdapter | Where-Object {
         $_.Status -eq 'Up' -and
         $_.Name -match '(?i)wi' -and
         $_.Name -match '(?i)fi'
     }
-    
-    if ($null -eq $wifiInterfaces) {
-        Write-Host "No Wi-Fi interface found." -ForegroundColor Red
+
+    if (-not $wifiInterfaces) {
+        Write-Output "No active Wi-Fi adapter found."
         return
     }
+
+    $interfaceAlias = $wifiInterfaces | Select-Object -ExpandProperty Name -First 1
     
-    # Get all saved Wi-Fi profiles
     $savedProfiles = netsh wlan show profiles | Select-String "All User Profile" | ForEach-Object {
         ($_ -split ":")[1].Trim()
     }
-    
-    # Find saved profiles if the corresponding network is currently in range and broadcasting on 5GHz
-    
-    # Scan visible networks with BSSID info (includes frequency)
-    Add-Type -AssemblyName System.Runtime.InteropServices
-    $wlanClient = New-Object -ComObject "Wlan.WlanClient"
-    foreach ($iface in $wlanClient.Interfaces) {
-    Write-Host "Triggering scan on interface: $($iface.InterfaceDescription)"
-    $iface.Scan()
-    }
-    explorer.exe ms-availablenetworks:
-    $scanResults = netsh wlan show networks mode=bssid
-    
-    # Get 5GHz network names from scan results
-$fiveGhzSSIDs = @()
-    $ssid = ""
-    
-    foreach ($line in $scanResults){
-        if ($line -match "^\s*SSID\s+\d+\s+:\s+(.*)") {
-            $ssid = $Matches[1].Trim()
-        }
-        elseif ($line -match "^\s*Frequency\s+:\s+(\d+)") {
-            $freq = [int]$Matches[1]
-            if ($freq -ge 4900 -and $freq -le 5900) {
-                if ($ssid -and -not ($fiveGhzSSIDs -contains $ssid)) {
-                    $fiveGhzSSIDs += $ssid
-                }
-            }
-        }
-    }
-    
-    # Match saved profiles against 5GHz SSIDs
-    $fiveGhzProfiles = $savedProfiles | Where-Object { $fiveGhzSSIDs -contains $_ }
-    
-    if ($null -eq $fiveGhzProfiles) {
-        Write-Host "No Wi-Fi 5Ghz profiles found in range" -ForegroundColor Red
+
+    if (-not $savedProfiles) {
+        Write-Output "No saved Wi-Fi profiles found."
         return
     }
     
-    # Set priority (1 = highest), in order
+    Write-Host "Restarting WLAN AutoConfig service (wlansvc)..."
+    Restart-Service -Name wlansvc -Force
+
+    # Wait until the service status is 'Running'
+    do {
+        Start-Sleep -Seconds 1
+        $status = (Get-Service wlansvc).Status
+        Write-Host "Waiting for wlansvc to start... (Current: $status)"
+    } while ($status -ne 'Running')
+
+    # Wait a few extra seconds to let networks appear
+    Start-Sleep -Seconds 5
+    Write-Host "wlansvc is running. Proceeding with network scan..."
+    
+    # Trigger scan on all interfaces using COM object (requires admin)
+    # Trigger background scan silently
+    try {
+        $wlanClient = New-Object -ComObject "Wlan.WlanClient"
+        foreach ($iface in $wlanClient.Interfaces) {
+            Write-Host "Triggering scan on interface: $($iface.InterfaceDescription)"
+            $iface.Scan()
+        }
+        # Wait a few seconds for scan to complete
+        Start-Sleep -Seconds 3
+    } catch {
+        Write-Warning "Failed to trigger Wi-Fi scan: $_"
+    }
+    
+    $scanResults = netsh wlan show networks mode=bssid
+    
+    # If the silent scan fails to detect any SSIDs, try visual scan
+    $ssidCount = ($scanResults | Select-String -Pattern '^SSID\s+\d+\s*:').Count
+    
+    # Trigger visual scan only if fewer than 2 SSIDs found (i.e. scan might be stale)
+    if ($ssidCount -lt 2) {
+        Write-Host "Silent scan detected only $ssidCount SSID(s). Triggering visual Wi-Fi scan UI..."
+        Start-Process explorer.exe "ms-availablenetworks:"
+        Start-Sleep -Seconds 5
+        $scanResults = netsh wlan show networks mode=bssid
+    }
+    
+    $fiveGhzSSIDs = @()
+    $ssid = ""
+
+    foreach ($line in $scanResults) {
+        if ($line -match "^\s*SSID\s+\d+\s*:\s*(.+)$") {
+            $ssid = $Matches[1].Trim()
+        } elseif ($line -match "^\s*Band\s*:\s*5 GHz") {
+            if ($ssid -and -not ($fiveGhzSSIDs -contains $ssid)) {
+                $fiveGhzSSIDs += $ssid
+            }
+        }
+    }
+
+    if (-not $fiveGhzSSIDs) {
+        Write-Output "No 5GHz networks found."
+        return
+    }
+
+    $fiveGhzProfiles = $savedProfiles | Where-Object { $fiveGhzSSIDs -contains $_ }
+
+    if (-not $fiveGhzProfiles) {
+        Write-Output "No matching saved 5GHz profiles found."
+        return
+    }
+
     $priority = 1
     foreach ($profile in $fiveGhzProfiles) {
-        Write-Host "Setting profile '$profile' on interface '$interfaceAlias' to priority $priority"
-        # Set the profile order
-        netsh wlan set profileorder name="$profile" interface="$interfaceAlias" priority=$priority
-        # Set the profile to auto-connect
-        netsh wlan set profileparameter name="$profile" connectionmode=auto
+        netsh wlan set profileorder name="$profile" interface="$interfaceAlias" priority=$priority | Out-Null
+        netsh wlan set profileparameter name="$profile" connectionmode=auto | Out-Null
         $priority++
     }
 
-    $interfaceAlias = $wifiInterfaces | select -ExpandProperty Name -First 1
-    # Get the profiles for this interface in order of priority
-    $profileLines = netsh wlan show profiles interface="$interfaceAlias" | Select-String "All User Profile" | ForEach-Object { ($_ -split ":")[1].Trim() }
+    $profileLines = netsh wlan show profiles interface="$interfaceAlias" | Select-String "All User Profile" | ForEach-Object {
+        ($_ -split ":")[1].Trim()
+    }
 
     if (-not $profileLines) {
-    Write-Host "No Wi-Fi profiles found for interface '$interfaceAlias'." -ForegroundColor Yellow
-    return
-}
+        Write-Output "Failed to read profile list after update."
+        return
+    }
 
-# Get the profile with highest priority (first one)
-$topProfile = $profileLines[0]
-Write-Host "Connecting to top priority profile: $topProfile"
+    $topProfile = $profileLines[0]
+    netsh wlan connect name="$topProfile" interface="$interfaceAlias" | Out-Null
+    Write-Output "Prioritized: $topProfile"
 
-# Connect to the profile
-netsh wlan connect name="$topProfile" interface="$interfaceAlias"
+    # ---- Internet Connectivity Check (max 50 seconds) ----
+    $connected = $false
+    for ($i = 0; $i -lt 50; $i++) {
+        $ping = Test-Connection -ComputerName 8.8.8.8 -Count 1 -Quiet -ErrorAction SilentlyContinue
+        if ($ping) {
+            $connected = $true
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
 
-Start-Sleep 2
-if (Test-Connection -ComputerName www.google.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
-if (Test-Connection -ComputerName www.microsoft.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
-if (Test-Connection -ComputerName www.facebook.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
-if (Test-Connection -ComputerName www.youtube.com -Quiet) {Write-Host -f C "Internet connection verified"} else {Write-Warning "No Internet Connection found"}
+    if ($connected) {
+        Write-Output "Internet connection detected."
+    } else {
+        Write-Output "No internet connection after 50 seconds."
+    }
 }
 
 Function InitializeCommands
