@@ -2286,6 +2286,14 @@ Function Clean-up
     reg add "HKCU\Control Panel\International" /V iCalendarType /T REG_SZ /D "1" /F
     AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
+    # Wait for all background jobs to finish
+    Wait-Job -State Running
+    # Optionally receive and display the results of all jobs
+    Get-Job | ForEach-Object {
+    Write-Output "Result from job $($_.Id):"
+    Receive-Job -Job $_
+    Remove-Job -Job $_
+    }
     Start-sleep 2
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -ea SilentlyContinue | out-null
