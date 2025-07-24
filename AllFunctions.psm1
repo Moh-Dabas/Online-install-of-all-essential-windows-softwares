@@ -347,14 +347,13 @@ Function Set-Hibernate
         # Enable hibernate full
         AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabledDefault' '1' 'DWord'
         AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabled' '1' 'DWord'
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '1' 'DWord'
         powercfg hibernate size 0 | out-null
         powercfg /h /type full | out-null
         powercfg.exe /hibernate on | out-null
         # Enable hibernate button
         AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '1' 'DWord'
-        # Disabling HyperBoot to avoid it's issues
-        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '0' 'DWord'
+        # Enable HyperBoot
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '1' 'DWord'
     }
     elseif ($Status = 'Boot')
     {
@@ -367,10 +366,12 @@ Function Set-Hibernate
         powercfg.exe /hibernate on | out-null
         # Disable hibernate button
         AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '0' 'DWord'
+        # Enable HyperBoot
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '1' 'DWord'
     }
     else
     {
-        # Disable hibernate
+        # Disable hibernate to avoid it's issues
         AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabled' '0' 'DWord'
         AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabledDefault' '0' 'DWord'
         AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '0' 'DWord'
@@ -378,6 +379,8 @@ Function Set-Hibernate
         powercfg.exe /hibernate off | out-null
         # Disable hibernate button
         AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowHibernateOption' '0' 'DWord'
+        # Disabling HyperBoot to avoid it's issues
+        AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '0' 'DWord'
     }
 }
 
@@ -544,8 +547,8 @@ Function MaxPowerPlan
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings' 'ShowSleepOption' '1' 'DWord'
     powercfg /SetActive $MaxPlanGUID | out-null
     powercfg /SetActive $MaxPlanGUID | out-null
-    # Set Hibernate full
-    Set-Hibernate 'Full'
+    # Set Hibernate Off
+    Set-Hibernate 'Off'
 }
 
 Function Ins-WindowsFeatures
