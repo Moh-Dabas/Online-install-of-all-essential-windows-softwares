@@ -1519,10 +1519,10 @@ Function Registry-Tweaks
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowAllTrustedApps' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowDevelopmentWithoutDevLicense' '1' 'DWord'
     # Turn off all notifications
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings" -Name NOC_GLOBAL_SETTING_TOASTS_ENABLED -Value 0
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings' 'NOC_GLOBAL_SETTING_TOASTS_ENABLED' '0' 'DWord'
     # Enable Focus Assist - Priority Only (Value 1)
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\QuietHours" -Name QuietHoursEnabled -Value 1
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\QuietHours" -Name QuietHoursActive -Value 1
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\QuietHours' 'QuietHoursEnabled' '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\QuietHours' 'QuietHoursActive' '1' 'DWord'
 }
 
 Function ShrinkC-MakeNew
