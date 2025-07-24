@@ -506,21 +506,34 @@ Function MaxPowerPlan
         powercfg /setacvalueindex $MaxPlanGUID 'e276e160-7cb0-43c6-b20b-73f5dce39954' 'a1662ab2-9d34-4e53-ba8b-2639b9e20857' '0x00000003' | out-null
         powercfg /setdcvalueindex $MaxPlanGUID 'e276e160-7cb0-43c6-b20b-73f5dce39954' 'a1662ab2-9d34-4e53-ba8b-2639b9e20857' '0x00000003' | out-null
     }
-    # Set critical battery level to 5%
-    powercfg /setdcvalueindex $MaxPlanGUID SUB_BATTERY BATALEVELCRIT 5
-    powercfg /setacvalueindex $MaxPlanGUID SUB_BATTERY BATALEVELCRIT 5
-    # Set critical battery action:
-    # 1 = Sleep, 2 = Hibernate, 3 = Shutdown, 0 = None
-    # On battery: shutdown (3)
-    powercfg /setdcvalueindex $MaxPlanGUID SUB_BATTERY BATLEVELCRIT 3
-    # On AC: do nothing (0)
-    powercfg /setacvalueindex $MaxPlanGUID SUB_BATTERY BATLEVELCRIT 0
-    # Set low battery level to 10%
-    powercfg /setdcvalueindex $MaxPlanGUID SUB_BATTERY BATALEVELLOW 10
-    powercfg /setacvalueindex $MaxPlanGUID SUB_BATTERY BATALEVELLOW 10
-    # Set low battery action to do nothing (on both battery and AC)
-    powercfg /setdcvalueindex $MaxPlanGUID SUB_BATTERY BATLEVELLOW 0
-    powercfg /setacvalueindex $MaxPlanGUID SUB_BATTERY BATLEVELLOW 0
+    # ----------------------------
+    # Set battery LEVEL thresholds
+    # ----------------------------
+    #   Low battery level to 10%
+    powercfg /setdcvalueindex $MaxPlanGUID SUB_BATTERY BATLEVELLOW 10
+    powercfg /setacvalueindex $MaxPlanGUID SUB_BATTERY BATLEVELLOW 10
+    # Critical battery level to 5%
+    powercfg /setdcvalueindex $MaxPlanGUID SUB_BATTERY BATLEVELCRIT 5
+    powercfg /setacvalueindex $MaxPlanGUID SUB_BATTERY BATLEVELCRIT 5
+    # ----------------------------
+    # Set battery ACTIONS
+    # ----------------------------
+    # Low battery action: Do nothing
+    powercfg /setdcvalueindex $MaxPlanGUID SUB_BATTERY BATACTIONLOW 0
+    powercfg /setacvalueindex $MaxPlanGUID SUB_BATTERY BATACTIONLOW 0
+    # Critical battery action:
+    # Battery = shutdown (3), AC = do nothing (0)
+    powercfg /setdcvalueindex $MaxPlanGUID SUB_BATTERY BATACTIONCRIT 3
+    powercfg /setacvalueindex $MaxPlanGUID SUB_BATTERY BATACTIONCRIT 0
+    # ----------------------------
+    # Set battery NOTIFICATIONS
+    # ----------------------------
+    # Low battery notification: ON (1) for battery, OFF (0) for AC
+    powercfg /setdcvalueindex $MaxPlanGUID SUB_BATTERY BATFLAGSLOW 1
+    powercfg /setacvalueindex $MaxPlanGUID SUB_BATTERY BATFLAGSLOW 0
+    # Critical battery notification: ON (1) for battery, OFF (0) for AC
+    powercfg /setdcvalueindex $MaxPlanGUID SUB_BATTERY BATFLAGSCRIT 1
+    powercfg /setacvalueindex $MaxPlanGUID SUB_BATTERY BATFLAGSCRIT 0
     # Disable power throttling
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling' 'PowerThrottlingOff' '1' 'DWord'
     # System responsiveness
