@@ -116,7 +116,7 @@ Function Repeatiwr
             # Write-Host -f C "StatusDescription:" $_.Exception.Response.StatusDescription
             $StatusCode = $_.Exception.Response.StatusCode.value__
         }
-        if ($StatusCode = "200") {break}
+        if ($StatusCode -eq "200") {break}
     }
     return $Response
 }
@@ -342,7 +342,7 @@ Function Set-Hibernate
     [Parameter(Mandatory=$false, Position=0)]
     [string]$Status = 'Off'
     )
-    if ($Status = 'Full')
+    if ($Status -eq 'Full')
     {
         # Enable hibernate full
         AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabledDefault' '1' 'DWord'
@@ -355,7 +355,7 @@ Function Set-Hibernate
         # Enable HyperBoot
         AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HiberbootEnabled' '1' 'DWord'
     }
-    elseif ($Status = 'Boot')
+    elseif ($Status -eq 'Boot')
     {
         # Enable hibernate Boot
         AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabled' '1' 'DWord'
