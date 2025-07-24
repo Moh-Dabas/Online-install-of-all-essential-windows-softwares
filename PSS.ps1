@@ -5,9 +5,9 @@ catch{Write-Host "AllFunctions.psm1 file not found";Start-Sleep 5;exit}
 
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 InitializeCommands
+MaxPowerPlan #Activate Max Performance Power Plan
 Ins-Nuget #Install Nuget provider
 Ins-Choco #Install Chocolatey
-MaxPowerPlan #Activate Max Performance Power Plan
 Ins-WindowsFeatures #Install Windows Features use DISM
 Install-Winget #Install Winget and its dependencies
 
