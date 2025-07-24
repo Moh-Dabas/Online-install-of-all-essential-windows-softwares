@@ -5,6 +5,9 @@ catch{Write-Host "AllFunctions.psm1 file not found";Start-Sleep 5;exit}
 
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 InitializeCommands
+Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
+Registry-Tweaks #Applye Registry Tweaks
+DeepTweaks
 MaxPowerPlan #Activate Max Performance Power Plan
 Ins-Nuget #Install Nuget provider
 Ins-Choco #Install Chocolatey
@@ -51,11 +54,8 @@ Unins-Cortana #Uninstall & disable Cortana & tweak search
 Unins-Copilot #Uninstall & disable Copilot
 Unins-Xbox #UnInstall Xbox & Game Bar
 UpdateAll #Update all Installd applications use Winget
-DeepTweaks
 Dis-BitLocker #Disable BitLocker
 #EnableSMB1Protocol-Client #Old legacy security threat sharing protocol
-Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
-Registry-Tweaks #Applye Registry Tweaks
 D-ScanFolder #Create Drive D (If not found)& Create shared Scan folder in it
 Adj-Hosts #Adjust Hosts file
 Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions

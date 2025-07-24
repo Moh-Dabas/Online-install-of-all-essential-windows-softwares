@@ -74,15 +74,14 @@ function Remove-AppxApp {
     [Parameter(Mandatory = $true)]
     [string]$AppName
     )
-    
-    Write-Host "Removing AppxPackage for all users..." -ForegroundColor Yellow
+    Write-Host "Removing AppxPackage for Current User..." -ForegroundColor Yellow
     $users = Get-WmiObject Win32_UserProfile | Where-Object { $_.Special -eq $false }
     foreach ($user in $users) {
         $sid = $user.SID
         Get-AppxPackage -AllUsers | Where-Object { $_.Name -like "*$AppName*" } | ForEach-Object {
             Write-Host "Removing package: $($_.PackageFullName) for user $sid" -ForegroundColor Cyan
-            Remove-AppxPackage -Package $_.PackageFullName -AllUsers -ErrorAction SilentlyContinue
             Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue
+            #Remove-AppxPackage -Package $_.PackageFullName -AllUsers -ErrorAction SilentlyContinue
         }
     }
     
@@ -91,7 +90,11 @@ function Remove-AppxApp {
         Write-Host "Removing provisioned package: $($_.PackageName)" -ForegroundColor Cyan
         Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue
     }
-    
+    Write-Host "Removing AppxPackage for All Users..." -ForegroundColor Yellow
+    Get-AppxPackage -AllUsers | Where-Object { $_.Name -like "*$AppName*" } | ForEach-Object {
+            Write-Host "Removing package: $($_.PackageFullName) for user $sid" -ForegroundColor Cyan
+            Remove-AppxPackage -Package $_.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+    }
     Write-Host "Operation completed." -ForegroundColor Green
 }
 
@@ -1515,6 +1518,11 @@ Function Registry-Tweaks
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'fullprivilegeauditing' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowAllTrustedApps' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowDevelopmentWithoutDevLicense' '1' 'DWord'
+    # Turn off all notifications
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings" -Name NOC_GLOBAL_SETTING_TOASTS_ENABLED -Value 0
+    # Enable Focus Assist - Priority Only (Value 1)
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\QuietHours" -Name QuietHoursEnabled -Value 1
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\QuietHours" -Name QuietHoursActive -Value 1
 }
 
 Function ShrinkC-MakeNew
