@@ -78,26 +78,32 @@ Function Remove-AppxApp {
     Write-Host "Removing AppxPackage for Current User..." -ForegroundColor Yellow
 
     Get-AppxPackage | Where-Object { $_.Name -like "*$AppName*" } | ForEach-Object {
-        Write-Host "Removing package: $($_.PackageFullName)" -ForegroundColor Cyan
-        Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue
+        $pkgFullName = $_.PackageFullName
+        Write-Host "Removing package: $pkgFullName" -ForegroundColor Cyan
 
-        # Wait until the package is fully removed
+        Remove-AppxPackage -Package $pkgFullName -ErrorAction SilentlyContinue
+
+        # Wait until the package is fully removed with timeout
         $maxWaitSeconds = 30
         $waited = 0
-        while ($waited -lt $maxWaitSeconds -and Get-AppxPackage -PackageFullName $_.PackageFullName -ErrorAction SilentlyContinue) {
+
+        while ($waited -lt $maxWaitSeconds) {
+            $exists = Get-AppxPackage -PackageFullName $pkgFullName -ErrorAction SilentlyContinue
+            if (-not $exists) { break }
             Start-Sleep -Seconds 1
             $waited++
         }
 
         # Get the result
-        if (Get-AppxPackage -PackageFullName $_.PackageFullName -ErrorAction SilentlyContinue) {
-            Write-Warning "Package $($_.PackageFullName) still exists"
+        if (Get-AppxPackage -PackageFullName $pkgFullName -ErrorAction SilentlyContinue) {
+            Write-Warning "Package $pkgFullName still exists after timeout"
         } else {
-            Write-Output "Package $($_.PackageFullName) removed successfully"
+            Write-Host "Package $pkgFullName removed successfully" -ForegroundColor Green
         }
     }
 
-    Write-Host "Removing AppxProvisionedPackage..." -ForegroundColor Yellow
+    Write-Host "Removing AppxProvisionedPackage (from system image for new users)..." -ForegroundColor Yellow
+
     Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like "*$AppName*" } | ForEach-Object {
         Write-Host "Removing provisioned package: $($_.PackageName)" -ForegroundColor Cyan
         Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue
@@ -1003,20 +1009,20 @@ Function Ins-WhatsApp
 Function Unins-Devhome
 {
     Write-Host -f C "`r`n *** Uninstalling Dev Home *** `r`n"
-    Remove-AppxApp "DevHome"
+    Remove-AppxApp -AppName "DevHome"
     winget uninstall --id 'Microsoft.DevHome'
 }
 
 Function Unins-DropboxPromotion
 {
     Write-Host -f C "`r`n *** Uninstalling Dropbox promotion *** `r`n"
-    Remove-AppxApp "DropboxOEM"
+    Remove-AppxApp -AppName "DropboxOEM"
 }
 
 Function Unins-Cortana
 {
     Write-Host -f C "`r`n *** Uninstalling & disabling Cortana & tweaking search *** `r`n"
-    Remove-AppxApp "Microsoft.549981C3F5F10"
+    Remove-AppxApp -AppName "Microsoft.549981C3F5F10"
     winget uninstall cortana
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'AllowCortana' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'AllowCortanaAboveLock' '0' 'DWord'
@@ -1033,7 +1039,7 @@ Function Unins-Cortana
 Function Unins-Copilot
 {
     Write-Host -f C "`r`n *** Uninstalling & disabling Copilot *** `r`n"
-    Remove-AppxApp "Ai.Copilot"
+    Remove-AppxApp -AppName "Ai.Copilot"
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
     AddRegEntry 'HKU:\.DEFAULT\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
@@ -1046,7 +1052,7 @@ Function Unins-Copilot
 Function Unins-Xbox
 {
     Write-Host -f C "`r`n *** Uninstalling Xbox & Game Bar *** `r`n"
-    Remove-AppxApp "Xbox"
+    Remove-AppxApp -AppName "Xbox"
     AddRegEntry "HKLM:\System\CurrentControlSet\Services\xbgm" "Start" '4' 'DWORD'
     Set-Service -Name XblAuthManager -StartupType Disabled -ea silentlycontinue | out-null
     Set-Service -Name XblGameSave -StartupType Disabled -ea silentlycontinue | out-null
@@ -1906,7 +1912,7 @@ Function Uninscomponents-Office
 {
     Get-Package -Name "*Office*" -ErrorAction SilentlyContinue | Uninstall-Package
     # Remove MS Store Office 365
-    Remove-AppxApp "Microsoft.Office.Desktop"
+    Remove-AppxApp -AppName "Microsoft.Office.Desktop"
     Get-AppxProvisionedPackage -online | %{if ($_.packagename -match "Microsoft.Office.Desktop") {$_ | Remove-AppxProvisionedPackage -AllUsers}}
 }
 
