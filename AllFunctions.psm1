@@ -69,32 +69,40 @@ Function AddRegEntry
     }
 }
 
-function Remove-AppxApp {
+Function Remove-AppxApp {
     param (
-    [Parameter(Mandatory = $true)]
-    [string]$AppName
+        [Parameter(Mandatory = $true)]
+        [string]$AppName
     )
+
     Write-Host "Removing AppxPackage for Current User..." -ForegroundColor Yellow
-    $users = Get-WmiObject Win32_UserProfile | Where-Object { $_.Special -eq $false }
-    foreach ($user in $users) {
-        $sid = $user.SID
-        Get-AppxPackage -AllUsers | Where-Object { $_.Name -like "*$AppName*" } | ForEach-Object {
-            Write-Host "Removing package: $($_.PackageFullName) for user $sid" -ForegroundColor Cyan
-            Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue
-            #Remove-AppxPackage -Package $_.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+
+    Get-AppxPackage | Where-Object { $_.Name -like "*$AppName*" } | ForEach-Object {
+        Write-Host "Removing package: $($_.PackageFullName)" -ForegroundColor Cyan
+        Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue
+
+        # Wait until the package is fully removed
+        $maxWaitSeconds = 30
+        $waited = 0
+        while ($waited -lt $maxWaitSeconds -and Get-AppxPackage -PackageFullName $_.PackageFullName -ErrorAction SilentlyContinue) {
+            Start-Sleep -Seconds 1
+            $waited++
+        }
+
+        # Get the result
+        if (Get-AppxPackage -PackageFullName $_.PackageFullName -ErrorAction SilentlyContinue) {
+            Write-Warning "Package $($_.PackageFullName) still exists"
+        } else {
+            Write-Output "Package $($_.PackageFullName) removed successfully"
         }
     }
-    
+
     Write-Host "Removing AppxProvisionedPackage..." -ForegroundColor Yellow
     Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like "*$AppName*" } | ForEach-Object {
         Write-Host "Removing provisioned package: $($_.PackageName)" -ForegroundColor Cyan
         Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue
     }
-    Write-Host "Removing AppxPackage for All Users..." -ForegroundColor Yellow
-    Get-AppxPackage -AllUsers | Where-Object { $_.Name -like "*$AppName*" } | ForEach-Object {
-            Write-Host "Removing package: $($_.PackageFullName) for user $sid" -ForegroundColor Cyan
-            Remove-AppxPackage -Package $_.PackageFullName -AllUsers -ErrorAction SilentlyContinue
-    }
+
     Write-Host "Operation completed." -ForegroundColor Green
 }
 
@@ -1449,7 +1457,7 @@ Function Registry-Tweaks
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\PushNotifications' 'ToastEnabled' '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings' 'NOC_GLOBAL_SETTING_ALLOW_TOASTS_ABOVE_LOCK' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowSyncProviderNotifications' '0' 'DWord'
-    # Left alignment 
+    # Left alignment taskbar
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarAl' '0' 'DWord'
     # Hide task view
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowTaskViewButton' '0' 'DWord'
