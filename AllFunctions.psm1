@@ -75,27 +75,38 @@ Function Remove-AppxApp {
         [string]$AppName
     )
 
+    Write-Host "Checking for AppxPackage matching '$AppName'..." -ForegroundColor Yellow
+
+    $matchedPackages = Get-AppxPackage -AllUsers | Where-Object { $_.Name -like "*$AppName*" }
+
+    if (-not $matchedPackages) {
+        Write-Warning "No installed AppxPackage found matching '*$AppName*'. Nothing to remove."
+        return
+    }
+
     Write-Host "Removing AppxPackage for Current User..." -ForegroundColor Yellow
 
-    Get-AppxPackage | Where-Object { $_.Name -like "*$AppName*" } | ForEach-Object {
+    $matchedPackages | ForEach-Object {
         $pkgFullName = $_.PackageFullName
         Write-Host "Removing package: $pkgFullName" -ForegroundColor Cyan
 
         Remove-AppxPackage -Package $pkgFullName -ErrorAction SilentlyContinue
 
         # Wait until the package is fully removed with timeout
-        $maxWaitSeconds = 30
+        $maxWaitSeconds = 60
         $waited = 0
 
         while ($waited -lt $maxWaitSeconds) {
-            $exists = Get-AppxPackage -PackageFullName $pkgFullName -ErrorAction SilentlyContinue
+            $exists = Get-AppxPackage -AllUsers | Where-Object { $_.PackageFullName -eq $pkgFullName }
             if (-not $exists) { break }
             Start-Sleep -Seconds 1
             $waited++
         }
 
-        # Get the result
-        if (Get-AppxPackage -PackageFullName $pkgFullName -ErrorAction SilentlyContinue) {
+        # Final check to confirm removal
+        $finalCheck = Get-AppxPackage | Where-Object { $_.PackageFullName -eq $pkgFullName }
+
+        if ("" -ne $finalCheck) {
             Write-Warning "Package $pkgFullName still exists after timeout"
         } else {
             Write-Host "Package $pkgFullName removed successfully" -ForegroundColor Green
@@ -940,9 +951,163 @@ Function Unins-Acrobat
     Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=1","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
+function Fix-AdobeAcrobatProPdfThumbnails {
+    [CmdletBinding()]
+    param (
+        [int]$DiskCleanupSageSetNumber = 65535
+    )
+
+    function Clear-ThumbnailCacheWithDiskCleanup {
+        param (
+            [int]$SageSetNumber
+        )
+        Write-Host "Deleting thumbnail cache files..." -ForegroundColor Yellow
+        try {
+            $thumbCachePath = "$env:LOCALAPPDATA\Microsoft\Windows\Explorer"
+            Get-ChildItem -Path $thumbCachePath -Include "*thumbcache*.db" -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+            Write-Host "Thumbnail cache files deleted."
+        } catch {
+            Write-Warning ("Failed to delete thumbnail cache files: " + $_)
+        }
+
+        Write-Host "Configuring Disk Cleanup to clean 'Thumbnail Cache'..." -ForegroundColor Yellow
+        $regSagesetPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches"
+        $thumbnailsKey = "Thumbnail Cache"
+        try {
+            $cleanupKeyPath = Join-Path $regSagesetPath $thumbnailsKey
+            if (Test-Path $cleanupKeyPath) {
+                New-ItemProperty -Path $cleanupKeyPath -Name "StateFlags$SageSetNumber" -Value 2 -PropertyType DWord -Force | Out-Null
+                Write-Host "Configured Disk Cleanup to clean 'Thumbnail Cache' for sageset number $SageSetNumber."
+            } else {
+                Write-Warning ("Thumbnail Cache key not found in registry: " + $cleanupKeyPath)
+                return
+            }
+        } catch {
+            Write-Warning ("Failed to configure Disk Cleanup registry key: " + $_)
+            return
+        }
+
+        Write-Host "Running Disk Cleanup silently for Thumbnails..." -ForegroundColor Yellow
+        try {
+            Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/sagerun:$SageSetNumber" -Wait
+            Write-Host "Disk Cleanup completed silently."
+        } catch {
+            Write-Warning ("Failed to run Disk Cleanup silently: " + $_)
+        }
+    }
+
+    # --- Begin main fix process ---
+
+    # Check for admin privileges
+    if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole] "Administrator")) {
+        Write-Warning "Please run this script as Administrator."
+        return
+    }
+
+    Write-Host "Starting Adobe Acrobat Pro PDF thumbnail fix..." -ForegroundColor Cyan
+
+    # 1. Clear thumbnail cache
+    Clear-ThumbnailCacheWithDiskCleanup -SageSetNumber $DiskCleanupSageSetNumber
+
+    # 2. Enable thumbnails in Folder Options via registry
+    Write-Host "Enabling thumbnails in Folder Options via registry..." -ForegroundColor Yellow
+    try {
+        $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+        Set-ItemProperty -Path $regPath -Name "IconsOnly" -Value 0
+        Write-Host "Thumbnails enabled in Folder Options."
+    } catch {
+        Write-Warning ("Failed to set Folder Options registry key: " + $_)
+    }
+
+    # 3. Re-register Adobe PDF Thumbnail Handler DLLs
+    Write-Host "Re-registering Adobe PDF thumbnail handler DLLs for Acrobat Pro..." -ForegroundColor Yellow
+
+    $dllPaths = @(
+        "C:\Program Files (x86)\Adobe\Acrobat DC\Acrobat\AdobeThumbnail.dll",
+        "C:\Program Files\Adobe\Acrobat DC\Acrobat\AdobeThumbnail.dll",
+        "C:\Program Files (x86)\Adobe\Acrobat DC\Acrobat\pdfprevhndlr.dll",
+        "C:\Program Files\Adobe\Acrobat DC\Acrobat\pdfprevhndlr.dll"
+    )
+
+    foreach ($dll in $dllPaths) {
+        if (Test-Path $dll) {
+            try {
+                Write-Host "Unregistering $dll"
+                & regsvr32.exe /u /s "$dll"
+                Start-Sleep -Seconds 2
+                Write-Host "Registering $dll"
+                & regsvr32.exe /s "$dll"
+                Write-Host "$dll re-registered successfully."
+            } catch {
+                Write-Warning ("Failed to re-register " + $dll + ": " + $_)
+            }
+        } else {
+            Write-Host "DLL not found: $dll (skipping)"
+        }
+    }
+
+    # 4. Set Adobe Acrobat Pro as default PDF handler (optional)
+    Write-Host "Setting Adobe Acrobat Pro as default PDF handler for .pdf files..." -ForegroundColor Yellow
+
+    function Get-AcrobatProPath {
+        $paths = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Acrobat.exe",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\Acrobat.exe"
+        )
+        foreach ($p in $paths) {
+            try {
+                $path = (Get-ItemProperty -Path $p -ErrorAction SilentlyContinue).'(Default)'
+                if ($path -and (Test-Path $path)) {
+                    return $path
+                }
+            } catch {}
+        }
+        return $null
+    }
+
+    $acroProPath = Get-AcrobatProPath
+    if ($acroProPath) {
+        try {
+            $xmlContent = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<DefaultAssociations>
+    <Association Identifier=".pdf" ProgId="AcroExch.Document.DC" ApplicationName="Adobe Acrobat Pro DC" />
+</DefaultAssociations>
+"@
+            $xmlPath = "$env:TEMP\pdf_default_assoc.xml"
+            $xmlContent | Out-File -FilePath $xmlPath -Encoding UTF8
+
+            Write-Host "Applying PDF default association using DISM..."
+            Start-Process -FilePath "dism.exe" -ArgumentList "/Online /Import-DefaultAppAssociations:$xmlPath" -Wait
+
+            Remove-Item $xmlPath -Force
+
+            Write-Host "Default PDF handler set to Adobe Acrobat Pro DC."
+        } catch {
+            Write-Warning ("Failed to set default PDF handler: " + $_)
+        }
+    } else {
+        Write-Warning "Adobe Acrobat Pro executable not found in registry. Skipping default PDF handler change."
+    }
+
+    # 5. Restart Explorer to apply changes
+    Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Yellow
+    try {
+        Get-Process explorer | Stop-Process -Force
+        Start-Sleep -Seconds 2
+        Start-Process explorer.exe
+        Write-Host "Explorer restarted."
+    } catch {
+        Write-Warning ("Failed to restart Explorer: " + $_)
+    }
+
+    Write-Host "Adobe Acrobat Pro PDF thumbnail fix completed." -ForegroundColor Green
+}
+
 Function Ins-AcrobatPro
 {
     Unins-Acrobat
+    #Set-MpPreference -DisableRealtimeMonitoring $false
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
     Try{Set-MpPreference -DisableRealtimeMonitoring $true -ea SilentlyContinue | out-null} Catch{}
     Stop-Service -Name "WinDefend" -Force -ea SilentlyContinue | out-null
@@ -953,10 +1118,10 @@ Function Ins-AcrobatPro
     $printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
     Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
     (New-Object -ComObject WScript.Network).SetDefaultPrinter('Adobe PDF')
-    cmd /c "DEL /F /S /Q /A %LocalAppData%\Microsoft\Windows\Explorer\thumbcache_*.db"
+    Fix-AdobeAcrobatProPdfThumbnails
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
-    Set-MpPreference -DisableRealtimeMonitoring $false
+    
 }
 
 Function Ins-WinRAR
@@ -1039,7 +1204,7 @@ Function Unins-Cortana
 Function Unins-Copilot
 {
     Write-Host -f C "`r`n *** Uninstalling & disabling Copilot *** `r`n"
-    Remove-AppxApp -AppName "Ai.Copilot"
+    Remove-AppxApp -AppName "Copilot"
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
     AddRegEntry 'HKU:\.DEFAULT\Software\Policies\Microsoft\Windows\WindowsCopilot' 'TurnOffWindowsCopilot' '1' 'DWord'
