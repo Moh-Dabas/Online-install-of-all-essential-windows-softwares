@@ -21,6 +21,25 @@ Function Check-RunAsAdministrator()
     }
 }
 
+Function Check-RunAsAdministrator2()
+{
+    # Check for admin rights
+    If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        # Relaunch as admin
+        $scriptPath = $MyInvocation.MyCommand.Path
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = "powershell.exe"
+        $psi.Arguments = "-ExecutionPolicy Bypass -File `"$scriptPath`""
+        $psi.Verb = "runas"
+        try {
+            [System.Diagnostics.Process]::Start($psi) | Out-Null
+        } catch {
+            Write-Host "User cancelled the UAC prompt or an error occurred."
+        }
+        exit
+    }
+}
+
 Function Relaunch
 {
     $CurFolder = Split-Path -Path $PSCommandPath -Parent
@@ -1487,6 +1506,7 @@ Function Registry-Tweaks
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\AppHost' 'PreventOverride' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\smartscreen.exe' 'Debugger' 'ctfmon' 'String'
     # Lock Screen & logon
+    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "CachedLogonsCount" "10" 'String'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\SessionData' 'AllowLockScreen' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' 'NoLockScreen' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'DisableAcrylicBackgroundOnLogon' '1' 'DWord'
@@ -2504,6 +2524,7 @@ Function Clean-up
     reg add "HKCU\Control Panel\International" /V iCalendarType /T REG_SZ /D "1" /F
     AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
+    Change_computer_name
     # Wait for all background jobs to finish
     Wait-Job -State Running
     # Optionally receive and display the results of all jobs
@@ -2516,4 +2537,67 @@ Function Clean-up
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:TEMP" -Force -Recurse -ea SilentlyContinue | out-null
-    }    
+    }
+
+Function Change_computer_name {
+
+# Load Windows Forms
+Add-Type -AssemblyName System.Windows.Forms
+
+# Create the form
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Change Computer Name"
+$form.Size = New-Object System.Drawing.Size(400, 220)
+$form.StartPosition = "CenterScreen"
+
+# Label - Current Computer Name
+$label = New-Object System.Windows.Forms.Label
+$label.Text = "Current Computer Name:"
+$label.Location = New-Object System.Drawing.Point(10,20)
+$label.Size = New-Object System.Drawing.Size(150,20)
+$form.Controls.Add($label)
+
+# TextBox - New Computer Name
+$textBox = New-Object System.Windows.Forms.TextBox
+$textBox.Text = $env:COMPUTERNAME
+$textBox.Location = New-Object System.Drawing.Point(160,18)
+$textBox.Size = New-Object System.Drawing.Size(200,20)
+$form.Controls.Add($textBox)
+
+# Button - Change Computer Name
+$buttonChange = New-Object System.Windows.Forms.Button
+$buttonChange.Text = "Change Computer Name"
+$buttonChange.Location = New-Object System.Drawing.Point(110,60)
+$buttonChange.Size = New-Object System.Drawing.Size(160,30)
+$buttonChange.Add_Click({
+    $newName = $textBox.Text.Trim()
+    if ($newName -eq $env:COMPUTERNAME) {
+        [System.Windows.Forms.MessageBox]::Show("New name is the same as current.", "No Change")
+        return
+    }
+
+    try {
+        Rename-Computer -NewName $newName -Force -PassThru
+        [System.Windows.Forms.MessageBox]::Show("Computer name changed to: $newName`nA reboot is required to apply the change.", "Success")
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show("Failed to change computer name:`n$_", "Error")
+    }
+})
+$form.Controls.Add($buttonChange)
+
+# Button - Restart Now
+$buttonRestart = New-Object System.Windows.Forms.Button
+$buttonRestart.Text = "Restart Now"
+$buttonRestart.Location = New-Object System.Drawing.Point(110,110)
+$buttonRestart.Size = New-Object System.Drawing.Size(160,30)
+$buttonRestart.Add_Click({
+    $result = [System.Windows.Forms.MessageBox]::Show("Are you sure you want to restart now?", "Confirm Restart", "YesNo")
+    if ($result -eq "Yes") {
+        Restart-Computer -Force
+    }
+})
+$form.Controls.Add($buttonRestart)
+
+# Show the form
+[void]$form.ShowDialog()
+}
