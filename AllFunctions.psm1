@@ -2334,6 +2334,101 @@ Function configurationFile24PP
     Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
 }
 
+Function New-OfficeShortcuts {
+    # Function to read install path from registry for a given app
+    function Get-OfficeAppPath($appName) {
+        $regPaths = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$appName.exe",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\$appName.exe"
+        )
+        foreach ($reg in $regPaths) {
+            try {
+                $path = (Get-ItemProperty -Path $reg -ErrorAction Stop).'(default)'
+                if (Test-Path $path) { return $path }
+            } catch { }
+        }
+        return $null
+    }
+
+    # Try registry first
+    $wordPath  = Get-OfficeAppPath "WINWORD"
+    $excelPath = Get-OfficeAppPath "EXCEL"
+    If ($wordPath) {Write-Host -f C "Registry Word Path:$wordPath"}
+    If ($excelPath) {Write-Host -f C "Registry Excel Path:$excelPath"}
+
+    # Build common paths from environment variables
+    $programFiles64 = ${env:ProgramFiles}
+    $programFiles32 = ${env:ProgramFiles(x86)}
+
+    $commonPaths = @(
+        (Join-Path $programFiles64 "Microsoft Office\root\Office16"),
+        (Join-Path $programFiles32 "Microsoft Office\root\Office16")
+    )
+
+    # Fallback for Word
+    if (-not $wordPath) {
+        foreach ($p in $commonPaths) {
+            $try = Join-Path $p "WINWORD.EXE"
+            if (Test-Path $try) { 
+                Write-Warning "Word path not found in registry. Using fallback: $try"
+                $wordPath = $try
+                break
+            }
+        }
+    }
+
+    # Fallback for Excel
+    if (-not $excelPath) {
+        foreach ($p in $commonPaths) {
+            $try = Join-Path $p "EXCEL.EXE"
+            if (Test-Path $try) { 
+                Write-Warning "Excel path not found in registry. Using fallback: $try"
+                $excelPath = $try
+                break
+            }
+        }
+    }
+
+    # If still missing, stop
+    if (-not $wordPath -or -not $excelPath) {
+        Write-Warning "Could not find Word or Excel executable. Please check your Office installation."
+        return
+    }
+
+    # Paths for Desktop & Start Menu
+    $desktopPath = [Environment]::GetFolderPath('Desktop')
+    $startMenuPath = Join-Path ${env:ProgramData} "Microsoft\Windows\Start Menu\Programs"
+
+    # Create shortcuts
+    $WshShell = New-Object -ComObject WScript.Shell
+
+    # Word - Desktop
+    $wordShortcut = $WshShell.CreateShortcut("$desktopPath\Word.lnk")
+    $wordShortcut.TargetPath = $wordPath
+    $wordShortcut.IconLocation = $wordPath
+    $wordShortcut.Save()
+
+    # Word - Start Menu
+    $wordStartShortcut = $WshShell.CreateShortcut("$startMenuPath\Word.lnk")
+    $wordStartShortcut.TargetPath = $wordPath
+    $wordStartShortcut.IconLocation = $wordPath
+    $wordStartShortcut.Save()
+
+    # Excel - Desktop
+    $excelShortcut = $WshShell.CreateShortcut("$desktopPath\Excel.lnk")
+    $excelShortcut.TargetPath = $excelPath
+    $excelShortcut.IconLocation = $excelPath
+    $excelShortcut.Save()
+
+    # Excel - Start Menu
+    $excelStartShortcut = $WshShell.CreateShortcut("$startMenuPath\Excel.lnk")
+    $excelStartShortcut.TargetPath = $excelPath
+    $excelStartShortcut.IconLocation = $excelPath
+    $excelStartShortcut.Save()
+
+    Write-Host "Shortcuts for Word and Excel created on Desktop and Start Menu."
+}
+
 Function Ins-Office21PP
 {
     Write-Host -f C "`r`n======================================================================================================================"
@@ -2347,6 +2442,7 @@ Function Ins-Office21PP
     Deploy-Office
     ActivateOfficeKMS
     Config-Office
+    New-OfficeShortcuts
 }
 
 Function Ins-Office24PP
@@ -2362,6 +2458,7 @@ Function Ins-Office24PP
     Deploy-Office
     ActivateOfficeKMS
     Config-Office
+    New-OfficeShortcuts
 }
 
 Function OpenMSStoreUpdate
