@@ -345,6 +345,49 @@ Function WifiPriority {
     Check-Internet
 }
 
+Function Invoke-W32TimeResync {
+    param(
+        [int]$MaxRetries = 10,
+        [int]$DelaySeconds = 5
+    )
+    
+    # Ensure required registry settings
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters' 'Type' 'NTP' 'String' # Autoupdate time
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location' 'Value' 'Allow' 'String' # Allow location
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\tzautoupdate' 'Start' '3' 'DWord' # Autoupdate timezone
+
+    # Start services if not running
+    Start-Service -Name "W32Time" -ErrorAction SilentlyContinue | Out-Null
+    Start-Service -Name "tzautoupdate" -ErrorAction SilentlyContinue | Out-Null
+
+    $success = $false
+
+    for ($attempt = 1; $attempt -le $MaxRetries -and -not $success; $attempt++) {
+        Write-Host "⏳ Attempt $attempt of ${MaxRetries}: Running w32tm /resync..."
+
+        # Run and capture both output & exit code
+        $output = & w32tm /resync 2>&1
+        $exitCode = $LASTEXITCODE
+
+        if ($exitCode -eq 0 -and $output -match "completed successfully") {
+            Write-Host "✅ Sync time success on attempt $attempt."
+            $success = $true
+        }
+        else {
+            Write-Warning "❌ Failed on attempt $attempt. ExitCode=$exitCode. Output: $output"
+            if ($attempt -lt $MaxRetries) {
+                Start-Sleep -Seconds $DelaySeconds
+            }
+        }
+    }
+
+    if (-not $success) {
+        Write-Error "❌ All $MaxRetries attempts to sync time failed. Moving on..."
+    }
+
+    return $success
+}
+
 Function InitializeCommands
 {
     Write-Host -f C "`r`n======================================================================================================================"
@@ -369,13 +412,7 @@ Function InitializeCommands
     Set HTTP_PROXY=
     Set HTTPS_PROXY=
     # Set-PSRepository PSGallery -InstallationPolicy Trusted #causes nuget install to ask for confirmation
-    # Time Zone & Sync
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters' 'Type' 'NTP' 'String' # Autoupdate time
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location' 'Value' 'Allow' 'String' # Allow location
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\tzautoupdate' 'Start' '3' 'DWord' # Autoupdate timezone
-    Start-Service -Name "W32Time" -ea silentlycontinue | out-null
-    Start-Service -Name "tzautoupdate" -ea silentlycontinue | out-null
-    w32tm /resync #Sync time now
+    Invoke-W32TimeResync
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\BITS' 'Start' '2' 'DWord'
     Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State # Service needed for fast download
     WifiPriority
