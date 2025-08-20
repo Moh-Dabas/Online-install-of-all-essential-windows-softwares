@@ -2672,6 +2672,7 @@ Function Clean-up
     Receive-Job -Job $_
     Remove-Job -Job $_
     }
+    Clear-PrintQueue
     Start-sleep 2
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -ea SilentlyContinue | out-null
@@ -2739,4 +2740,59 @@ $form.Controls.Add($buttonRestart)
 
 # Show the form
 [void]$form.ShowDialog()
+}
+
+Function Clear-PrintQueue {
+    <#
+    .SYNOPSIS
+        Force-clears all print jobs (soft + hard methods).
+    .DESCRIPTION
+        - Stops the spooler
+        - Attempts to remove jobs using PrintJob cmdlets
+        - Kills lingering processes that may lock spool files
+        - Deletes raw spool files
+        - Restarts the spooler and explorer shell
+    #>
+
+    Write-Output "Stopping Print Spooler service..."
+    Stop-Service -Name Spooler -Force -ErrorAction SilentlyContinue
+
+    # Kill related processes (ignore errors if they don't exist)
+    $processes = @(
+        "splwow64",
+        "PrintQueueActionCenter",
+        "printfilterpipelinesvc",
+        "smartscreen",
+        "printui",
+        "spoolsv",
+        "explorer"
+    )
+
+    foreach ($p in $processes) {
+        Get-Process -Name $p -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+
+    Start-Sleep -Seconds 2
+
+    Write-Output "Clearing stuck print jobs..."
+
+    # First try normal PowerShell print job cleanup
+    Get-Printer | ForEach-Object {
+        Get-PrintJob -PrinterName $_.Name -ErrorAction SilentlyContinue |
+        Remove-PrintJob -Confirm:$false -ErrorAction SilentlyContinue
+    }
+
+    # Then do the hard clear in case jobs are still locked
+    $spoolPath = "$env:SystemRoot\System32\spool\PRINTERS"
+    if (Test-Path $spoolPath) {
+        Remove-Item "$spoolPath\*" -Force -ErrorAction SilentlyContinue -Confirm:$false
+    }
+
+    Write-Output "Starting Print Spooler service..."
+    Start-Service -Name Spooler
+
+    Write-Output "Restarting Explorer shell..."
+    Start-Process explorer.exe
+
+    Write-Output "✅ Done. Print queue has been fully cleared."
 }
