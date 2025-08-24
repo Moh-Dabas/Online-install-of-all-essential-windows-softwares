@@ -363,18 +363,18 @@ Function Invoke-W32TimeResync {
     $success = $false
 
     for ($attempt = 1; $attempt -le $MaxRetries -and -not $success; $attempt++) {
-        Write-Host "⏳ Attempt $attempt of ${MaxRetries}: Running w32tm /resync..."
+        Write-Host "Attempt $attempt of ${MaxRetries}: Running w32tm /resync..."
 
         # Run and capture both output & exit code
         $output = & w32tm /resync 2>&1
         $exitCode = $LASTEXITCODE
 
         if ($exitCode -eq 0 -and $output -match "completed successfully") {
-            Write-Host "✅ Sync time success on attempt $attempt."
+            Write-Host "Sync time success on attempt $attempt."
             $success = $true
         }
         else {
-            Write-Warning "❌ Failed on attempt $attempt. ExitCode=$exitCode. Output: $output"
+            Write-Warning "Failed on attempt $attempt. ExitCode=$exitCode. Output: $output"
             if ($attempt -lt $MaxRetries) {
                 Start-Sleep -Seconds $DelaySeconds
             }
@@ -382,7 +382,7 @@ Function Invoke-W32TimeResync {
     }
 
     if (-not $success) {
-        Write-Error "❌ All $MaxRetries attempts to sync time failed. Moving on..."
+        Write-Error "All $MaxRetries attempts to sync time failed. Moving on..."
     }
 
     return $success
@@ -1044,7 +1044,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 
         Write-Host "Running Disk Cleanup silently for Thumbnails..." -ForegroundColor Yellow
         try {
-            Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/sagerun:$SageSetNumber" -Wait
+            Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/sagerun:$SageSetNumber" -Wait -WindowStyle Hidden
             Write-Host "Disk Cleanup completed silently."
         } catch {
             Write-Warning ("Failed to run Disk Cleanup silently: " + $_)
@@ -1053,16 +1053,42 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 
     # --- Begin main fix process ---
 
-    # Check for admin privileges
-    if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole] "Administrator")) {
-        Write-Warning "Please run this script as Administrator."
-        return
-    }
-
     Write-Host "Starting Adobe Acrobat Pro PDF thumbnail fix..." -ForegroundColor Cyan
+    
+    # Stop Explorer temporarily
+Stop-Process -Name "explorer" -ErrorAction SilentlyContinue
+# Stop relevant services
+Stop-Service -Name "AppReadiness" -Force -ErrorAction SilentlyContinue
 
     # 1. Clear thumbnail cache
     Clear-ThumbnailCacheWithDiskCleanup -SageSetNumber $DiskCleanupSageSetNumber
+    # Windows 11 specific icon cache rebuild
+Write-Host "Rebuilding Windows 11 Icon Cache..." -ForegroundColor Cyan
+
+# Clear all icon cache files
+$cachePaths = @(
+    "$env:LOCALAPPDATA\IconCache.db",
+    "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*",
+    "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*"
+)
+
+foreach ($path in $cachePaths) {
+    Get-ChildItem $path -ErrorAction SilentlyContinue | Remove-Item -Force
+}
+
+# Reset thumbnail related registry settings
+$regPaths = @(
+    "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons",
+    "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\ThumbnailCache"
+)
+
+foreach ($regPath in $regPaths) {
+    if (Test-Path $regPath) {
+        Remove-Item $regPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Write-Host "Icon cache rebuilt. Icons may take a moment to reappear." -ForegroundColor Green
 
     # 2. Enable thumbnails in Folder Options via registry
     Write-Host "Enabling thumbnails in Folder Options via registry..." -ForegroundColor Yellow
@@ -1147,6 +1173,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 
     # 5. Restart Explorer to apply changes
     Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Yellow
+    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
     try {
         Get-Process explorer | Stop-Process -Force
         Start-Sleep -Seconds 2
@@ -1157,6 +1184,39 @@ function Fix-AdobeAcrobatProPdfThumbnails {
     }
 
     Write-Host "Adobe Acrobat Pro PDF thumbnail fix completed." -ForegroundColor Green
+}
+
+Function Refresh-Desktop {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public class DesktopFocus {
+    [DllImport("user32.dll")]
+    public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+    
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+    
+    [DllImport("user32.dll")]
+    public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+    
+    public static void Refresh() {
+        IntPtr hDesktop = FindWindow("Progman", "Program Manager");
+        if (hDesktop != IntPtr.Zero) {
+            SetForegroundWindow(hDesktop);
+
+            const byte VK_F5 = 0x74;
+            const uint KEYEVENTF_KEYUP = 0x2;
+
+            keybd_event(VK_F5, 0, 0, UIntPtr.Zero);        // Key down
+            keybd_event(VK_F5, 0, KEYEVENTF_KEYUP, UIntPtr.Zero); // Key up
+        }
+    }
+}
+"@
+    [DesktopFocus]::Refresh()
+    Write-Host "Desktop refreshed successfully!" -ForegroundColor Green
 }
 
 Function Ins-AcrobatPro
@@ -1174,9 +1234,8 @@ Function Ins-AcrobatPro
     Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
     (New-Object -ComObject WScript.Network).SetDefaultPrinter('Adobe PDF')
     Fix-AdobeAcrobatProPdfThumbnails
-    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
-    Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
-    
+    Start-Sleep 5
+    Refresh-Desktop
 }
 
 Function Ins-WinRAR
