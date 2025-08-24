@@ -1055,40 +1055,40 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 
     Write-Host "Starting Adobe Acrobat Pro PDF thumbnail fix..." -ForegroundColor Cyan
     
-# Stop relevant services
-Stop-Service -Name "AppReadiness" -Force -ErrorAction SilentlyContinue
-# Stop Explorer temporarily
-Stop-Process -Name "explorer" -ErrorAction SilentlyContinue
+    # Stop relevant services
+    Stop-Service -Name "AppReadiness" -Force -ErrorAction SilentlyContinue
+    # Stop Explorer temporarily
+    Stop-Process -Name "explorer" -ErrorAction SilentlyContinue
 
     # 1. Clear thumbnail cache
     Clear-ThumbnailCacheWithDiskCleanup -SageSetNumber $DiskCleanupSageSetNumber
     # Windows specific icon cache rebuild
-Write-Host "Rebuilding Windows Icon Cache..." -ForegroundColor Cyan
+    Write-Host "Rebuilding Windows Icon Cache..." -ForegroundColor Cyan
 
-# Clear all icon cache files
-$cachePaths = @(
-    "$env:LOCALAPPDATA\IconCache.db",
-    "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*",
-    "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*"
-)
+    # Clear all icon cache files
+    $cachePaths = @(
+        "$env:LOCALAPPDATA\IconCache.db",
+        "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*",
+        "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*"
+    )
 
-foreach ($path in $cachePaths) {
-    Get-ChildItem $path -ErrorAction SilentlyContinue | Remove-Item -Force
-}
-
-# Reset thumbnail related registry settings
-$regPaths = @(
-    "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons",
-    "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\ThumbnailCache"
-)
-
-foreach ($regPath in $regPaths) {
-    if (Test-Path $regPath) {
-        Remove-Item $regPath -Recurse -Force -ErrorAction SilentlyContinue
+    foreach ($path in $cachePaths) {
+        Get-ChildItem $path -ErrorAction SilentlyContinue | Remove-Item -Force
     }
-}
 
-Write-Host "Icon cache rebuilt. Icons may take a moment to reappear." -ForegroundColor Green
+    # Reset thumbnail related registry settings
+    $regPaths = @(
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons",
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\ThumbnailCache"
+    )
+
+    foreach ($regPath in $regPaths) {
+        if (Test-Path $regPath) {
+            Remove-Item $regPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    Write-Host "Icon cache rebuilt. Icons may take a moment to reappear." -ForegroundColor Green
 
     # 2. Enable thumbnails in Folder Options via registry
     Write-Host "Enabling thumbnails in Folder Options via registry..." -ForegroundColor Yellow
