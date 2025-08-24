@@ -1055,15 +1055,15 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 
     Write-Host "Starting Adobe Acrobat Pro PDF thumbnail fix..." -ForegroundColor Cyan
     
-    # Stop Explorer temporarily
-Stop-Process -Name "explorer" -ErrorAction SilentlyContinue
 # Stop relevant services
 Stop-Service -Name "AppReadiness" -Force -ErrorAction SilentlyContinue
+# Stop Explorer temporarily
+Stop-Process -Name "explorer" -ErrorAction SilentlyContinue
 
     # 1. Clear thumbnail cache
     Clear-ThumbnailCacheWithDiskCleanup -SageSetNumber $DiskCleanupSageSetNumber
-    # Windows 11 specific icon cache rebuild
-Write-Host "Rebuilding Windows 11 Icon Cache..." -ForegroundColor Cyan
+    # Windows specific icon cache rebuild
+Write-Host "Rebuilding Windows Icon Cache..." -ForegroundColor Cyan
 
 # Clear all icon cache files
 $cachePaths = @(
@@ -3332,3 +3332,5 @@ Function Clear-PrintQueue {
 
     Write-Output "Done. Print queue has been fully cleared."
 }
+
+
