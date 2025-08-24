@@ -407,7 +407,6 @@ Function InitializeCommands
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12, [Net.SecurityProtocolType]::Ssl3
     New-Item -Path "$env:TEMP\IA" -ItemType Directory -ea SilentlyContinue | out-null
-    $CurFolder = Split-Path -Path $PSCommandPath -Parent
     Write-Host -f C "`r`n*** Disabling proxies ***`r`n"
     Set HTTP_PROXY=
     Set HTTPS_PROXY=
@@ -1522,249 +1521,727 @@ Function Tweak-schtasks
 Function Registry-Tweaks
 {
     Write-Host -f C "`r`n *** Applying Registry Tweaks *** `r`n"
-    # Desktop Icons
+
+    # ===============================
+    # DESKTOP ICONS & LAYOUT
+    # ===============================
+
     AddRegEntry "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" "Sort" "0x40000002" 'DWord'
+    # Desktop icon sort order. 0x40000002 = sort by Name (ascending).
+
     $sortBinary = [byte[]] (0x02,0x00,0x00,0x40)
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "Sort" -Value $sortBinary -Type Binary
+    # Same as above in binary form (02 00 00 40 = Name ascending).
+
     AddRegEntry "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" "FFlags" "0x40200225" 'DWord'
+    # Desktop view flags (auto-arrange/align/show icons etc.). Composite flag value.
+
     AddRegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{018D5C66-4533-4307-9B53-224DE2ED1FE6}" '0' 'DWord'
+    # Hide Microsoft Edge desktop icon (CLSID).
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{018D5C66-4533-4307-9B53-224DE2ED1FE6}" '1' 'DWord'
+    # Hide OneDrive icon on desktop (CLSID). 0=show, 1=hide.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{59031a47-3f72-44a7-89c5-5595fe6b30ee}" '0' 'DWord'
+    # Show "User Files" (profile) icon on desktop.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{20D04FE0-3AEA-1069-A2D8-08002B30309D}" '0' 'DWord'
+    # Show "This PC" icon on desktop.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}" '0' 'DWord'
+    # Show "Network" icon on desktop.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}" '0' 'DWord'
-    # SmartScreen
+    # Show "Control Panel" icon on desktop.
+
+    # ===============================
+    # SMARTSCREEN & REPUTATION-BASED PROTECTION
+    # ===============================
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' 'SmartScreenEnabled' 'Off' 'String'
+    # Explorer SmartScreen (file reputation) policy. "Off" = disabled.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'EnableSmartScreen' '0' 'DWord'
+    # System policy to disable SmartScreen for apps (0=disabled).
+
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Edge' 'SmartScreenEnabled' '0' 'DWord'
+    # Microsoft Edge SmartScreen off for current user.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' 'SmartScreenEnabled' '0' 'DWord'
+    # Microsoft Edge SmartScreen off (machine-wide).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\SmartScreen\EnableSmartScreenInShell' 'value' '0' 'DWord'
+    # PolicyManager: disable SmartScreen in Shell/Explorer.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\SmartScreen\EnableAppInstallControl' 'value' '0' 'DWord'
+    # PolicyManager: disable app install control (reputation checks).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Edge\SmartScreenEnabled' 'Default' '0' 'String'
+    # Legacy Edge setting: SmartScreen disabled (per-user).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\PhishingFilter' 'EnabledV9' '0' 'DWord'
+    # Legacy Edge (Spartan) phishing filter disabled.
+
     AddRegEntry 'HKCU:\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer\Storage\microsoft.microsoftedge_8wekyb3d8bbwe\MicrosoftEdge\PhishingFilter' 'EnabledV9' '0' 'DWord'
+    # Legacy Edge per-AppContainer phishing filter disabled.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Internet Explorer\PhishingFilter' 'EnabledV9' '0' 'DWord'
+    # Internet Explorer phishing filter disabled.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\AppHost' 'EnableWebContentEvaluation' '0' 'DWord'
+    # Disable SmartScreen for Win32 web content evaluation.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\AppHost' 'PreventOverride' '0' 'DWord'
+    # Allow user to bypass SmartScreen warnings (0=allow override).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\smartscreen.exe' 'Debugger' 'ctfmon' 'String'
-    # Lock Screen & logon
+    # IFEO "Debugger" redirection effectively disables smartscreen.exe (advanced/forceful).
+
+    # ===============================
+    # LOCK SCREEN & LOGON EXPERIENCE
+    # ===============================
+
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" "CachedLogonsCount" "10" 'String'
+    # Number of cached domain logons allowed.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\SessionData' 'AllowLockScreen' '0' 'DWord'
+    # Disable lock screen (when possible).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' 'NoLockScreen' '1' 'DWord'
+    # Policy: disable lock screen (1=enabled policy).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'DisableAcrylicBackgroundOnLogon' '1' 'DWord'
+    # Disable acrylic blur on Logon screen background.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'DisableLogonBackgroundImage' '0' 'DWord'
+    # Keep logon background image (0=use image, 1=solid color).
+
     Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticecaption' -force -ea SilentlyContinue | out-null
+    # Remove legal notice caption (if exists).
+
     Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticetext' -force -ea SilentlyContinue | out-null
+    # Remove legal notice text (if exists).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'dontdisplaylastusername' '0' 'DWord'
+    # Show last signed-in user on logon (0=show).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'shutdownwithoutlogon' '1' 'DWord'
+    # Allow shutdown from logon screen.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'undockwithoutlogon' '1' 'DWord'
+    # Allow undock from logon screen (laptops/docks).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableFirstLogonAnimation' '0' 'DWord'
+    # Disable first sign-in animation.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'DontDisplayLockedUserId' '3' 'DWord'
+    # Show account details on lock screen: 3 = do not display name/email.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' 'EnableForcedLogoff' '1' 'DWord'
+    # Force logoff of users when logon hours expire.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SystemPaneSuggestionsEnabled' '0' 'DWord'
+    # Disable Start/Lock screen suggestions/ads.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'RotatingLockScreenEnabled' '0' 'DWord'
+    # Disable Windows Spotlight on lock screen.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'RotatingLockScreenOverlayEnabled' '0' 'DWord'
+    # Disable lock screen tips on Spotlight.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' 'NoLockScreenCamera' '1' 'DWord'
+    # Disable camera on lock screen.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lock Screen' 'SlideshowDuration' '0' 'DWord'
+    # Lock screen slideshow duration (0 = default/disabled slideshow).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\AccessPage\Camera' 'CameraEnabled' '0' 'DWord'
-    # Blocked Downloaded Files
+    # Disable camera access on sign-in UI.
+
+    # ===============================
+    # DOWNLOADED FILES / ATTACHMENTS
+    # ===============================
+
     Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments"  -Recurse -force -ea SilentlyContinue | out-null
+    # Clear existing machine Attachment policies (reset).
+
     Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments"  -Recurse -force -ea SilentlyContinue | out-null
+    # Clear existing user Attachment policies (reset).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments' 'SaveZoneInformation' '1' 'DWord'
+    # Preserve Zone.Identifier (Mark-of-the-Web) on downloads (1=save). NOTE: enables MOTW.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments' 'SaveZoneInformation' '1' 'DWord'
+    # Same at user level.
+
     AddRegEntry 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations' 'DefaultFileTypeRisk' '24914' 'DWord'
+    # File association security risk level (affects warning prompts).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations' 'DefaultFileTypeRisk' '24914' 'DWord'
-    #  Turn On Hardware Accelerated GPU Scheduling  HAGS
+    # Same at user level.
+
+    # ===============================
+    # HARDWARE ACCELERATED GPU SCHEDULING (HAGS)
+    # ===============================
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers' 'HwSchMode' '2' 'DWord'
-    # Apps run in the background
-    AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications' 'GlobalUserDisabled' '0' 'DWord' # enabled to avoid issues
+    # Enable HAGS (2=enable, 1=default/driver, 0=disable).
+
+    # ===============================
+    # BACKGROUND APPS
+    # ===============================
+
+    AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications' 'GlobalUserDisabled' '0' 'DWord'
+    # Allow background apps (0=enabled). Set to 1 to block; kept 0 to avoid issues.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' 'BackgroundAppGlobalToggle' '1' 'DWord'
-    # Fast startup animation time
+    # Enable background search components.
+
+    # ===============================
+    # FAST STARTUP / BOOT ANIMATION
+    # ===============================
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' 'HybridBootAnimationTime' '0' 'DWord'
-    #  Disable spectre and meltdown
+    # Set Fast Startup animation duration (0 = minimal/none).
+
+    # ===============================
+    # SPECTRE/MELTDOWN (KERNEL MITIGATIONS)
+    # ===============================
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' 'FeatureSettingsOverride' '3' 'DWord'
+    # Disable certain CPU vulnerability mitigations (bitmask). 3 commonly disables Spectre/Meltdown mitigations.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' 'FeatureSettingsOverrideMask' '3' 'DWord'
-    #  TURN OFF Automatically update maps
+    # Mask for above override (which bits are considered).
+
+    # ===============================
+    # OFFLINE MAPS
+    # ===============================
+
     AddRegEntry 'HKLM:\SYSTEM\Maps' 'AutoUpdateEnabled' '0' 'DWord'
-    #  Telemetry & Track & Feedback
+    # Disable automatic offline maps updates.
+
+    # ===============================
+    # TELEMETRY / DIAGNOSTICS / FEEDBACK / Privacy
+    # ===============================
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'AllowTelemetry' '0' 'DWord'
+    # Telemetry level (0=Security/Minimum; Home/Pro may map to Basic).
+
     AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' 'NumberOfSIUFInPeriod' '0' 'DWord'
+    # Feedback frequency count (0 = never prompt).
+
     Remove-ItemProperty -LiteralPath 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' -Name 'PeriodInNanoSeconds' -force -ea SilentlyContinue | out-null
+    # Remove feedback timing window (reset).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\System' 'AllowCommercialDataPipeline' '0' 'DWord'
+    # Disable commercial data pipeline (diagnostics sharing).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\System' 'FeedbackHubAlwaysSaveDiagnosticsLocally' '0' 'DWord'
+    # Do not force Feedback Hub to save diagnostics locally.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\System' 'LimitEnhancedDiagnosticDataWindowsAnalytics' '1' 'DWord'
+    # Limit diagnostic data used by Windows Analytics.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\TabletPC' 'PreventHandwritingDataSharing' '1' 'DWord'
+    # Prevent sharing handwriting data.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\HandwritingErrorReports' 'PreventHandwritingErrorReports' '1' 'DWord'
+    # Block handwriting error reports.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'EnableActivityFeed' '0' 'DWord'
+    # Disable Timeline/Activity feed (global).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'PublishUserActivities' '0' 'DWord'
+    # Block publishing user activities.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'UploadUserActivities' '0' 'DWord'
+    # Block uploading user activities.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener' 'Start' '0' 'DWord'
+    # Disable Diagnostics Tracking autologger.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' 'UserFeedbackAllowed' '0' 'DWord'
+    # Disable user feedback in Edge.
+
     AddRegEntry 'HKCU:\Software\Microsoft\InputPersonalization' 'RestrictImplicitInkCollection' '1' 'DWord'
+    # Block implicit inking data collection.
+
     AddRegEntry 'HKCU:\Software\Microsoft\InputPersonalization' 'RestrictImplicitTextCollection' '1' 'DWord'
+    # Block implicit text input data collection.
+
     AddRegEntry 'HKCU:\Software\Microsoft\InputPersonalization\TrainedDataStore' 'HarvestContacts' '0' 'DWord'
+    # Do not harvest contacts for personalization.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\InputPersonalization' 'AllowInputPersonalization' '0' 'DWord'
+    # Disable input personalization.
+
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Windows\WindowsAI' 'DisableAIDataAnalysis' '1' 'DWord'
+    # Disable local AI features analyzing user data (current user).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI' 'DisableAIDataAnalysis' '1' 'DWord'
+    # Disable local AI data analysis (machine-wide).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'LimitDiagnosticLogCollection' '1' 'DWord'
+    # Limit diagnostic log collection.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'DisableOneSettingsDownloads' '1' 'DWord'
+    # Disable OneSettings (content/experiment) downloads.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'DoNotShowFeedbackNotifications' '1' 'DWord'
+    # Do not show feedback notifications.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection' 'AllowTelemetry' '0' 'DWord'
+    # Redundant telemetry minimum (backup location).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Privacy' 'TailoredExperiencesWithDiagnosticDataEnabled' '0' 'DWord'
+    # Disable tailored experiences based on diagnostics (system).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Privacy' 'TailoredExperiencesWithDiagnosticDataEnabled' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Siuf\Rules' 'NumberOfSIUFInPeriod' '0' 'DWord'
+    # Disable tailored experiences (user).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Siuf\Rules' 'PeriodInNanoSeconds' '0' 'DWord'
+    # Set feedback period to 0 (never prompt).
+
     AddRegEntry 'HKCU:\Software\Microsoft\MediaPlayer\Preferences' 'UsageTracking' '0' 'DWord'
+    # Disable Windows Media Player usage tracking.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'Start_TrackDocs' '0' 'DWord'
+    # Do not track recently opened items for Start.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\DiagTrack' 'Start' '4' 'DWord'
+    # Disable Connected User Experiences and Telemetry service (DiagTrack). 4=Disabled.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer' 'HideRecentlyAddedApps' '0' 'DWord'
+    # Show recently added apps (0=show). (Note: later you also disable some Start suggestions.)
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet' 'SpyNetReporting' '0' 'DWord'
+    # Disable Microsoft MAPS cloud reporting.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet' 'SubmitSamplesConsent' '2' 'DWord'
+    # Prompt before sending samples (2=never send automatically).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\MRT' 'DontReportInfectionInformation' '1' 'DWord'
-    # Print
+    # Malicious Software Removal Tool: don't report infection info.
+
+    # ===============================
+    # PRINTING
+    # ===============================
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Print' 'SpoolerPriority' '128' 'DWord'
+    # Raise print spooler priority (higher value = more priority).
+
     AddRegEntry 'HKCU:\Control Panel\International' 'iPaperSize' '9' 'String'
+    # Default paper size (9 = A4).
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\CommonGlobUserSettings\Control Panel\International' 'iPaperSize' '9' 'String'
+    # Machine default paper size A4.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers' 'KMPrintersAreBlocked' '0' 'DWord'
-    # Startup & performance
+    # Do not block KM (Konica Minolta) printers.
+
+    # ===============================
+    # STARTUP / PERFORMANCE CLEANUP
+    # ===============================
+
     Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
+    # Clear per-user startup entries.
+
     Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunNotification"  -Recurse -force -ea SilentlyContinue | out-null
+    # Clear per-user startup notifications list.
+
     Remove-Item -LiteralPath "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
+    # Clear 32-bit machine-wide startup entries.
+
     Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
-    # Services
+    # Clear machine-wide startup entries.
+
+    # ===============================
+    # SERVICES START TYPE / DISABLES
+    # ===============================
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\LicenseManager' 'Start' '3' 'DWord'
+    # License Manager service: Manual (3).
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ssh-agent' 'Start' '3' 'DWord'
+    # OpenSSH Authentication Agent: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HPAppHelperCap' 'Start' '3' 'DWord'
+    # HP Telemetry/Helper services: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HPCustomCapDriver' 'Start' '3' 'DWord'
+    # HP custom capture driver: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HPDiagsCap' 'Start' '3' 'DWord'
+    # HP diagnostics capture: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HPNetworkCap' 'Start' '3' 'DWord'
+    # HP network capture: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HPPrintScanDoctorService' 'Start' '3' 'DWord'
+    # HP Print and Scan Doctor service: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\hpqcaslwmiex' 'Start' '3' 'DWord'
+    # HP CASL WMI Ex: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HPSmartDeviceAgentBase' 'Start' '3' 'DWord'
+    # HP Smart Device Agent: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HPSupportSolutionsFrameworkService' 'Start' '3' 'DWord'
+    # HP Support Solutions Framework: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HPSysInfoCap' 'Start' '3' 'DWord'
+    # HP System Info capture: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\HpTouchpointAnalyticsService' 'Start' '3' 'DWord'
+    # HP Touchpoint Analytics: Manual (instead of auto).
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\RstMwService' 'Start' '3' 'DWord'
+    # Intel RST (Management/WMI) service: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\Intel R Capability Licensing Service TCP IP Interface' 'Start' '3' 'DWord'
+    # Intel Capability Licensing Service: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\SECOMNService' 'Start' '3' 'DWord'
+    # Intel/Third-party service (common): Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\USER_ESRV_SVC_QUEENCREEK' 'Start' '3' 'DWord'
+    # Intel Energy Server Service (power telemetry): Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\Intel R SUR QC SAM' 'Start' '3' 'DWord'
+    # Intel System Usage Report (SUR) service: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\jhi_service' 'Start' '3' 'DWord'
+    # Intel Dynamic Application Loader Host Interface: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\SystemUsageReportSvc_QUEENCREEK' 'Start' '3' 'DWord'
+    # Intel System Usage Report Svc: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\Apple Mobile Device Service' 'Start' '3' 'DWord'
+    # Apple Mobile Device service: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\MozillaMaintenance' 'Start' '3' 'DWord'
+    # Mozilla Maintenance service: Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WsAppService3' 'Start' '3' 'DWord'
+    # Wacom/Workspace App service (common name): Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ESRV_SVC_QUEENCREEK' 'run' '0' 'DWord'
+    # Intel ESRV flag 'run' off.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ESRV_SVC_QUEENCREEK' 'Start' '3' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WSearch' 'WSearch' '3' 'DWord'
+    # Intel ESRV start type Manual.
+
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WSearch' 'Start' '3' 'DWord'
+    # Windows Search start type Manual.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\SysMain' 'Start' '4' 'DWord'
+    # SysMain (Superfetch) disabled.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\dmwappushservice' 'Start' '4' 'DWord'
+    # WAP Push Message Routing service disabled.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ExpressVPN App Service' 'Start' '4' 'DWord'
+    # ExpressVPN App Service disabled.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ExpressVPN System Service' 'Start' '4' 'DWord'
+    # ExpressVPN System Service disabled.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\ExpressVPN VPN Service' 'Start' '4' 'DWord'
-    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WerSvc' 'Start' '4' 'DWord' #Error reporting
+    # ExpressVPN VPN Service disabled.
+
+    AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WerSvc' 'Start' '4' 'DWord'
+    # Windows Error Reporting service disabled.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting' 'Disabled' '1' 'DWord'
+    # Disable Windows Error Reporting (policy).
+
+    # ===============================
+    # Improve shutdown & responsiveness
+    # ===============================
+    
     AddRegEntry 'HKCU:\Control Panel\Desktop' 'AutoEndTasks' '1' 'String'
+    # Automatically end tasks at logoff/shutdown.
+
     AddRegEntry 'HKCU:\Control Panel\Desktop' 'SmoothScroll' '0' 'DWord'
+    # Disable smooth scrolling in UI.
+
     AddRegEntry 'HKCU:\Control Panel\Desktop' 'WaitToKillAppTimeout' '1500' 'String'
+    # App kill timeout (ms) when logging off/shutdown.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control' 'WaitToKillServiceTimeout' '1500' 'String'
+    # Service kill timeout (ms) on shutdown.
+
     AddRegEntry 'HKCU:\Control Panel\Desktop' 'HungAppTimeout' '1500' 'String'
+    # Hung app timeout (ms) before "Not responding".
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' 'AutoRestartShell' '1' 'DWord'
+    # Automatically restart Explorer shell if it crashes.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl' 'IRQ8Priority' '1' 'DWord'
+    # Give system clock (IRQ8) priority boost (legacy tweak).
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters' 'EnablePrefetcher' '0' 'DWord'
+    # Disable Prefetcher (0=disable).
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters' 'EnableSuperfetch' '0' 'DWord'
+    # Disable Superfetch (SysMain) (legacy; service also disabled above).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\MobilityCenter' 'NoMobilityCenter' '1' 'DWord'
+    # Disable Windows Mobility Center UI.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoInstrumentation' '1' 'DWord'
+    # Disable shell instrumentation (reduces certain data collection).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\WindowsInkWorkspace' 'AllowWindowsInkWorkspace' '0' 'DWord'
+    # Disable Windows Ink Workspace.
+
     AddRegEntry 'HKCU:\Software\Microsoft\input\TIPC' 'Enabled' '0' 'DWord'
+    # Disable Text Input Processor features (TIPC).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\SQMClient\Windows' 'CEIPEnable' '0' 'DWord'
+    # Disable Customer Experience Improvement Program.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat' 'DisableInventory' '1' 'DWord'
+    # Disable application inventory.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat' 'DisableUAR' '1' 'DWord'
+    # Disable Program Compatibility Assistant (User Account Reporting).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat' 'AITEnable' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Maps' 'AutoDownloadAndUpdateMapData' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableUwpStartupTasks' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'SupportUwpStartupTasks' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableVirtualization' '1' 'DWord'
-    # Taskbar & notifications
+    # Disable Application Impact Telemetry.
+
+    # ===============================
+    # TASKBAR / SEARCH
+    # ===============================
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoChangeStartMenu' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\PushNotifications' 'ToastEnabled' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings' 'NOC_GLOBAL_SETTING_ALLOW_TOASTS_ABOVE_LOCK' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowSyncProviderNotifications' '0' 'DWord'
-    # Left alignment taskbar
+    # Allow Start menu changes (0=allow).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarAl' '0' 'DWord'
-    # Hide task view
+    # Taskbar alignment: 0=Left, 1=Center.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowTaskViewButton' '0' 'DWord'
-    # Hide chat
+    # Hide Task View button on taskbar.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarMn' '0' 'DWord'
-    # Hide news and interests
+    # Hide Chat (Meet/Teams) button.
+
     AddRegEntry 'HKLM:\Software\Policies\Microsoft\Windows\Windows Feeds' 'EnableFeeds' '0' 'DWord'
-    # Hide meet now
+    # Hide News and Interests/Feeds.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'HideSCAMeetNow' '1' 'DWord'
+    # Hide Meet Now (user policy).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'HideSCAMeetNow' '1' 'DWord'
-    # Hide People
+    # Hide Meet Now (machine policy).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People' 'PeopleBand' '0' 'DWord'
-    # Hide widgets
+    # Hide People band on taskbar (0=hide).
+
     AddRegEntry 'HKLM:\Software\Policies\Microsoft\Dsh' 'AllowNewsAndInterests' '0' 'DWord'
-    # Search box Taskbar Mode ,0 hide ,1 icon only ,2 search box ,3 icon and label
+    # Disable Widgets/Feeds (policy).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' 'SearchboxTaskbarMode' '1' 'DWord'
+    # Taskbar search: 0=hide, 1=icon only, 2=search box, 3=icon+label.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'TaskbarDa' '0' 'DWord'
+    # Disable Widgets button on taskbar.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds' 'ShellFeedsTaskbarViewMode' '2' 'DWord'
-    # Advertising
-    AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowSyncProviderNotifications' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo' 'Enabled' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Bluetooth' 'AllowAdvertising' '0' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Messaging' 'AllowMessageSync' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-353698Enabled' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-338388Enabled' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-338389Enabled' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-338393Enabled' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-353694Enabled' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-353696Enabled' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-310093Enabled' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-338387Enabled' '0' 'DWord'
-    # Biometrics
+    # Feeds taskbar view mode (2=off/hidden).
+
+    # ===============================
+    # BIOMETRICS
+    # ===============================
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Biometrics' 'Enabled' '1' 'DWord'
-    # Clipboard
+    # Allow biometric features (Windows Hello).
+
+    # ===============================
+    # CLIPBOARD
+    # ===============================
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'AllowClipboardHistory' '1' 'DWord'
+    # Enable clipboard history.
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'AllowCrossDeviceClipboard' '0' 'DWord'
+    # Disable clipboard sync across devices.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ClipboardHistory' 'SyncPolicy' '5' 'DWord'
-    # SettingSync
+    # Clipboard sync policy: 5 = disabled/not allowed.
+
+    # ===============================
+    # SETTING SYNC (MICROSOFT ACCOUNT)
+    # ===============================
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\SettingSync\Groups\Personalization' 'Enabled' '0' 'DWord'
+    # Disable sync for Personalization.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\SettingSync\Groups\BrowserSettings' 'Enabled' '0' 'DWord'
+    # Disable sync for Browser settings.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\SettingSync\Groups\Credentials' 'Enabled' '0' 'DWord'
+    # Disable sync for passwords/credentials.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\SettingSync\Groups\Language' 'Enabled' '0' 'DWord'
+    # Disable sync for Language.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\SettingSync\Groups\Accessibility' 'Enabled' '0' 'DWord'
+    # Disable sync for Accessibility.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\SettingSync\Groups\Windows' 'Enabled' '0' 'DWord'
-    # Tweaks
+    # Disable sync for Windows settings group.
+
+    # ===============================
+    # GENERAL TWEAKS
+    # ===============================
+
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Maps' 'AutoDownloadAndUpdateMapData' '0' 'DWord'
+    # Disable automatic map data download/update.
+
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableUwpStartupTasks' '1' 'DWord'
+    # Enable UWP apps registering startup tasks. (to avoid issues)
+
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'SupportUwpStartupTasks' '1' 'DWord'
+    # support UWP startup tasks. (to avoid issues)
+
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableVirtualization' '1' 'DWord'
+    # Enable UAC virtualization for legacy apps.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SilentInstalledAppsEnabled' '0' 'DWord'
+    # Prevent silent installation of suggested apps.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SoftLandingEnabled' '0' 'DWord'
+    # Disable soft landing tips/first-run suggestions.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement' 'ScoobeSystemSettingEnabled' '0' 'DWord'
+    # Disable post-OOBE "Get even more out of Windows" (SCOOBE).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' 'fAllowToGetHelp' '0' 'DWord'
+    # Disable Remote Assistance invitations.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' 'fDenyTSConnections' '1' 'DWord'
-    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\CurrentVersion\Software Protection Platform' 'NoGenTicket' '1' 'DWord'
+    # Deny Remote Desktop (RDP) connections.
+
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\CurrentVersion\Software Protection Platform' 'NoGenTicket' '0' 'DWord'
+    # Allow generation of Windows Store licensing tickets (UWP license gen). (to Avoid issues).
+
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Maps' 'AllowUntriggeredNetworkTrafficOnSettingsPage' '0' 'DWord'
+    # Block background network traffic on Maps settings page.
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet' 'EnableActiveProbing' '0' 'DWord'
+    # Disable active Internet connectivity probing (NCSI). May affect captive portal detection.
+
     AddRegEntry 'HKU:\.DEFAULT\Control Panel\Keyboard' 'InitialKeyboardIndicators' '2147483650' 'String'
+    # NumLock state at logon for default profile (2147483650 = NumLock ON for all users).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\TextInput' 'EnableTouchKeyboardAutoInvokeInDesktopMode' '0' 'DWord'
+    # Prevent touch keyboard from auto-appearing in desktop mode.
+
     AddRegEntry 'HKLM:\SOFTWARE\Classes\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}' 'System.IsPinnedToNameSpaceTree' '0' 'DWord'
+    # Unpin OneDrive from File Explorer navigation pane.
+
     AddRegEntry 'HKCU:\Software\Classes\CLSID\{031E4825-7B94-4dc3-B131-E946B44C8DD5}' 'SortOrderIndex' '84' 'DWord'
+    # Libraries display order index in navigation pane.
+
     AddRegEntry 'HKLM:\SOFTWARE\Classes\AllFilesystemObjects' 'DefaultDropEffect' '0' 'DWord'
+    # Default drag & drop effect (0=ask/none, 1=copy, 2=move, 4=link). Here 0 leaves default behavior.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer' 'ShowDriveLettersFirst' '0' 'DWord'
+    # Show drive letters: 0=after label (default), 1=before, 2=hide network, 4=hide local.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer' 'Link' 'hex 3:00,00,00,00' 'String'
+    # Remove " - Shortcut" suffix on new shortcuts (per-user).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' 'Link' 'hex 3:00,00,00,00' 'String'
+    # Remove " - Shortcut" suffix (machine-wide).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'DisablePreviewDesktop' '0' 'DWord'
+    # Peek at desktop when hovering taskbar (0=allow).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoPreviewPane' '0' 'DWord'
+    # Allow Preview Pane in Explorer (0=allow).
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer' 'NoLowDiskSpaceChecks' '1' 'DWord'
+    # Disable low disk space warnings.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Speech_OneCore\Preferences' 'ModelDownloadAllowed' '0' 'DWord'
+    # Block speech model downloads (OneCore).
+
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' 'fullprivilegeauditing' '0' 'DWord'
+    # LSA privilege use auditing disabled (0). (1 enables detailed audits).
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowAllTrustedApps' '1' 'DWord'
+    # Allow sideloading of trusted apps.
+
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowDevelopmentWithoutDevLicense' '1' 'DWord'
-    # Turn off all notifications
+    # Allow developer mode for sideloading without Dev license.
+
+    # ===============================
+    # NOTIFICATIONS
+    # ===============================
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings' 'NOC_GLOBAL_SETTING_TOASTS_ENABLED' '0' 'DWord'
-    # Enable Focus Assist - Priority Only (Value 1)
+    # Turn off all toast notifications (user).
+    
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\PushNotifications' 'ToastEnabled' '0' 'DWord'
+    # Disable toast notifications globally (note: many specific toasts are disabled).
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings' 'NOC_GLOBAL_SETTING_ALLOW_TOASTS_ABOVE_LOCK' '0' 'DWord'
+    # Block notifications above lock screen.
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowSyncProviderNotifications' '0' 'DWord'
+    # Disable OneDrive/Sync provider marketing notifications.
+
+    # ===============================
+    # ADVERTISING / SUGGESTIONS
+    # ===============================
+
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo' 'Enabled' '0' 'DWord'
+    # Disable advertising ID (system).
+
+    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device\Bluetooth' 'AllowAdvertising' '0' 'DWord'
+    # Block Bluetooth advertising features.
+
+    AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Messaging' 'AllowMessageSync' '0' 'DWord'
+    # Disable message sync (SMS) to cloud.
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-353698Enabled' '0' 'DWord'
+    # Disable suggested content tile (various IDs below are different slots).
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-338388Enabled' '0' 'DWord'
+    # Disable suggested content tile.
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-338389Enabled' '0' 'DWord'
+    # Disable suggested content tile.
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-338393Enabled' '0' 'DWord'
+    # Disable suggested content tile.
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-353694Enabled' '0' 'DWord'
+    # Disable suggested content tile.
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-353696Enabled' '0' 'DWord'
+    # Disable suggested content tile.
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-310093Enabled' '0' 'DWord'
+    # Disable suggested content tile.
+
+    AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager' 'SubscribedContent-338387Enabled' '0' 'DWord'
+    # Disable suggested content tile.
+
+    # ===============================
+    # FOCUS ASSIST
+    # ===============================
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\QuietHours' 'QuietHoursEnabled' '1' 'DWord'
+    # Enable Focus Assist.
+
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\QuietHours' 'QuietHoursActive' '1' 'DWord'
+    # Focus Assist active (Priority only by default).
 }
+
 
 Function ShrinkC-MakeNew
 {
@@ -2266,7 +2743,7 @@ Function Deploy-Office
         $FileLink =$webpage2.Links | Where-Object href -like '*officedeploymenttool*exe' | select -Last 1 -expand href
         if ($Filelink -ne $null) {break}
     }
-    if ($Filelink -ne $null) {$Response = Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
+    if ($Filelink -ne $null) {Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
     if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -ea SilentlyContinue | out-null}
     Write-Host -f C "`r`n *** Installing Office ... *** `r`n"
     if (Test-Path -Path "$env:TEMP\IA\office\setup.exe" -ea SilentlyContinue) {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -ea SilentlyContinue | out-null}
@@ -2794,5 +3271,5 @@ Function Clear-PrintQueue {
     Write-Output "Restarting Explorer shell..."
     Start-Process explorer.exe
 
-    Write-Output "✅ Done. Print queue has been fully cleared."
+    Write-Output "Done. Print queue has been fully cleared."
 }
