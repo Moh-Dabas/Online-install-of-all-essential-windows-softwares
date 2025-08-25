@@ -3199,7 +3199,6 @@ Function Clean-up
     reg add "HKCU\Control Panel\International" /V iCalendarType /T REG_SZ /D "1" /F
     AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
-    Change_computer_name
     # Wait for all background jobs to finish
     Wait-Job -State Running
     # Optionally receive and display the results of all jobs
@@ -3211,6 +3210,10 @@ Function Clean-up
     Clear-PrintQueue
     Start-sleep 2
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
+    Start-Process explorer.exe
+    Write-Host "Explorer restarted."
+    Refresh-Desktop
+    Change_computer_name
     Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -ea SilentlyContinue | out-null
     Remove-Item -LiteralPath "$env:TEMP" -Force -Recurse -ea SilentlyContinue | out-null
     }
