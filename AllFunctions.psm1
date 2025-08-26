@@ -1352,7 +1352,7 @@ Function Unins-Xbox
 Function Unins-MSTeams
 {
     Write-Host -f C "`r`n *** Uninstalling Microsoft Teams *** `r`n"
-    if ((Get-Module -Name NuGet -ListAvailable -ea silentlycontinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget Module already exists"}
+    if (Get-Module -Name UninstallTeams -ListAvailable -ea silentlycontinue) {Write-Host -f C "UninstallTeams Module already exists"}
     else {Start-Job -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-List -Property Name,State}
     Import-Module UninstallTeams -Force -ea silentlycontinue | out-null
     Install-Script UninstallTeams -Confirm:$False -Force -ea silentlycontinue | out-null
@@ -1406,7 +1406,7 @@ Function Windows-Update
     Start-Service -Name "wuauserv" -ea silentlycontinue | out-null
     Start-Service -Name "UsoSvc" -ea silentlycontinue | out-null
     # Use PSWindowsUpdate Module
-    Start-Job -Name PSWindowsUpdateModule {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+    If (-not (Get-Module -ListAvailable -Name PSWindowsUpdateModule)) {Start-Job -Name PSWindowsUpdateModule {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State}
     Import-Module PSWindowsUpdate -Force -ea silentlycontinue | out-null
     Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -ea silentlycontinue | out-null}
     Start-Job -Name WindowsUpdate {Get-WindowsUpdate -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue}
@@ -1414,7 +1414,7 @@ Function Windows-Update
     Start-Job -Name WindowsStoreAppsUpdate {Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue}
     # Use kbupdate Module
     try {
-        Install-Module kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue
+        if (-not (Get-Module -ListAvailable -Name kbupdate)) {Install-Module kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue}
         Import-Module kbupdate -Force -ea silentlycontinue | out-null
         Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
     } catch {}
