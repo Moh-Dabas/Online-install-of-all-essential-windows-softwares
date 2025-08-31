@@ -205,9 +205,19 @@ function Check-Internet {
         Write-Output "No internet connection"
     }
 }
-    
-Function WifiPriority {
 
+Function Fix-InternetConnection {
+    ipconfig /release
+    ipconfig /flushdns
+    ipconfig /renew
+    netsh int ip reset
+    netsh winsock reset
+    arp -d *
+    netsh interface ip delete arpcache
+}
+
+Function WifiPriority {
+    Fix-InternetConnection
     $wifiInterfaces = Get-NetAdapter | Where-Object {
         $_.Status -eq 'Up' -and
         $_.Name -match '(?i)wi' -and
@@ -1561,11 +1571,6 @@ Function Fix-Share
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device' 'DevicePasswordLessBuildVersion' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device' 'DevicePasswordLessUpdateType' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\Settings\AllowSignInOptions' 'value' '1' 'DWord'
-    ipconfig /release
-    ipconfig /flushdns
-    ipconfig /renew
-    netsh int ip reset
-    netsh winsock reset
 }
 
 Function Tweak-schtasks
