@@ -273,7 +273,7 @@ Function WifiPriority {
     }
 
     Write-Host "Restarting WiFi interfaces & WLAN AutoConfig service (wlansvc)..."
-    $wifiInterfaces | foreach {Restart-NetAdapter -Name $_.Name}
+    Start-Job -Name RestartInterfaces {$wifiInterfaces | foreach {Restart-NetAdapter -Name $_.Name}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     Restart-Service -Name wlansvc -Force
 
     # Wait until the service status is 'Running'
