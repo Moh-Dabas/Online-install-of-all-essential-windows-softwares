@@ -399,6 +399,254 @@ Function Fix-InternetConnection {
     # Get-NetAdapter | foreach {Restart-NetAdapter -Name $_.Name}
 }
 
+function Invoke-WiFiScan {
+    <#
+    .SYNOPSIS
+    Triggers a Wi-Fi scan using native Windows methods and returns available networks.
+    
+    .DESCRIPTION
+    This function uses the Windows Native Wifi API to properly trigger a Wi-Fi scan
+    and retrieve the results. It provides more reliable results than netsh commands.
+    
+    .PARAMETER InterfaceName
+    Name of the wireless interface to scan. If not specified, uses the first active Wi-Fi adapter.
+    
+    .EXAMPLE
+    $networks = Invoke-WiFiScan
+    
+    .EXAMPLE
+    $networks = Invoke-WiFiScan -InterfaceName "Wi-Fi 2"
+    #>
+    
+    [CmdletBinding()]
+    param(
+        [string]$InterfaceName
+    )
+    
+    # If no interface name provided, try to get the first active Wi-Fi adapter
+    if ([string]::IsNullOrEmpty($InterfaceName)) {
+        $wifiAdapters = Get-WiFiAdapters
+        if (-not $wifiAdapters) {
+            Write-Error "No active Wi-Fi adapters found. Please specify an interface name or ensure a Wi-Fi adapter is active."
+            return $null
+        }
+        
+        $InterfaceName = $wifiAdapters[0].Name
+        Write-Verbose "Using first active Wi-Fi adapter: $InterfaceName"
+    }
+        
+    try {
+        # Load the necessary .NET assembly
+        Add-Type -TypeDefinition @"
+        using System;
+        using System.Runtime.InteropServices;
+        using System.ComponentModel;
+        
+        public class NativeWifi {
+            [DllImport("wlanapi.dll")]
+            public static extern int WlanOpenHandle(
+                uint dwClientVersion, 
+                IntPtr pReserved, 
+                out uint pdwNegotiatedVersion, 
+                out IntPtr phClientHandle);
+                
+            [DllImport("wlanapi.dll")]
+            public static extern int WlanCloseHandle(
+                IntPtr hClientHandle, 
+                IntPtr pReserved);
+                
+            [DllImport("wlanapi.dll")]
+            public static extern int WlanEnumInterfaces(
+                IntPtr hClientHandle, 
+                IntPtr pReserved, 
+                out IntPtr ppInterfaceList);
+                
+            [DllImport("wlanapi.dll")]
+            public static extern int WlanScan(
+                IntPtr hClientHandle, 
+                [MarshalAs(UnmanagedType.LPStruct)] Guid pInterfaceGuid, 
+                IntPtr pDot11Ssid, 
+                IntPtr pIeData, 
+                IntPtr pReserved);
+                
+            [DllImport("wlanapi.dll")]
+            public static extern int WlanGetNetworkBssList(
+                IntPtr hClientHandle,
+                [MarshalAs(UnmanagedType.LPStruct)] Guid pInterfaceGuid,
+                IntPtr pDot11Ssid,
+                int dot11BssType,
+                bool bSecurityEnabled,
+                IntPtr pReserved,
+                out IntPtr ppWlanBssList);
+                
+            [DllImport("wlanapi.dll")]
+            public static extern void WlanFreeMemory(IntPtr pMemory);
+                
+            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+            public struct WLAN_INTERFACE_INFO_LIST {
+                public uint dwNumberOfItems;
+                public uint dwIndex;
+                public WLAN_INTERFACE_INFO[] InterfaceInfo;
+            }
+            
+            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+            public struct WLAN_INTERFACE_INFO {
+                public Guid InterfaceGuid;
+                [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+                public string strInterfaceDescription;
+                public uint isState;
+            }
+            
+            [StructLayout(LayoutKind.Sequential)]
+            public struct WLAN_BSS_LIST {
+                public uint dwTotalSize;
+                public uint dwNumberOfItems;
+                public IntPtr wlanBssEntries;
+            }
+            
+            [StructLayout(LayoutKind.Sequential)]
+            public struct WLAN_BSS_ENTRY {
+                public DOT11_SSID dot11Ssid;
+                public uint uPhyId;
+                public long dot11Bssid;
+                public uint dot11BssType;
+                public int lRssi;
+                public uint uLinkQuality;
+                public bool bInRegDomain;
+                public ushort usBeaconPeriod;
+                public ulong ullTimestamp;
+                public ulong ullHostTimestamp;
+                public ushort usCapabilityInformation;
+                public uint ulChCenterFrequency;
+                public WLAN_RATE_SET wlanRateSet;
+                public uint ulIeOffset;
+                public uint ulIeSize;
+            }
+            
+            [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+            public struct DOT11_SSID {
+                public uint uSSIDLength;
+                [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
+                public byte[] ucSSID;
+            }
+            
+            [StructLayout(LayoutKind.Sequential)]
+            public struct WLAN_RATE_SET {
+                public uint uRateSetLength;
+                public ushort usRateSet;
+            }
+        }
+"@ -ErrorAction Stop
+
+        Write-Verbose "Opening WLAN handle..."
+        $handle = [IntPtr]::Zero
+        $negotiatedVersion = 0
+        $result = [NativeWifi]::WlanOpenHandle(2, [IntPtr]::Zero, [ref]$negotiatedVersion, [ref]$handle)
+        
+        if ($result -ne 0) {
+            throw New-Object ComponentModel.Win32Exception($result)
+        }
+        
+        try {
+            Write-Verbose "Enumerating interfaces..."
+            $interfaceListPtr = [IntPtr]::Zero
+            $result = [NativeWifi]::WlanEnumInterfaces($handle, [IntPtr]::Zero, [ref]$interfaceListPtr)
+            
+            if ($result -ne 0) {
+                throw New-Object ComponentModel.Win32Exception($result)
+            }
+            
+            # Find the interface with the matching description
+            $interfaceGuid = $null
+            $interfaceList = [Runtime.InteropServices.Marshal]::PtrToStructure($interfaceListPtr, [Type][NativeWifi+WLAN_INTERFACE_INFO_LIST])
+            $interfaceInfoSize = [Runtime.InteropServices.Marshal]::SizeOf([Type][NativeWifi+WLAN_INTERFACE_INFO])
+            
+            for ($i = 0; $i -lt $interfaceList.dwNumberOfItems; $i++) {
+                $interfaceInfoPtr = [IntPtr]($interfaceListPtr.ToInt64() + 8 + $i * $interfaceInfoSize)
+                $interfaceInfo = [Runtime.InteropServices.Marshal]::PtrToStructure($interfaceInfoPtr, [Type][NativeWifi+WLAN_INTERFACE_INFO])
+                
+                if ($interfaceInfo.strInterfaceDescription -eq $adapter.InterfaceDescription) {
+                    $interfaceGuid = $interfaceInfo.InterfaceGuid
+                    break
+                }
+            }
+            
+            [NativeWifi]::WlanFreeMemory($interfaceListPtr)
+            
+            if (-not $interfaceGuid) {
+                throw "Wireless interface '$InterfaceName' not found in Native Wifi API."
+            }
+            
+            Write-Verbose "Triggering scan on interface $InterfaceName..."
+            $result = [NativeWifi]::WlanScan($handle, $interfaceGuid, [IntPtr]::Zero, [IntPtr]::Zero, [IntPtr]::Zero)
+            
+            if ($result -ne 0) {
+                throw New-Object ComponentModel.Win32Exception($result)
+            }
+            
+            Write-Verbose "Scan triggered successfully. Waiting for results..."
+            Start-Sleep -Seconds 3  # Wait for scan to complete
+            
+            Write-Verbose "Getting BSS list..."
+            $bssListPtr = [IntPtr]::Zero
+            $result = [NativeWifi]::WlanGetNetworkBssList(
+                $handle,
+                $interfaceGuid,
+                [IntPtr]::Zero,  # All SSIDs
+                1,  # Infrastructure
+                $false,
+                [IntPtr]::Zero,
+                [ref]$bssListPtr
+            )
+            
+            if ($result -ne 0) {
+                throw New-Object ComponentModel.Win32Exception($result)
+            }
+            
+            # Parse the BSS list
+            $networks = @()
+            $bssList = [Runtime.InteropServices.Marshal]::PtrToStructure($bssListPtr, [Type][NativeWifi+WLAN_BSS_LIST])
+            $bssEntrySize = [Runtime.InteropServices.Marshal]::SizeOf([Type][NativeWifi+WLAN_BSS_ENTRY])
+            
+            for ($i = 0; $i -lt $bssList.dwNumberOfItems; $i++) {
+                $bssEntryPtr = [IntPtr]($bssList.wlanBssEntries.ToInt64() + $i * $bssEntrySize)
+                $bssEntry = [Runtime.InteropServices.Marshal]::PtrToStructure($bssEntryPtr, [Type][NativeWifi+WLAN_BSS_ENTRY])
+                
+                # Convert SSID from bytes to string
+                $ssid = ""
+                if ($bssEntry.dot11Ssid.uSSIDLength -gt 0) {
+                    $ssidBytes = $bssEntry.dot11Ssid.ucSSID[0..($bssEntry.dot11Ssid.uSSIDLength - 1)]
+                    $ssid = [System.Text.Encoding]::UTF8.GetString($ssidBytes)
+                }
+                
+                # Convert BSSID to MAC address format
+                $macBytes = [BitConverter]::GetBytes($bssEntry.dot11Bssid)
+                $bssid = ($macBytes[0..5] | ForEach-Object {$_.ToString("X2")}) -join ":"
+                
+                $networks += [PSCustomObject]@{
+                    SSID = $ssid
+                    BSSID = $bssid
+                    SignalStrength = $bssEntry.lRssi
+                    Channel = [Math]::Round(($bssEntry.ulChCenterFrequency - 2407000) / 5000.0)
+                    RSSI = $bssEntry.lRssi
+                    LinkQuality = $bssEntry.uLinkQuality
+                }
+            }
+            
+            [NativeWifi]::WlanFreeMemory($bssListPtr)
+            
+            return $networks | Sort-Object SignalStrength -Descending
+        }
+        finally {
+            [NativeWifi]::WlanCloseHandle($handle, [IntPtr]::Zero)
+        }
+    }
+    catch {
+        Write-Error "Failed to trigger Wi-Fi scan: $($_.Exception.Message)"
+        return $null
+    }
+}
+
 Function WifiPriority {
     Fix-InternetConnection
     # Get Wi-Fi adapters
@@ -449,7 +697,7 @@ Function WifiPriority {
         Check-Internet
         return
     }
-
+    
     Write-Host "Restarting WiFi interfaces & WLAN AutoConfig service (wlansvc)..."
     Restart-WiFiAdapters -Timeout 45 -Parallel
     Restart-Service -Name wlansvc -Force
@@ -465,21 +713,19 @@ Function WifiPriority {
     Write-Host "wlansvc is running. Proceeding with network scan..."
 
     try {
-        $wlanClient = New-Object -ComObject "Wlan.WlanClient"
-        foreach ($iface in $wlanClient.Interfaces) {
-            Write-Host "Triggering scan on interface: $($iface.InterfaceDescription)"
-            $iface.Scan()
+        $adapters = Get-WiFiAdapters
+        if ($adapters) {
+            foreach ($adapter in $adapters) {
+                Write-Host "Scanning with adapter: $($adapter.Name)"
+                $networks = Invoke-WiFiScan -InterfaceName $adapter.Name
+                if ($networks) {$networks | Select-Object SSID, SignalStrength, Channel | Format-Table -AutoSize}
+            }
         }
-        Start-Sleep -Seconds 1
-        $scanResults = netsh wlan show networks mode=bssid
-        $ssidCount = ($scanResults | Select-String -Pattern '^SSID\s+\d+\s*:').Count
-        if ($ssidCount -lt 2) { Start-Sleep -Seconds 4 }
     } catch {
         Write-Warning "Failed to trigger Wi-Fi scan: $_"
     }
 
     $scanResults = netsh wlan show networks mode=bssid
-
     $ssidCount = ($scanResults | Select-String -Pattern '^SSID\s+\d+\s*:').Count
     if ($ssidCount -lt 2) {
         Write-Host "Silent scan detected only $ssidCount SSID(s). Triggering visual Wi-Fi scan UI..."
@@ -3793,6 +4039,7 @@ Function Clear-PrintQueue {
 
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
