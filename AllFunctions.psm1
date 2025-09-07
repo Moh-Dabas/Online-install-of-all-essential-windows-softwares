@@ -357,8 +357,8 @@ Function WifiPriority {
 
 Function Invoke-W32TimeResync {
     param(
-        [int]$MaxRetries = 10,
-        [int]$DelaySeconds = 5
+        [int]$MaxRetries = 60,
+        [int]$DelaySeconds = 1
     )
     
     # Ensure required registry settings
@@ -373,7 +373,7 @@ Function Invoke-W32TimeResync {
     $success = $false
 
     for ($attempt = 1; $attempt -le $MaxRetries -and -not $success; $attempt++) {
-        Write-Host "Attempt $attempt of ${MaxRetries}: Running w32tm /resync..."
+        Write-Host "Attempt $attempt of ${MaxRetries}: Running w32tm /resync to sync time"
 
         # Run and capture both output & exit code
         $output = & w32tm /resync 2>&1
@@ -945,6 +945,278 @@ Function Ins-Chrome
     Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineCore'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
     Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
     Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdaterTaskSystem'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
+    # Allow popups on all chrome profiles (will prompt to close Chrome if running)
+    Set-ChromePopupSettings -Action Allow
+}
+
+Function Set-ChromePopupSettings {
+    param(
+        [Parameter(Mandatory=$false)]
+        [ValidateSet("Allow", "Block", "Default", "ShowGUI")]
+        [string]$Action = "ShowGUI",
+        
+        [Parameter(Mandatory=$false)]
+        [switch]$Force
+    )
+    
+    # Execute based on action parameter
+    switch ($Action) {
+        "Allow" {
+            Update-PopupSettings -settingValue 1
+        }
+        "Block" {
+            Update-PopupSettings -settingValue 2
+        }
+        "Default" {
+            Update-PopupSettings -settingValue "default"
+        }
+        "ShowGUI" {
+            Show-PopupSettingsGUI
+        }
+    }
+    
+    # Function to get Chrome profiles
+    function Get-ChromeProfiles {
+        $userDataPath = "$env:LOCALAPPDATA\Google\Chrome\User Data"
+        if (Test-Path $userDataPath) {
+            $profiles = Get-ChildItem -Path $userDataPath -Directory | Where-Object {
+                $_.Name -eq "Default" -or $_.Name -match "^Profile \d+$"
+            }
+            return $profiles
+        }
+        return @()
+    }
+
+    # Function to update popup settings
+    function Update-PopupSettings {
+        param($settingValue, $progressBar, $statusBox)
+        
+        if (-not $Force) {
+            # Check if Chrome is running
+            $chromeProcesses = Get-Process -Name "chrome" -ErrorAction SilentlyContinue
+            if ($chromeProcesses) {
+                if ($statusBox) {
+                    $statusBox.Text += "Chrome is running. Please close Chrome first or use -Force parameter.`n"
+                } else {
+                    Write-Warning "Chrome is running. Please close Chrome first or use -Force parameter."
+                }
+                return $false
+            }
+        } else {
+            # Force close Chrome
+            Stop-Process -Name "chrome" -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+        }
+        
+        if ($statusBox) {
+            $statusBox.Text += "Updating Chrome popup settings...`n"
+        } else {
+            Write-Host "Updating Chrome popup settings..." -ForegroundColor Yellow
+        }
+        
+        $profiles = Get-ChromeProfiles
+        $processed = 0
+        
+        foreach ($profile in $profiles) {
+            $profileName = $profile.Name
+            $prefsPath = "$($profile.FullName)\Preferences"
+            
+            if ($statusBox) {
+                $statusBox.Text += "Processing $profileName... "
+            } else {
+                Write-Host "Processing $profileName... " -NoNewline
+            }
+            
+            if (Test-Path $prefsPath) {
+                try {
+                    $json = Get-Content $prefsPath -Raw | ConvertFrom-Json
+                    
+                    # Create the content_settings structure if it doesn't exist
+                    if (-not $json.profile.content_settings) {
+                        $json.profile | Add-Member -MemberType NoteProperty -Name 'content_settings' -Value @{ 
+                            exceptions = @{
+                                popups = @()
+                            }
+                        }
+                    }
+                    
+                    if ($settingValue -eq "default") {
+                        # Remove our custom popup settings (restore defaults)
+                        if ($json.profile.content_settings.exceptions.popups) {
+                            $newExceptions = @()
+                            foreach ($exception in $json.profile.content_settings.exceptions.popups) {
+                                if ($exception.origin -notin @("https://*", "http://*")) {
+                                    $newExceptions += $exception
+                                }
+                            }
+                            $json.profile.content_settings.exceptions.popups = $newExceptions
+                        }
+                    } else {
+                        # Update popup settings
+                        $popupExceptions = @(
+                            @{
+                                origin = "https://*"
+                                setting = $settingValue
+                            },
+                            @{
+                                origin = "http://*"
+                                setting = $settingValue
+                            }
+                        )
+                        $json.profile.content_settings.exceptions.popups = $popupExceptions
+                    }
+                    
+                    # Save the updated preferences
+                    $json | ConvertTo-Json -Depth 10 | Set-Content $prefsPath -Encoding ASCII
+                    
+                    if ($statusBox) {
+                        $statusBox.Text += "SUCCESS`n"
+                    } else {
+                        Write-Host "SUCCESS" -ForegroundColor Green
+                    }
+                    $processed++
+                } catch {
+                    if ($statusBox) {
+                        $statusBox.Text += "ERROR: $($_.Exception.Message)`n"
+                    } else {
+                        Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+                    }
+                }
+            } else {
+                if ($statusBox) {
+                    $statusBox.Text += "Preferences file not found`n"
+                } else {
+                    Write-Host "Preferences file not found" -ForegroundColor Yellow
+                }
+            }
+            
+            if ($progressBar) {
+                $progressBar.Value = (($processed / $profiles.Count) * 100)
+                [System.Windows.Forms.Application]::DoEvents()
+            }
+        }
+        
+        if ($statusBox) {
+            if ($processed -gt 0) {
+                $statusBox.Text += "`nOperation completed. $processed profiles updated.`n"
+            } else {
+                $statusBox.Text += "`nNo profiles were updated.`n"
+            }
+        } else {
+            if ($processed -gt 0) {
+                Write-Host "Operation completed. $processed profiles updated." -ForegroundColor Green
+            } else {
+                Write-Host "No profiles were updated." -ForegroundColor Yellow
+            }
+        }
+        
+        return $true
+    }
+
+    # GUI function
+    function Show-PopupSettingsGUI {
+        # Add required assemblies for GUI
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+        Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
+        [System.Windows.Forms.Application]::MessageBox("This will modify Chrome settings. Ensure Chrome is closed before continuing.", "Chrome Popup Settings Manager", "Ok", "Information")
+        # Main form
+        $form = New-Object System.Windows.Forms.Form
+        $form.Text = "Chrome Popup Settings Manager"
+        $form.Size = New-Object System.Drawing.Size(650, 500)
+        $form.StartPosition = "CenterScreen"
+        $form.FormBorderStyle = "FixedDialog"
+        $form.MaximizeBox = $false
+
+        # Header
+        $headerLabel = New-Object System.Windows.Forms.Label
+        $headerLabel.Location = New-Object System.Drawing.Point(20, 20)
+        $headerLabel.Size = New-Object System.Drawing.Size(600, 30)
+        $headerLabel.Text = "Manage Chrome Popup Settings Across All Profiles"
+        $headerLabel.Font = New-Object System.Drawing.Font("Arial", 14, [System.Drawing.FontStyle]::Bold)
+        $form.Controls.Add($headerLabel)
+
+        # Info label
+        $infoLabel = New-Object System.Windows.Forms.Label
+        $infoLabel.Location = New-Object System.Drawing.Point(20, 60)
+        $infoLabel.Size = New-Object System.Drawing.Size(600, 40)
+        $infoLabel.Text = "This tool will modify Chrome's configuration to allow or block popups across all user profiles."
+        $form.Controls.Add($infoLabel)
+
+        # Status box
+        $statusBox = New-Object System.Windows.Forms.RichTextBox
+        $statusBox.Location = New-Object System.Drawing.Point(20, 110)
+        $statusBox.Size = New-Object System.Drawing.Size(600, 200)
+        $statusBox.ReadOnly = $true
+        $statusBox.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+        $form.Controls.Add($statusBox)
+
+        # Buttons
+        $allowButton = New-Object System.Windows.Forms.Button
+        $allowButton.Location = New-Object System.Drawing.Point(20, 330)
+        $allowButton.Size = New-Object System.Drawing.Size(180, 40)
+        $allowButton.Text = "Allow Popups Everywhere"
+        $allowButton.BackColor = [System.Drawing.Color]::LightGreen
+        $form.Controls.Add($allowButton)
+
+        $blockButton = New-Object System.Windows.Forms.Button
+        $blockButton.Location = New-Object System.Drawing.Point(220, 330)
+        $blockButton.Size = New-Object System.Drawing.Size(180, 40)
+        $blockButton.Text = "Block Popups Everywhere"
+        $blockButton.BackColor = [System.Drawing.Color]::LightCoral
+        $form.Controls.Add($blockButton)
+
+        $defaultButton = New-Object System.Windows.Forms.Button
+        $defaultButton.Location = New-Object System.Drawing.Point(420, 330)
+        $defaultButton.Size = New-Object System.Drawing.Size(200, 40)
+        $defaultButton.Text = "Restore Default Settings"
+        $form.Controls.Add($defaultButton)
+
+        # Progress bar
+        $progressBar = New-Object System.Windows.Forms.ProgressBar
+        $progressBar.Location = New-Object System.Drawing.Point(20, 390)
+        $progressBar.Size = New-Object System.Drawing.Size(600, 20)
+        $progressBar.Style = "Continuous"
+        $form.Controls.Add($progressBar)
+
+        # Footer
+        $footerLabel = New-Object System.Windows.Forms.Label
+        $footerLabel.Location = New-Object System.Drawing.Point(20, 420)
+        $footerLabel.Size = New-Object System.Drawing.Size(600, 40)
+        $footerLabel.Text = "Note: Chrome must be closed for these changes to take effect. Changes will apply to all profiles."
+        $footerLabel.ForeColor = [System.Drawing.Color]::DarkRed
+        $form.Controls.Add($footerLabel)
+
+        # Button events
+        $allowButton.Add_Click({
+            $statusBox.Text = "Allowing popups on all sites across all Chrome profiles...`n"
+            Update-PopupSettings -settingValue 1 -progressBar $progressBar -statusBox $statusBox
+        })
+
+        $blockButton.Add_Click({
+            $statusBox.Text = "Blocking popups on all sites across all Chrome profiles...`n"
+            Update-PopupSettings -settingValue 2 -progressBar $progressBar -statusBox $statusBox
+        })
+
+        $defaultButton.Add_Click({
+            $statusBox.Text = "Restoring default popup settings across all Chrome profiles...`n"
+            Update-PopupSettings -settingValue "default" -progressBar $progressBar -statusBox $statusBox
+        })
+
+        # Show the form
+        $form.Add_Shown({$form.Activate()})
+        [void] $form.ShowDialog()
+    }
+}
+
+# Export the function if we're in a module context
+if ($MyInvocation.MyCommand.CommandType -eq "Script") {
+    # Add aliases for easier use
+    Set-Alias -Name Set-ChromePopups -Value Set-ChromePopupSettings
+    Set-Alias -Name chrome-popups -Value Set-ChromePopupSettings
+    
+    Write-Host "Chrome Popup Settings function loaded. Use Set-ChromePopupSettings to manage popup settings." -ForegroundColor Green
+    Write-Host "Available actions: Allow, Block, Default, ShowGUI" -ForegroundColor Yellow
+    Write-Host "Example: Set-ChromePopupSettings -Action Allow -Force" -ForegroundColor Cyan
 }
 
 Function Tweak-Edge
@@ -1386,7 +1658,7 @@ Function Ins-DirectX
     scoop bucket add games
     scoop install games/dxwrapper
     scoop update dxwrapper
-    Start-Job -Name DX-Extra {winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements} | Wait-Job -Timeout 400 | Format-List -Property Name,State
+    Start-Job -Name DX-Extra {winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements}
     # Run on command prompt
     #cmd /c "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements 2>nul"
     # Run on Windows Terminal
@@ -3213,7 +3485,7 @@ Function Clean-up
     Remove-Job -Job $_
     }
     Clear-PrintQueue
-    Start-sleep 2
+    Start-sleep 1
     Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
     Start-Process explorer.exe
     Write-Host "Explorer restarted."
@@ -3340,6 +3612,7 @@ Function Clear-PrintQueue {
 
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
