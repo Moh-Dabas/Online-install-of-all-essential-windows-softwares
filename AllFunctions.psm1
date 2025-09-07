@@ -206,6 +206,44 @@ function Check-Internet {
     }
 }
 
+function Get-WiFiAdapters {
+    <#
+    .SYNOPSIS
+    Retrieves active Wi-Fi adapters.
+    
+    .DESCRIPTION
+    This function finds all active (Status = 'Up') Wi-Fi adapters based on common naming patterns.
+    
+    .EXAMPLE
+    $wifiAdapters = Get-WiFiAdapters
+    
+    .EXAMPLE
+    if (Get-WiFiAdapters) {
+        Write-Host "Wi-Fi adapters found"
+    }
+    #>
+    
+    [CmdletBinding()]
+    param()
+    
+    # Get active Wi-Fi adapters
+    $wifiAdapters = Get-NetAdapter | Where-Object {
+        $_.Status -eq 'Up' -and (
+            $_.InterfaceDescription -like "*Wi-Fi*" -or 
+            $_.Name -like "*Wi-Fi*" -or 
+            $_.InterfaceDescription -like "*Wireless*" -or 
+            $_.Name -like "*WLAN*"
+        )
+    }
+    
+    if (-not $wifiAdapters) {
+        Write-Verbose "No active Wi-Fi adapter found."
+        return $null
+    }
+    
+    return $wifiAdapters
+}
+
 function Restart-WiFiAdapters {
     <#
     .SYNOPSIS
@@ -235,13 +273,10 @@ function Restart-WiFiAdapters {
     )
     
     # Get Wi-Fi adapters
-    $wifiAdapters = Get-NetAdapter | Where-Object {
-        $_.InterfaceDescription -like "*Wi-Fi*" -or $_.Name -like "*Wi-Fi*" -or 
-        $_.InterfaceDescription -like "*Wireless*" -or $_.Name -like "*WLAN*"
-    }
+    $wifiAdapters = Get-WiFiAdapters
     
     if (-not $wifiAdapters) {
-        Write-Warning "No Wi-Fi adapters found"
+        Write-Output "No active Wi-Fi adapter found."
         return
     }
     
@@ -366,18 +401,15 @@ Function Fix-InternetConnection {
 
 Function WifiPriority {
     Fix-InternetConnection
-    $wifiInterfaces = Get-NetAdapter | Where-Object {
-        $_.Status -eq 'Up' -and
-        $_.Name -match '(?i)wi' -and
-        $_.Name -match '(?i)fi'
-    }
-
-    if (-not $wifiInterfaces) {
+    # Get Wi-Fi adapters
+    $wifiAdapters = Get-WiFiAdapters
+    
+    if (-not $wifiAdapters) {
         Write-Output "No active Wi-Fi adapter found."
         return
     }
 
-    $interfaceAlias = $wifiInterfaces | Select-Object -ExpandProperty Name -First 1
+    $interfaceAlias = $wifiAdapters | Select-Object -ExpandProperty Name -First 1
 
     $savedProfiles = netsh wlan show profiles | Select-String "All User Profile" | ForEach-Object {
         ($_ -split ":")[1].Trim()
@@ -3761,6 +3793,7 @@ Function Clear-PrintQueue {
 
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
