@@ -206,6 +206,152 @@ function Check-Internet {
     }
 }
 
+function Restart-WiFiAdapters {
+    <#
+    .SYNOPSIS
+    Restarts Wi-Fi adapters and waits for them to fully restart.
+    
+    .DESCRIPTION
+    This function finds all Wi-Fi adapters, restarts them, and waits for them to come back online.
+    It provides detailed output about the status of each adapter restart operation.
+    
+    .PARAMETER Timeout
+    Maximum time in seconds to wait for each adapter to restart (default: 30 seconds)
+    
+    .PARAMETER Parallel
+    Switch to restart adapters in parallel instead of sequentially
+    
+    .EXAMPLE
+    Restart-WiFiAdapters
+    
+    .EXAMPLE
+    Restart-WiFiAdapters -Timeout 45 -Parallel
+    #>
+    
+    [CmdletBinding()]
+    param(
+        [int]$Timeout = 30,
+        [switch]$Parallel
+    )
+    
+    # Get Wi-Fi adapters
+    $wifiAdapters = Get-NetAdapter | Where-Object {
+        $_.InterfaceDescription -like "*Wi-Fi*" -or $_.Name -like "*Wi-Fi*" -or 
+        $_.InterfaceDescription -like "*Wireless*" -or $_.Name -like "*WLAN*"
+    }
+    
+    if (-not $wifiAdapters) {
+        Write-Warning "No Wi-Fi adapters found"
+        return
+    }
+    
+    Write-Host "Found $($wifiAdapters.Count) Wi-Fi adapter(s)" -ForegroundColor Cyan
+    
+    if ($Parallel) {
+        # Parallel execution using jobs
+        $jobs = $wifiAdapters | ForEach-Object {
+            $adapter = $_
+            Start-Job -Name $adapter.Name {
+                param($AdapterName, $TimeoutSeconds)
+                
+                # Import the NetAdapter module in the job context
+                Import-Module NetAdapter -ErrorAction SilentlyContinue
+                
+                try {
+                    # Restart the adapter
+                    Restart-NetAdapter -Name $AdapterName -Confirm:$false -ErrorAction Stop
+                    
+                    # Wait for it to come back online
+                    $startTime = Get-Date
+                    $success = $false
+                    
+                    while (((Get-Date) - $startTime).TotalSeconds -lt $TimeoutSeconds) {
+                        $adapter = Get-NetAdapter -Name $AdapterName -ErrorAction SilentlyContinue
+                        if ($adapter -and $adapter.Status -eq 'Up') {
+                            $success = $true
+                            break
+                        }
+                        Start-Sleep -Seconds 1
+                    }
+                    
+                    return @{
+                        Name = $AdapterName
+                        Success = $success
+                        Error = $null
+                    }
+                }
+                catch {
+                    return @{
+                        Name = $AdapterName
+                        Success = $false
+                        Error = $_.Exception.Message
+                    }
+                }
+            } -ArgumentList $adapter.Name, $Timeout
+        }
+        
+        # Wait for all jobs with timeout
+        $null = $jobs | Wait-Job -Timeout ($Timeout + 10)  # Add buffer to job timeout
+        
+        # Get results
+        $results = $jobs | Receive-Job
+        
+        # Display results
+        foreach ($result in $results) {
+            if ($result.Success) {
+                Write-Host "$($result.Name): Restarted successfully" -ForegroundColor Green
+            } else {
+                $errorMsg = if ($result.Error) { ": $($result.Error)" } else { " within timeout" }
+                Write-Warning "$($result.Name): Failed to restart$errorMsg"
+            }
+        }
+        
+        # Cleanup
+        $jobs | Remove-Job -Force
+    }
+    else {
+        # Sequential execution (default)
+        foreach ($adapter in $wifiAdapters) {
+            Write-Host "Restarting adapter: $($adapter.Name)" -ForegroundColor Yellow
+            
+            try {
+                # Restart the adapter
+                Restart-NetAdapter -Name $adapter.Name -Confirm:$false -ErrorAction Stop
+                
+                # Wait for the adapter to disappear (go down)
+                $downStart = Get-Date
+                while ((Get-NetAdapter -Name $adapter.Name -ErrorAction SilentlyContinue) -and 
+                      (((Get-Date) - $downStart).TotalSeconds -lt 5)) {
+                    Start-Sleep -Milliseconds 100
+                }
+                
+                # Wait for the adapter to reappear (come back up)
+                $startTime = Get-Date
+                $adapterRestarted = $false
+                
+                while (((Get-Date) - $startTime).TotalSeconds -lt $Timeout) {
+                    $currentAdapter = Get-NetAdapter -Name $adapter.Name -ErrorAction SilentlyContinue
+                    if ($currentAdapter -and $currentAdapter.Status -eq 'Up') {
+                        $adapterRestarted = $true
+                        Write-Host "Adapter $($adapter.Name) is back online" -ForegroundColor Green
+                        break
+                    }
+                    Start-Sleep -Seconds 1
+                }
+                
+                if (-not $adapterRestarted) {
+                    Write-Warning "Timeout waiting for adapter $($adapter.Name) to restart"
+                }
+            }
+            catch {
+                Write-Error "Failed to restart adapter $($adapter.Name): $($_.Exception.Message)"
+            }
+        }
+    }
+    
+    Write-Host "Wi-Fi adapter restart process completed" -ForegroundColor Cyan
+}
+
 Function Fix-InternetConnection {
     ipconfig /release
     ipconfig /flushdns
@@ -273,7 +419,7 @@ Function WifiPriority {
     }
 
     Write-Host "Restarting WiFi interfaces & WLAN AutoConfig service (wlansvc)..."
-    Start-Job -Name RestartInterfaces {$wifiInterfaces | foreach {Restart-NetAdapter -Name $_.Name}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+    Restart-WiFiAdapters -Timeout 45 -Parallel
     Restart-Service -Name wlansvc -Force
 
     # Wait until the service status is 'Running'
@@ -3615,6 +3761,7 @@ Function Clear-PrintQueue {
 
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
