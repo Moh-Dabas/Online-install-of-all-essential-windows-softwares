@@ -209,11 +209,13 @@ function Check-Internet {
 Function Fix-InternetConnection {
     ipconfig /release
     ipconfig /flushdns
+    Clear-DnsClientCache
     ipconfig /renew
     netsh int ip reset
     netsh winsock reset
     arp -d *
     netsh interface ip delete arpcache
+    # Get-NetAdapter | foreach {Restart-NetAdapter -Name $_.Name}
 }
 
 Function WifiPriority {
@@ -270,7 +272,8 @@ Function WifiPriority {
         return
     }
 
-    Write-Host "Restarting WLAN AutoConfig service (wlansvc)..."
+    Write-Host "Restarting WiFi interfaces & WLAN AutoConfig service (wlansvc)..."
+    $wifiInterfaces | foreach {Restart-NetAdapter -Name $_.Name}
     Restart-Service -Name wlansvc -Force
 
     # Wait until the service status is 'Running'
