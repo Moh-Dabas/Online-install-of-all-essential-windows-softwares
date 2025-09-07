@@ -571,6 +571,7 @@ public class WlanApi
     finally {
         [WlanApi]::WlanCloseHandle($client, [IntPtr]::Zero) | Out-Null
     }
+    Write-Host ([Environment]::NewLine)
 }
 
 Function WifiPriority {
@@ -3954,6 +3955,7 @@ Function Clear-PrintQueue {
 
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
