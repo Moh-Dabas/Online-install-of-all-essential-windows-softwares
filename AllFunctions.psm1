@@ -565,13 +565,13 @@ public class WlanApi
             }
         }
         [WlanApi]::WlanFreeMemory($netPtr)
-
+        
+        $out += ([Environment]::NewLine)
         return $out | Sort-Object Signal -Descending
     }
     finally {
         [WlanApi]::WlanCloseHandle($client, [IntPtr]::Zero) | Out-Null
     }
-    Write-Host ([Environment]::NewLine)
 }
 
 Function WifiPriority {
@@ -638,9 +638,9 @@ Function WifiPriority {
 
     Start-Sleep -Seconds 5
     Write-Host "wlansvc is running. Proceeding with network scan..."
-
-   Invoke-WiFiScan
-
+    
+    Invoke-WiFiScan
+    
     $scanResults = netsh wlan show networks mode=bssid
     $ssidCount = ($scanResults | Select-String -Pattern '^SSID\s+\d+\s*:').Count
     if ($ssidCount -lt 2) {
@@ -649,7 +649,7 @@ Function WifiPriority {
         Start-Sleep -Seconds 5
         $scanResults = netsh wlan show networks mode=bssid
     }
-
+    
     $fiveGhzSSIDs = @()
     $ssid = ""
 
@@ -3955,6 +3955,7 @@ Function Clear-PrintQueue {
 
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
