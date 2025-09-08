@@ -1844,6 +1844,305 @@ public class DesktopFocus {
     Write-Host "Desktop refreshed successfully!" -ForegroundColor Green
 }
 
+function Invoke-AcrobatFix {
+    <#
+    .SYNOPSIS
+    Applies comprehensive registry tweaks and fixes for Adobe Acrobat DC
+    
+    .DESCRIPTION
+    This function performs a complete cleanup and optimization of Adobe Acrobat DC by:
+    - Modifying registry settings to disable activation, notifications, and telemetry
+    - Blocking unwanted Adobe processes from running
+    - Applying UI/UX improvements and Arabic language support
+    - Removing scheduled tasks and startup entries
+    - Deleting unnecessary files and folders
+    
+    .NOTES
+    - This function should be called from a script that already handles admin elevation
+    - All operations are designed to be idempotent (safe to run multiple times)
+    
+    .EXAMPLE
+    Invoke-AcrobatFix
+    #>
+    
+    #region Registry Modifications
+    Write-Host "Applying registry modifications..."
+    
+    # Define all registry changes needed for Acrobat optimization
+    # These settings disable activation checks, improve UI, and configure preferences
+    $registryChanges = @(
+        # Activation and licensing enforcement settings
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "IsAMTEnforced"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "IsAMTEnforced"; Type = "DWord"; Value = 1},
+        
+        # User interface and notification preferences
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bappFirstLaunchForNotifications"; Type = "DWord"; Value = 0},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "iFTEVersion"; Type = "DWord"; Value = 10},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "iLastCardShown"; Type = "DWord"; Value = 0},
+        
+        # ARM (Adobe Application Manager) settings
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\ARMUser"; Name = "bDeclined"; Type = "DWord"; Value = 1},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iAVARMNoAutoUpdateWarning"; Type = "DWord"; Value = 1},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iAutoAcceptEDCPrivacyNotification"; Type = "DWord"; Value = 1},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iDisableCEFRepairDialog"; Type = "DWord"; Value = 1},
+        
+        # Entitlement and activation status
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bActivated"; Type = "DWord"; Value = 1},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bIsAcroTrayEnabledAsService"; Type = "DWord"; Value = 0},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bActivated"; Type = "DWord"; Value = 1},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bSCAAcrCrashReporterEnabled"; Type = "DWord"; Value = 0},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bNewUserForModernization"; Type = "DWord"; Value = 0},
+        
+        # First-time experience (FTE) settings
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "bFTEHomeOrViewerTourDialogueLaunched"; Type = "DWord"; Value = 1},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\HomeWelcome"; Name = "bIsAcrobatUpdated"; Type = "DWord"; Value = 1},
+        
+        # Additional activation disable settings
+        @{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "Disabled"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "DisabledActivation"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\1.0\ARM"; Name = "DisablePromptForUpgrade"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\1.0\ARM"; Name = "iCheck"; Type = "DWord"; Value = 0},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "Disabled"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "DisabledActivation"; Type = "DWord"; Value = 1},
+        
+        # Group Policy-like settings for enterprise control
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bAcroSuppressUpsell"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bPurchaseAcro"; Type = "DWord"; Value = 0},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bSuppressSignOut"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleBillingIssue"; Type = "DWord"; Value = 0},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleFTE"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleShareFeedback"; Type = "DWord"; Value = 0},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bUpdater"; Type = "DWord"; Value = 0},
+        
+        # In-product messaging settings
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cIPM"; Name = "bDontShowMsgWhenViewingDoc"; Type = "DWord"; Value = 0},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cIPM"; Name = "bShowMsgAtLaunch"; Type = "DWord"; Value = 0},
+        
+        # Services and notification settings
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bEnableBellButton"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bToggleNotificationToasts"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bToggleNotifications"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bTogglePrefsSync"; Type = "DWord"; Value = 1},
+        @{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bUpdater"; Type = "DWord"; Value = 0},
+        
+        # Process blocking via Image File Execution Options (redirects to ctfmon)
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ADNotificationManager.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGCInvokerUtility.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGMService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGSService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AcroServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Crash Processor.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Genuine Launcher.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeCollabSync.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeGCClient.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\SingleClientServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\agshelper.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        @{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\armsvc.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon"},
+        
+        # Arabic language and RTL support
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bComplexScript"; Type = "DWord"; Value = 1},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bHindiDigit"; Type = "DWord"; Value = 0},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bLigature"; Type = "DWord"; Value = 1},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "iIntlSelectFont"; Type = "DWord"; Value = 0},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "iParaDir"; Type = "DWord"; Value = 2},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bDigitsUI"; Type = "DWord"; Value = 1},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bRTLUI"; Type = "DWord"; Value = 1},
+        
+        # UI optimization and customization
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bEnableAV2"; Type = "DWord"; Value = 0},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bOpenCommentAppAutomatically"; Type = "DWord"; Value = 0},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bCommentAppLaunchNotSetByIPM"; Type = "DWord"; Value = 1},
+        
+        # Toolbar favorites customization
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a0"; Type = "String"; Value = "PagesApp"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a1"; Type = "String"; Value = "EditPDFApp"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a2"; Type = "String"; Value = "ExportPDFApp"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a3"; Type = "String"; Value = "OptimizePDFApp"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a4"; Type = "String"; Value = "CombineApp"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a5"; Type = "String"; Value = "PaperToPDFApp"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a6"; Type = "String"; Value = "CreatePDFApp"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a7"; Type = "String"; Value = "PrintProductionApp"},
+        
+        # View and display preferences
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\RememberedViews"; Name = "iRememberView"; Type = "DWord"; Value = 2},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FullScreen"; Name = "bForceSinglePageFitPage"; Type = "DWord"; Value = 1},
+        
+        # Print settings
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bPrintSaveToner"; Type = "DWord"; Value = 0},
+        
+        # Service startup configuration (4 = Disabled)
+        @{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AGMService"; Name = "Start"; Type = "DWord"; Value = 4},
+        @{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AGSService"; Name = "Start"; Type = "DWord"; Value = 4},
+        @{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AdobeARMservice"; Name = "Start"; Type = "DWord"; Value = 4}
+    )
+
+    # Apply all registry changes
+    foreach ($item in $registryChanges) {
+        try {
+            if (-not (Test-Path $item.Path)) {
+                New-Item -Path $item.Path -Force | Out-Null
+            }
+            Set-ItemProperty -Path $item.Path -Name $item.Name -Value $item.Value -Type $item.Type -Force
+        }
+        catch {
+            # Silently continue on errors to ensure uninterrupted execution
+        }
+    }
+
+    # Delete registry values related to trial mode and licensing
+    $registryDeletes = @(
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bInTrialMode"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bInTrialMode"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "iDayPassUserState"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "iLicenseDaysRemaining"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "uDayPassExpiryTime"},
+        @{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bShowTrialNag"}
+    )
+
+    foreach ($item in $registryDeletes) {
+        try {
+            Remove-ItemProperty -Path $item.Path -Name $item.Name -Force -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Silently continue if property doesn't exist
+        }
+    }
+
+    # Delete entire registry keys
+    $registryKeyDeletes = @(
+        "HKLM:\SOFTWARE\Adobe\Adobe Genuine Service"
+    )
+
+    foreach ($key in $registryKeyDeletes) {
+        try {
+            Remove-Item -Path $key -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Silently continue if key doesn't exist
+        }
+    }
+    #endregion
+
+    #region Process Termination
+    Write-Host "Stopping Adobe processes..."
+    
+    # List of Adobe processes to terminate
+    $processes = @("AGMService", "AGSService", "AdobeIPCBroker", "acrotray")
+    
+    foreach ($process in $processes) {
+        try {
+            Get-Process -Name $process -ErrorAction SilentlyContinue | Stop-Process -Force
+        }
+        catch {
+            # Silently continue if process isn't running
+        }
+    }
+    #endregion
+
+    #region Service Management
+    Write-Host "Disabling some Adobe services..."
+    
+    # List of Adobe services to disable
+    $services = @("AGMService", "AGSService", "AdobeARMservice")
+    
+    foreach ($service in $services) {
+        try {
+            # Stop the service if it's running
+            Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
+            
+            # Disable the service from starting automatically
+            Set-Service -Name $service -StartupType Disabled -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Silently continue if service doesn't exist or can't be modified
+        }
+    }
+    #endregion
+
+    #region Scheduled Tasks Management
+    Write-Host "Removing scheduled tasks..."
+    
+    # Get all Adobe/Acrobat related tasks
+    $adobeTasks = Get-ScheduledTask | Where-Object {
+        $_.TaskName -match 'Adobe' -or $_.TaskName -match 'Acrobat'
+    }
+    
+    # Disable and remove all found tasks
+    foreach ($task in $adobeTasks) {
+        try {
+            # Disable the task first
+            Disable-ScheduledTask -TaskName $task.TaskName -ErrorAction SilentlyContinue
+            
+            # Then completely remove it
+            Unregister-ScheduledTask -TaskName $task.TaskName -Confirm:$false -ErrorAction SilentlyContinue
+        }
+        catch {
+            # Silently continue if task cannot be modified or removed
+        }
+    }
+    #endregion
+
+    #region File Cleanup
+    Write-Host "Cleaning up files and directories..."
+    
+    # List of Adobe directories to remove
+    $paths = @(
+        "${env:COMMONPROGRAMFILES(X86)}\Adobe\OOBE\PDApp\IPC",
+        "${env:COMMONPROGRAMFILES}\Adobe\OOBE\PDApp\IPC",
+        "${env:COMMONPROGRAMFILES(X86)}\Adobe\AdobeGCClient"
+    )
+    
+    foreach ($path in $paths) {
+        try {
+            if (Test-Path $path) {
+                Remove-Item -Path $path -Recurse -Force -ErrorAction Stop
+            }
+        }
+        catch {
+            # Silently continue if directory doesn't exist or can't be removed
+        }
+    }
+    #endregion
+
+    #region Additional Fixing Operations
+    Write-Host "Performing additional Fixes..."
+    
+    # Remove task files from the system tasks directory
+    try {
+        Get-ChildItem -Path "$env:WINDIR\SYSTEM32\TASKS" | Where-Object {
+            ($_.Name -match 'Adobe') -or ($_.Name -match 'Acrobat')
+        } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    catch {
+        # Silently continue on errors
+    }
+    
+    # Clean Adobe entries from Run registry keys (both HKLM and HKCU)
+    $runPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+        "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+    )
+    
+    foreach ($runPath in $runPaths) {
+        try {
+            $properties = Get-ItemProperty -Path $runPath -ErrorAction SilentlyContinue
+            if ($properties) {
+                $properties.PSObject.Properties | Where-Object {
+                    $_.Name -match 'Adobe' -or $_.Name -match 'Acrobat'
+                } | ForEach-Object {
+                    Remove-ItemProperty -Path $runPath -Name $_.Name -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+        catch {
+            # Silently continue if registry operations fail
+        }
+    }
+    #endregion
+
+    Write-Host "Acrobat fix completed successfully!"
+}
+
 Function Ins-AcrobatPro
 {
     Unins-Acrobat
@@ -1858,6 +2157,7 @@ Function Ins-AcrobatPro
     $printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
     Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
     (New-Object -ComObject WScript.Network).SetDefaultPrinter('Adobe PDF')
+    Invoke-AcrobatFix
     Fix-AdobeAcrobatProPdfThumbnails
     Start-Sleep 5
     Refresh-Desktop
@@ -3955,6 +4255,7 @@ Function Clear-PrintQueue {
 
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
