@@ -1302,22 +1302,6 @@ Function Set-ChromePopupSettings {
         [switch]$Force
     )
     
-    # Execute based on action parameter
-    switch ($Action) {
-        "Allow" {
-            Update-PopupSettings -settingValue 1
-        }
-        "Block" {
-            Update-PopupSettings -settingValue 2
-        }
-        "Default" {
-            Update-PopupSettings -settingValue "default"
-        }
-        "ShowGUI" {
-            Show-PopupSettingsGUI
-        }
-    }
-    
     # Function to get Chrome profiles
     function Get-ChromeProfiles {
         $userDataPath = "$env:LOCALAPPDATA\Google\Chrome\User Data"
@@ -1452,7 +1436,7 @@ Function Set-ChromePopupSettings {
                 Write-Host "No profiles were updated." -ForegroundColor Yellow
             }
         }
-        
+            
         return $true
     }
 
@@ -1548,6 +1532,22 @@ Function Set-ChromePopupSettings {
         # Show the form
         $form.Add_Shown({$form.Activate()})
         [void] $form.ShowDialog()
+    }
+    
+    # Execute based on action parameter
+    switch ($Action) {
+        "Allow" {
+            Update-PopupSettings -settingValue 1
+        }
+        "Block" {
+            Update-PopupSettings -settingValue 2
+        }
+        "Default" {
+            Update-PopupSettings -settingValue "default"
+        }
+        "ShowGUI" {
+            Show-PopupSettingsGUI
+        }
     }
 }
 
