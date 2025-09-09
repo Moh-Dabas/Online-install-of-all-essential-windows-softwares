@@ -55,7 +55,7 @@ powershell -command ^
 :endcheck
 
 :DnR
-Echo Downloading ^& runing
+Echo Downloading ^& Running
 del /f /s /q "%tmp%\IA" >nul 2>nul
 del /f /s /q "%tmp%\IAGit\*.zip" "%tmp%\IAGit\*.ps1" "%tmp%\IAGit\*.psm1" >nul 2>nul
 mkdir "%tmp%\IAGit"
