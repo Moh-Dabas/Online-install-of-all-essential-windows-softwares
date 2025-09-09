@@ -9,13 +9,14 @@ Function Check-RunAsAdministrator()
     else
     {
         #Create a new Elevated process to Start PowerShell
-        $ElevatedProcess = New-Object System.Diagnostics.ProcessStartInfo "PowerShell";
+        $ElevatedProcess = New-Object System.Diagnostics.ProcessStartInfo "PowerShell"
         # Specify the current script path and name as a parameter
         $ElevatedProcess.Arguments = "& '" + $script:MyInvocation.MyCommand.Path + "'"
         #Set the Process to elevated
         $ElevatedProcess.Verb = "runas"
         #Start the new elevated process
-        [System.Diagnostics.Process]::Start($ElevatedProcess)
+        try {[System.Diagnostics.Process]::Start($ElevatedProcess)}
+        catch {Write-Host "User cancelled the UAC prompt or an error occurred."}
         #Exit from the current, unelevated, process
         Exit
     }
@@ -1979,14 +1980,10 @@ function Invoke-AcrobatFix {
     # Apply all registry changes
     foreach ($item in $registryChanges) {
         try {
-            if (-not (Test-Path $item.Path)) {
-                New-Item -Path $item.Path -Force | Out-Null
-            }
+            if (-not (Test-Path $item.Path)) {New-Item -Path $item.Path -Force | Out-Null}
             Set-ItemProperty -Path $item.Path -Name $item.Name -Value $item.Value -Type $item.Type -Force
         }
-        catch {
-            # Silently continue on errors to ensure uninterrupted execution
-        }
+        catch {} # Silently continue on errors to ensure uninterrupted execution
     }
 
     # Delete registry values related to trial mode and licensing
@@ -2119,28 +2116,50 @@ function Invoke-AcrobatFix {
     
     # Clean Adobe entries from Run registry keys (both HKLM and HKCU)
     $runPaths = @(
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
-        "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+    "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"
     )
-    
+
     foreach ($runPath in $runPaths) {
         try {
-            $properties = Get-ItemProperty -Path $runPath -ErrorAction SilentlyContinue
-            if ($properties) {
-                $properties.PSObject.Properties | Where-Object {
-                    $_.Name -match 'Adobe' -or $_.Name -match 'Acrobat'
-                } | ForEach-Object {
-                    Remove-ItemProperty -Path $runPath -Name $_.Name -Force -ErrorAction SilentlyContinue
+            # Check if the path exists before trying to access it
+            if (Test-Path $runPath) {
+                $properties = Get-ItemProperty -Path $runPath -ErrorAction SilentlyContinue
+                if ($properties) {
+                    $properties.PSObject.Properties | Where-Object {$_.Name -match 'Adobe' -or $_.Name -match 'Acrobat'} | ForEach-Object {
+                        Remove-ItemProperty -Path $runPath -Name $_.Name -Force -ErrorAction SilentlyContinue
+                    }
                 }
             }
         }
-        catch {
-            # Silently continue if registry operations fail
-        }
+        catch {} # Silently continue if registry operations fail
     }
     #endregion
 
     Write-Host "Acrobat fix completed successfully!"
+}
+
+Function Convert-GoogleDriveUrl {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Url,
+        
+        [Parameter(Mandatory=$false)]
+        [string]$Key = "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
+    )
+
+    # Define regex pattern to extract the file ID from various Google Drive URL formats
+    $pattern = 'https://drive\.google\.com/file/d/(?<FileId>[a-zA-Z0-9_-]+)'
+    
+    if ($Url -match $pattern) {
+        $fileId = $matches.FileId
+        return "https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${Key}"
+    }
+    else {
+        Write-Error "URL does not match Google Drive file pattern. Example: https://drive.google.com/file/d/FILE_ID"
+        return $null
+    }
 }
 
 Function Ins-AcrobatPro
@@ -2150,8 +2169,8 @@ Function Ins-AcrobatPro
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
     Try{Set-MpPreference -DisableRealtimeMonitoring $true -ea SilentlyContinue | out-null} Catch{}
     Stop-Service -Name "WinDefend" -Force -ea SilentlyContinue | out-null
-    #1J__cfWkRhPfKRi0kANnxcu53rZ74Cyz1
-    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/1J__cfWkRhPfKRi0kANnxcu53rZ74Cyz1?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null
+    $DDURL = Convert-GoogleDriveUrl "https://drive.google.com/file/d/1TUxSGweMW7M9-B-ueqcGnAT1d3co1oG1"
+    Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null
     Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     Remove-Item -path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -ea silentlycontinue | Out-Null
     $printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
@@ -4255,6 +4274,10 @@ Function Clear-PrintQueue {
 
     Write-Output "Done. Print queue has been fully cleared."
 }
+
+
+
+
 
 
 
