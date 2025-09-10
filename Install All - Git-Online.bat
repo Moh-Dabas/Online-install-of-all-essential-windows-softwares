@@ -9,22 +9,6 @@ Echo "==========================================================================
 Echo.
 
 Echo.
-Echo Installing Windows default Powershell (incase it's disabled)
-Echo.
-dism /online /get-featureinfo /featurename:MicrosoftWindowsPowerShellV2Root | findstr /i "State" | find /i "Enabled" >nul 2>nul
-if %errorlevel% == 0 (
-    echo Windows Feature: MicrosoftWindowsPowerShellV2Root is Enabled
-) else (
-    dism /online /Enable-Feature /FeatureName:MicrosoftWindowsPowerShellV2Root /All /NoRestart
-)
-dism /online /get-featureinfo /featurename:MicrosoftWindowsPowerShellV2 | findstr /i "State" | find /i "Enabled" >nul 2>nul
-if %errorlevel% == 0 (
-    echo Windows Feature: MicrosoftWindowsPowerShellV2 is Enabled
-) else (
-    dism /online /Enable-Feature /FeatureName:MicrosoftWindowsPowerShellV2 /All /NoRestart
-)
-
-Echo.
 Echo Making sure Powershell is working
 Echo.
 REG DELETE "HKCU\SOFTWARE\Microsoft\Windows Script Host\Settings" /v Enabled /f >nul 2>nul
@@ -82,10 +66,9 @@ if %errorlevel% neq 0 (
 )
 TIMEOUT /nobreak /t 2 >nul 2>nul
 
-Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} | Wait-Job -Timeout 999"
+Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Start-Service 'BITS' -ea silentlycontinue | out-null; while ((Get-Service 'BITS') -ne 'Running'){(Get-Service 'BITS').Refresh()}"
 Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Start-BitsTransfer -Source 'https://github.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/archive/refs/heads/main.zip' -Destination '%tmp%\IAGit\IAGit.zip';Expand-Archive -LiteralPath '%tmp%\IAGit\IAGit.zip' -DestinationPath '%tmp%\IAGit' -Force" >nul 2>nul
 if %errorlevel% neq 0 (goto :DnR)
-REM Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Invoke-WebRequest -Uri 'https://github.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/archive/refs/heads/main.zip' -OutFile '%tmp%\IAGit\IAGit.zip';Expand-Archive -LiteralPath '%tmp%\IAGit\IAGit.zip' -DestinationPath '%tmp%\IAGit' -Force"
 if exist "%tmp%\IAGit\Online-install-of-all-essential-windows-softwares-main\Install All.bat" (Start "" /High "%tmp%\IAGit\Online-install-of-all-essential-windows-softwares-main\Install All.bat")
 
 

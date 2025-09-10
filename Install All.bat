@@ -8,22 +8,6 @@ Echo "==========================================================================
 Echo.
 
 Echo.
-Echo Installing Windows default Powershell (incase it's disabled)
-Echo.
-dism /online /get-featureinfo /featurename:MicrosoftWindowsPowerShellV2Root | findstr /i "State" | find /i "Enabled" >nul 2>nul
-if %errorlevel% == 0 (
-    echo Windows Feature: MicrosoftWindowsPowerShellV2Root is Enabled
-) else (
-    dism /online /Enable-Feature /FeatureName:MicrosoftWindowsPowerShellV2Root /All /NoRestart
-)
-dism /online /get-featureinfo /featurename:MicrosoftWindowsPowerShellV2 | findstr /i "State" | find /i "Enabled" >nul 2>nul
-if %errorlevel% == 0 (
-    echo Windows Feature: MicrosoftWindowsPowerShellV2 is Enabled
-) else (
-    dism /online /Enable-Feature /FeatureName:MicrosoftWindowsPowerShellV2 /All /NoRestart
-)
-
-Echo.
 Echo Making sure Powershell is working
 Echo.
 REG DELETE "HKCU\SOFTWARE\Microsoft\Windows Script Host\Settings" /v Enabled /f >nul 2>nul
