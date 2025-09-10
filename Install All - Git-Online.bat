@@ -42,7 +42,7 @@ powershell -command ^
 Echo Downloading ^& Running
 del /f /s /q "%tmp%\IA" >nul 2>nul
 del /f /s /q "%tmp%\IAGit\*.zip" "%tmp%\IAGit\*.ps1" "%tmp%\IAGit\*.psm1" >nul 2>nul
-mkdir "%tmp%\IAGit"
+mkdir "%tmp%\IAGit" >nul 2>nul
 reg add "HKLM\SYSTEM\CurrentControlSet\Services\BITS" /v "Start" /t REG_DWORD /d "2" /f >nul 2>nul
 
 :: Set URL and file paths
@@ -58,15 +58,13 @@ if %errorlevel% neq 0 (
     echo BITS service is not running. Starting BITS service...
     net start bits
     if %errorlevel% neq 0 (
-        echo Failed to start the BITS service. Exiting...
+        echo Failed to start the BITS service. retrying...
         goto :DnR
     )
 ) else (
     echo BITS service is already running.
 )
-TIMEOUT /nobreak /t 2 >nul 2>nul
-
-Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Start-Service 'BITS' -ea silentlycontinue | out-null; while ((Get-Service 'BITS') -ne 'Running'){(Get-Service 'BITS').Refresh()}"
+TIMEOUT /nobreak /t 1 >nul 2>nul
 Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "Start-BitsTransfer -Source 'https://github.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/archive/refs/heads/main.zip' -Destination '%tmp%\IAGit\IAGit.zip';Expand-Archive -LiteralPath '%tmp%\IAGit\IAGit.zip' -DestinationPath '%tmp%\IAGit' -Force" >nul 2>nul
 if %errorlevel% neq 0 (goto :DnR)
 if exist "%tmp%\IAGit\Online-install-of-all-essential-windows-softwares-main\Install All.bat" (Start "" /High "%tmp%\IAGit\Online-install-of-all-essential-windows-softwares-main\Install All.bat")
