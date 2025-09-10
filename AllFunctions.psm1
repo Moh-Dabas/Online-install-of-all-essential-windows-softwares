@@ -227,6 +227,9 @@ function Get-WiFiAdapters {
     [CmdletBinding()]
     param()
     
+    # Import the NetAdapter module
+    Import-Module NetAdapter -ErrorAction SilentlyContinue
+    
     # Get active Wi-Fi adapters
     $wifiAdapters = Get-NetAdapter | Where-Object {
         $_.Status -eq 'Up' -and (
@@ -269,7 +272,7 @@ function Restart-WiFiAdapters {
     
     [CmdletBinding()]
     param(
-        [int]$Timeout = 30,
+        [int]$Timeout = 60,
         [switch]$Parallel
     )
     
@@ -288,20 +291,20 @@ function Restart-WiFiAdapters {
         $jobs = $wifiAdapters | ForEach-Object {
             $adapter = $_
             Start-Job -Name $adapter.Name {
-                param($AdapterName, $TimeoutSeconds)
+                param($AdapterName, $Timeout)
                 
-                # Import the NetAdapter module in the job context
+                # Import the NetAdapter module
                 Import-Module NetAdapter -ErrorAction SilentlyContinue
                 
                 try {
                     # Restart the adapter
-                    Restart-NetAdapter -Name $AdapterName -Confirm:$false -ErrorAction Stop
+                    Restart-NetAdapter -Name $AdapterName -Confirm:$false -ea SilentlyContinue
                     
                     # Wait for it to come back online
                     $startTime = Get-Date
                     $success = $false
                     
-                    while (((Get-Date) - $startTime).TotalSeconds -lt $TimeoutSeconds) {
+                    while (((Get-Date) - $startTime).TotalSeconds -lt $Timeout) {
                         $adapter = Get-NetAdapter -Name $AdapterName -ErrorAction SilentlyContinue
                         if ($adapter -and $adapter.Status -eq 'Up') {
                             $success = $true
@@ -327,7 +330,7 @@ function Restart-WiFiAdapters {
         }
         
         # Wait for all jobs with timeout
-        $null = $jobs | Wait-Job -Timeout ($Timeout + 10)  # Add buffer to job timeout
+        $null = $jobs | Wait-Job -Timeout ($Timeout)  # Wait job timeout
         
         # Get results
         $results = $jobs | Receive-Job
@@ -352,7 +355,7 @@ function Restart-WiFiAdapters {
             
             try {
                 # Restart the adapter
-                Restart-NetAdapter -Name $adapter.Name -Confirm:$false -ErrorAction Stop
+                Restart-NetAdapter -Name $adapter.Name -Confirm:$false -ea SilentlyContinue
                 
                 # Wait for the adapter to disappear (go down)
                 $downStart = Get-Date
@@ -397,7 +400,6 @@ Function Fix-InternetConnection {
     netsh winsock reset
     arp -d *
     netsh interface ip delete arpcache
-    # Get-NetAdapter | foreach {Restart-NetAdapter -Name $_.Name}
 }
 
 function Invoke-WiFiScan {
@@ -570,8 +572,83 @@ public class WlanApi
         $out += ([Environment]::NewLine)
         return $out | Sort-Object Signal -Descending
     }
-    finally {
-        [WlanApi]::WlanCloseHandle($client, [IntPtr]::Zero) | Out-Null
+    finally {[WlanApi]::WlanCloseHandle($client, [IntPtr]::Zero) | Out-Null}
+}
+
+function Restart-WlanService {
+    [CmdletBinding()]
+    param(
+        [int]$Timeout = 60,
+        [int]$PostStartDelay = 5
+    )
+    
+    try {
+        # Restart the service
+        Restart-Service -Name wlansvc -Force -ea SilentlyContinue
+        
+        # Wait for service to reach running state with timeout
+        $service = Get-Service -Name wlansvc
+        $startTime = Get-Date
+        while ($service.Status -ne 'Running') {
+            if (((Get-Date) - $startTime).TotalSeconds -gt $Timeout) {
+                throw "Timed out waiting for wlansvc to start after $Timeout seconds"
+            }
+            
+            Write-Host "Waiting for wlansvc to start... (Current: $($service.Status))"
+            Start-Sleep -Seconds 1
+            $service.Refresh()
+        }
+
+        # Additional grace period for service initialization
+        Write-Host "Service started. Waiting additional $PostStartDelay seconds for initialization..."
+        Start-Sleep -Seconds $PostStartDelay
+        
+        Write-Host "wlansvc is fully initialized. Proceeding with network scan..."
+        return $true
+    }
+    catch {
+        Write-Error "Failed to restart wlansvc: $_"
+        return $false
+    }
+}
+
+Function Set-WiFiAutoConnect {
+    <#
+    .SYNOPSIS
+    Sets all saved Wi-Fi profiles to auto-connect mode.
+    
+    .DESCRIPTION
+    This function configures all saved Wi-Fi profiles to automatically connect
+    when the network is available. Requires administrative privileges.
+    
+    .EXAMPLE
+    Set-WiFiAutoConnect
+    
+    .NOTES
+    Requires running PowerShell as Administrator
+    #>
+        
+    # Get all Wi-Fi profile names
+    try {
+        $profiles = (netsh wlan show profiles) | 
+            Where-Object { $_ -match "All User Profile" } | 
+            ForEach-Object { $_.Split(":")[1].Trim() }
+        
+        if (-not $profiles) {
+            Write-Host "No Wi-Fi profiles found." -ForegroundColor Yellow
+            return
+        }
+        
+        # Set each profile to auto-connect
+        foreach ($profile in $profiles) {
+            netsh wlan set profileparameter name="$profile" connectionmode=auto
+            Write-Host "Set '$profile' to auto-connect" -ForegroundColor Green
+        }
+        
+        Write-Host "All Wi-Fi profiles have been set to auto-connect." -ForegroundColor Green
+        
+    } catch {
+        Write-Error "An error occurred: $_"
     }
 }
 
@@ -579,7 +656,6 @@ Function WifiPriority {
     Fix-InternetConnection
     # Get Wi-Fi adapters
     $wifiAdapters = Get-WiFiAdapters
-    
     if (-not $wifiAdapters) {
         Write-Output "No active Wi-Fi adapter found."
         return
@@ -626,20 +702,10 @@ Function WifiPriority {
         return
     }
     
+    Set-WiFiAutoConnect
     Write-Host "Restarting WiFi interfaces & WLAN AutoConfig service (wlansvc)..."
-    Restart-WiFiAdapters -Timeout 45 -Parallel
-    Restart-Service -Name wlansvc -Force
-
-    # Wait until the service status is 'Running'
-    do {
-        Start-Sleep -Seconds 1
-        $status = (Get-Service wlansvc).Status
-        Write-Host "Waiting for wlansvc to start... (Current: $status)"
-    } while ($status -ne 'Running')
-
-    Start-Sleep -Seconds 5
-    Write-Host "wlansvc is running. Proceeding with network scan..."
-    
+    Restart-WiFiAdapters -Timeout 60 -Parallel
+    Restart-WlanService -Timeout 60 -PostStartDelay 5
     Invoke-WiFiScan
     
     $scanResults = netsh wlan show networks mode=bssid
@@ -764,10 +830,9 @@ Function InitializeCommands
     Write-Host -f C "`r`n*** Disabling proxies ***`r`n"
     Set HTTP_PROXY=
     Set HTTPS_PROXY=
-    # Set-PSRepository PSGallery -InstallationPolicy Trusted #causes nuget install to ask for confirmation
     Invoke-W32TimeResync
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\BITS' 'Start' '2' 'DWord'
-    Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State # Service needed for fast download
+    Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} # Service needed for fast download
     WifiPriority
 }
 
@@ -1036,85 +1101,463 @@ Function Ins-Choco
         Start-Sleep 1
         Relaunch
     }
-    Choco feature enable -n=allowGlobalConfirmation
+    # Set choco features
+    Choco feature enable -n allowGlobalConfirmation
+    Choco feature enable -n ignoreInvalidOptionsSwitches
+    Choco feature enable -n allowEmptyChecksums
+    Choco feature disable -n exitOnRebootDetected
+    Choco feature disable -n logValidationResultsOnWarnings
+    
     Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
-    Choco upgrade Chocolatey -y
-    if (choco list --lo -r -e Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension} else {Choco install Chocolatey-core.extension}
+    if (choco list -l -e -r Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension -y} else {Choco install Chocolatey-core.extension -y}
     Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1 -Force -ea silentlycontinue | out-null
+    Choco upgrade Chocolatey -y
     refreshenv
 }
 
 Function Ins-Scoop-git
 {
     try {$scoopInstalled = Get-Command -Name scoop -ea silentlycontinue} catch {}
-    if ($scoopInstalled) {write-host "scoop is already installed"} else {write-host "`r`n *** Installing scoop *** `r`n";iex "& {$(irm get.scoop.sh)} -RunAsAdmin"}
+    if ($scoopInstalled) {write-host "scoop is already installed"} else {write-host "`n *** Installing scoop *** `n";iex "& {$(irm get.scoop.sh)} -RunAsAdmin"}
     try {$gitInstalled = Get-Command -Name git -ea silentlycontinue} catch {}
-    if ($gitInstalled) {write-host "git is already installed `r`n Trying to update git";scoop update git} else {write-host "Installing git";scoop install git}
+    if ($gitInstalled) {write-host "git is already installed `n Trying to update git";scoop update git} else {write-host "Installing git";scoop install git}
     if (Get-Command -Name scoop) {write-host "Trying to update scoop";scoop update}
 }
 
-Function Ins-winget-ps
+Function Ins-winget-Client
 {
-    Ins-Scoop-git
-    try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -ea silentlycontinue} catch {}
-    if (!($WinGetClientInstalled))
+    try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -ea silentlycontinue} catch {$WinGetClientInstalled =$false}
+    if (-not $WinGetClientInstalled)
     {
-        Start-Job -Name ModuleWinGet {Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+        Install-PackageProvider -Name NuGet -Force | Out-Null
+        Start-Job -Name ModuleWinGet {Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name,State
         Import-Module Microsoft.WinGet.Client -Force -ea silentlycontinue | out-null
         repair-wingetpackagemanager
         Relaunch
     }
 }
 
+function Test-MicrosoftFileUrl {
+    param(
+        [string]$Url
+    )
+
+    try {
+        $request = [System.Net.HttpWebRequest]::Create($Url)
+        $request.Method = "HEAD"
+        $request.AllowAutoRedirect = $true   # follow all redirects
+        $response = $request.GetResponse()
+
+        $status   = $response.StatusCode
+        $finalUrl = $response.ResponseUri.AbsoluteUri
+        $response.Close()
+
+        if ($status -eq 200 -and $finalUrl.StartsWith("https://download.microsoft.com")) {
+            return $true
+        }
+        else {
+            return $false
+        }
+    }
+    catch {
+        return $false
+    }
+}
+
+function Install-UpdateVCLibs {
+    <#
+    .SYNOPSIS
+    Installs or updates Microsoft.VCLibs package from the internet if needed.
+    #>
+    
+    # Try Choco
+    if (choco list -l -e -r microsoft-vclibs) {Choco upgrade microsoft-vclibs -y} else {choco install microsoft-vclibs -y}
+    
+    # Determine system architecture
+    $architecture = switch ($env:PROCESSOR_ARCHITECTURE) {
+        'AMD64' { 'x64' }
+        'x86'   { 'x86' }
+        'ARM64' { 'arm64' }
+        default { throw "Unsupported architecture: $env:PROCESSOR_ARCHITECTURE" }
+    }
+
+    Write-Host "Detected architecture: $architecture"
+
+    # Check if any VCLibs package is already installed (using wildcard)
+    $installedPackage = Get-AppxPackage -Name Microsoft.VCLibs* | 
+                        Where-Object { $_.Architecture -eq $architecture } |
+                        Sort-Object Version -Descending |
+                        Select-Object -First 1
+
+    # Try versions from 20 to 10
+    $validDownloadUrl = $null
+    $onlineVersion = $null
+    
+    # Try from highest to lowest version
+    for ($version = 20; $version -ge 10; $version--) {
+        $testUrl = "https://aka.ms/Microsoft.VCLibs.$architecture.$version.00.Desktop.appx"
+        # Write-Host "Testing URL: $testUrl"
+        
+        try {
+            # Test if URL exists without downloading the full file
+            $ValidFile = Test-MicrosoftFileUrl $testUrl
+            if ($ValidFile) {
+                $validDownloadUrl = $testUrl
+                $onlineVersion = "$version.00"
+                Write-Host "Found valid URL for version $onlineVersion"
+                break
+            }
+        }
+        catch {
+            Write-Host "URL not valid for version $version.00"
+            continue
+        }
+    }
+
+    if (-not $validDownloadUrl) {
+        throw "Could not find a valid download URL for Microsoft.VCLibs on architecture $architecture"
+    }
+
+    try {
+        $tempFile = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.appx'
+        
+        if (-not $installedPackage) {
+            Write-Host "Microsoft.VCLibs not found. Installing version $onlineVersion..."
+            Invoke-WebRequest -Uri $validDownloadUrl -OutFile $tempFile
+            Add-AppxPackage -Path $tempFile -ea SilentlyContinue
+            Write-Host "Microsoft.VCLibs version $onlineVersion installed successfully."
+        }
+        else {
+            Write-Host "Microsoft.VCLibs found (Version $($installedPackage.Version))."
+            Write-Host "Latest available version is $onlineVersion."
+            
+            # Parse versions for comparison
+            $installedVer = [version]$installedPackage.Version
+            $onlineVer = [version]$onlineVersion
+            
+            if ($onlineVer -gt $installedVer) {
+                Write-Host "Updating to version $onlineVersion..."
+                Invoke-WebRequest -Uri $validDownloadUrl -OutFile $tempFile
+                Add-AppxPackage -Path $tempFile -ForceApplicationShutdown -ForceUpdateFromAnyVersion
+                Write-Host "Microsoft.VCLibs updated successfully to version $onlineVersion."
+            }
+            else {
+                Write-Host "Already on the latest version ($onlineVersion)."
+            }
+        }
+    }
+    catch {throw "Failed to install/update Microsoft.VCLibs: $_"}
+    finally {if (Test-Path $tempFile) {Remove-Item $tempFile -ErrorAction SilentlyContinue}}
+}
+
+<#
+.SYNOPSIS
+Installs or updates the Microsoft.UI.Xaml package system-wide
+
+.DESCRIPTION
+This script checks for and installs/updates the Microsoft.UI.Xaml package
+to the latest version available on NuGet.org without removing previous versions
+#>
+
+function Install-UpdateMicrosoftUIXaml {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [switch]$Force
+    )
+        
+    # Get the latest version of Microsoft.UI.Xaml using REST API
+    Write-Host "Checking for latest version of Microsoft.UI.Xaml..." -ForegroundColor Yellow
+    try {
+        # Use NuGet API to get package info
+        $packageUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.ui.xaml/index.json"
+        $versions = Invoke-RestMethod -Uri $packageUrl -UseBasicParsing
+        
+        # Filter out pre-release versions and convert to proper version objects
+        $stableVersions = $versions.versions | Where-Object { $_ -notmatch '-' } | ForEach-Object {
+            try {
+                [System.Version]$_
+            } catch {
+                # Skip versions that can't be converted
+            }
+        }
+        
+        if (-not $stableVersions) {
+            Write-Error "Failed to retrieve stable version information"
+            return
+        }
+        
+        $latestVersion = $stableVersions | Sort-Object -Descending | Select-Object -First 1
+        $latestVersionString = $latestVersion.ToString()
+        
+        Write-Host "Latest NuGet version available: $latestVersionString" -ForegroundColor Green
+        
+        # Extract major.minor from latest version
+        $latestMajorMinor = [System.Version]::new($latestVersion.Major, $latestVersion.Minor)
+    }
+    catch {
+        Write-Error "Failed to get package information: $($_.Exception.Message)"
+        return
+    }
+    
+    # Check if already installed (using wildcard to match all Microsoft.UI.Xaml packages)
+    $installedPackages = Get-AppxPackage -Name "Microsoft.UI.Xaml*" -ErrorAction SilentlyContinue
+    
+    if ($installedPackages) {
+        # Extract version from Name property (e.g., "Microsoft.UI.Xaml.2.3" -> "2.3")
+        $installedVersions = $installedPackages | ForEach-Object {
+            if ($_.Name -match 'Microsoft\.UI\.Xaml\.(\d+\.\d+)') {
+                [System.Version]$matches[1]
+            }
+        } | Sort-Object -Descending
+        
+        if ($installedVersions) {
+            $latestInstalledVersion = $installedVersions | Select-Object -First 1
+            Write-Host "Latest installed UI version: $latestInstalledVersion" -ForegroundColor Cyan
+            
+            # Compare versions (only major.minor)
+            if ($latestInstalledVersion -ge $latestMajorMinor -and -not $Force) {
+                Write-Host "You already have the latest version ($latestInstalledVersion) installed." -ForegroundColor Green
+                Write-Host "Use -Force to reinstall anyway." -ForegroundColor Yellow
+                return
+            }
+            elseif ($latestInstalledVersion -lt $latestMajorMinor) {
+                Write-Host "Newer version available: $latestMajorMinor (currently installed: $latestInstalledVersion)" -ForegroundColor Yellow
+                # Continue with installation
+            }
+        }
+    }
+    
+    # Download the package using direct download URL
+    Write-Host "Downloading Microsoft.UI.Xaml version $latestVersionString..." -ForegroundColor Yellow
+    $downloadPath = "$env:TEMP\Microsoft.UI.Xaml.$latestVersionString.nupkg"
+    try {
+        $downloadUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.ui.xaml/$latestVersionString/microsoft.ui.xaml.$latestVersionString.nupkg"
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath -UseBasicParsing
+    }
+    catch {
+        Write-Error "Failed to download package: $($_.Exception.Message)"
+        return
+    }
+    
+    # Extract the package
+    Write-Host "Extracting package..." -ForegroundColor Yellow
+    $extractPath = "$env:TEMP\Microsoft.UI.Xaml.Extracted"
+    if (Test-Path $extractPath) {
+        Remove-Item $extractPath -Recurse -Force
+    }
+    
+    New-Item -ItemType Directory -Path $extractPath -Force | Out-Null
+    
+    try {
+        # Rename .nupkg to .zip and extract
+        $zipPath = "$env:TEMP\Microsoft.UI.Xaml.$latestVersionString.zip"
+        Copy-Item $downloadPath $zipPath
+        Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+        Remove-Item $zipPath -Force
+    }
+    catch {
+        Write-Error "Failed to extract package: $($_.Exception.Message)"
+        return
+    }
+    
+    # Install the package
+    Write-Host "Installing Microsoft.UI.Xaml..." -ForegroundColor Yellow
+    
+    # Look for AppX packages in the extracted content
+    $appxFiles = Get-ChildItem -Path $extractPath -Recurse -Filter "*.appx" -File
+    if (-not $appxFiles) {
+        $appxFiles = Get-ChildItem -Path $extractPath -Recurse -Filter "*.msix" -File
+    }
+    
+    if (-not $appxFiles) {
+        Write-Error "No AppX/MSIX package found in the downloaded content"
+        return
+    }
+    
+    # Determine system architecture and select the correct package
+    $systemArchitecture = $env:PROCESSOR_ARCHITECTURE
+    Write-Host "System architecture: $systemArchitecture" -ForegroundColor Cyan
+    
+    # Map architecture to package path
+    $architectureMap = @{
+        "AMD64" = "x64"
+        "x86"   = "x86"
+        "ARM64" = "arm64"
+    }
+    
+    $targetArchitecture = $architectureMap[$systemArchitecture]
+    if (-not $targetArchitecture) {
+        Write-Warning "Unknown system architecture: $systemArchitecture. Defaulting to x64."
+        $targetArchitecture = "x64"
+    }
+    
+    Write-Host "Looking for package for architecture: $targetArchitecture" -ForegroundColor Cyan
+    
+    # Find the package for the correct architecture
+    $targetAppxFile = $appxFiles | Where-Object { $_.FullName -match "\\$targetArchitecture\\" } | Select-Object -First 1
+    
+    if (-not $targetAppxFile) {
+        Write-Warning "No package found for architecture $targetArchitecture. Available packages:"
+        $appxFiles | ForEach-Object { Write-Host "  - $($_.FullName)" -ForegroundColor Yellow }
+        return
+    }
+    
+    Write-Host "Installing from: $($targetAppxFile.FullName)" -ForegroundColor Cyan
+    
+    try {
+        # Install the .appx file directly
+        Add-AppxPackage -Path $targetAppxFile.FullName -ForceApplicationShutdown -ForceUpdateFromAnyVersion
+        Write-Host "Package installed successfully." -ForegroundColor Green
+    }
+    catch {
+        Write-Error "Failed to install package: $($_.Exception.Message)"
+        return
+    }
+    
+    # Cleanup
+    Write-Host "Cleaning up temporary files..." -ForegroundColor Yellow
+    Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item $downloadPath -Force -ErrorAction SilentlyContinue
+    
+    Write-Host "Microsoft.UI.Xaml installation/update process completed." -ForegroundColor Green
+}
+
+function Install-OrUpdateDesktopAppInstaller {
+    <#
+    .SYNOPSIS
+    Installs or updates the Microsoft Desktop App Installer (winget).
+    
+    .DESCRIPTION
+    This function checks if both the DesktopAppInstaller package and winget command are available.
+    If both are available, it uses winget to update itself.
+    Otherwise, it performs a fresh installation using BITS transfer.
+    
+    .EXAMPLE
+    Install-OrUpdateDesktopAppInstaller
+    #>
+    [CmdletBinding()]
+    param()
+
+    # Check if DesktopAppInstaller package is installed
+    $desktopAppInstaller = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller'
+    
+    # Check if winget command is available
+    $wingetAvailable = Get-Command -Name winget -ErrorAction SilentlyContinue
+
+    if ($desktopAppInstaller -and $wingetAvailable) {
+        Write-Host "Both DesktopAppInstaller package and winget command are available. Attempting to upgrade..." -ForegroundColor Green
+        try {
+            # Use winget to update with the correct package ID
+            winget upgrade --id Microsoft.AppInstaller --exact --silent --accept-package-agreements --accept-source-agreements
+            return $true
+        }
+        catch {
+            Write-Warning "Failed to upgrade via winget: $($_.Exception.Message)"
+            Write-Host "Falling back to direct installation method..." -ForegroundColor Yellow
+            return Install-UsingBITS
+        }
+    }
+    else {
+        if ($desktopAppInstaller) {
+            Write-Host "DesktopAppInstaller package found but winget command not available. Reinstalling..." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "DesktopAppInstaller not found. Installing..." -ForegroundColor Yellow
+        }
+        return Install-UsingBITS
+    }
+}
+
+function Install-UsingBITS {
+    <#
+    .SYNOPSIS
+    Helper function to install Microsoft.DesktopAppInstaller using BITS transfer.
+    #>
+    try {
+        $installerPath = Join-Path -Path $env:TEMP -ChildPath "Microsoft.DesktopAppInstaller.msixbundle"
+        
+        # Remove existing file if it exists
+        if (Test-Path $installerPath) {
+            Remove-Item $installerPath -Force
+        }
+        
+        Write-Host "Downloading Microsoft.DesktopAppInstaller..." -ForegroundColor Yellow
+        
+        # Create a job to download using BITS transfer with timeout
+        $job = Start-Job -Name "DownloadWinget" -ScriptBlock {
+            param($url, $path)
+            Start-BitsTransfer -Source $url -Destination $path
+        } -ArgumentList "https://aka.ms/getwinget", $installerPath
+        
+        # Wait for the download to complete with timeout
+        $jobResult = $job | Wait-Job -Timeout 400
+        
+        if ($jobResult.State -eq 'Completed') {
+            Receive-Job -Job $job | Out-Null
+            Write-Host "Download completed. Installing package..." -ForegroundColor Yellow
+            
+            # Install the package
+            $installResult = Add-AppxPackage -Path $installerPath -ForceApplicationShutdown -ForceUpdateFromAnyVersion
+            Write-Host "Microsoft.DesktopAppInstaller installed successfully." -ForegroundColor Green
+            Start-Sleep 1
+            Relaunch
+            return $true
+        }
+        else {
+            # Handle timeout or failure
+            if ($job.State -eq 'Running') {
+                $job | Stop-Job
+                Write-Error "Download timed out after 400 seconds"
+                return $false
+            }
+            else {
+                $errorMsg = Receive-Job -Job $job 2>&1
+                Write-Error "Download failed: $errorMsg"
+                return $false
+            }
+        }
+    }
+    catch {
+        Write-Error "Failed to install using BITS transfer: $($_.Exception.Message)"
+        return $false
+    }
+    finally {
+        # Clean up
+        if ($job) { 
+            Remove-Job -Job $job -Force 
+        }
+        if (Test-Path $installerPath) { 
+            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue 
+        }
+    }
+}
+
 Function Install-Winget
 {
     Write-Host -f C "`r`n======================================================================================================================"
-    Write-Host -f C "***************************** Installing Winget and its dependencies & scoop & git *****************************"
+    Write-Host -f C "***************************** Installing Winget & scoop & git *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    # Ensure winget is installed
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        Write-Host "winget not found. Installing..." -ForegroundColor Yellow
-        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle"
-        Start-Job -Name InstallingWinGet {Add-AppxPackage -Path "$env:TEMP\Microsoft.DesktopAppInstaller.msixbundle" -ea silentlycontinue | out-null} | Wait-Job -Timeout 300 | Format-Table -Wrap -AutoSize -Property Name,State
-    }
-    New-Item -Path "$env:TEMP\IA\Winget" -ItemType Directory -ea SilentlyContinue | out-null
-    $VCLibsVersion = Get-AppxPackage -Name Microsoft.VCLibs* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
-    if ([int]$VCLibsVersion -lt 14)
-    {
-        Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null
-        Start-Job -Name VCLibs {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.VCLibs.x64.14.00.Desktop.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-    }
-    else {Write-Host -f C "VCLibs already installed"}
-    $UIXamlVersion = Get-AppxPackage -Name Microsoft.UI.Xaml* | Sort-Object -Property Version | Select-Object -ExpandProperty Version -Last 1 | Foreach-Object { $_.ToString().split('.')[0]}
-    if ([int]$UIXamlVersion -lt 8)
-    {
-        Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null
-        Start-Job -Name UIXaml {Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.UI.Xaml.2.8.x64.appx" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-    }
-    else {Write-Host -f C "UI Xaml already installed"}
-    try {$WingetInstalled = Get-Command -Name winget -ea silentlycontinue} catch {$WingetInstalled = $false}
-    try {$latestAppInstaller = Find-WinGetPackage -id "Microsoft.AppInstaller" -MatchOption Equals | Select-Object -ExpandProperty Version} catch {$AppInstallerUpdated = $false}
-    try {$InstalledAppInstaller = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' | select -ExpandProperty Version } catch {$AppInstallerUpdated = $false}
-    if ($latestAppInstaller -eq $InstalledAppInstaller) {$AppInstallerUpdated = $true} else {$AppInstallerUpdated = $false}
-    if ($WingetInstalled -And $AppInstallerUpdated) {write-host -f C "Winget is already installed"}
-    else {
-        Start-Job -Name InstallWinget1 {Start-BitsTransfer -Source "https://aka.ms/getwinget" -Destination "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null;Add-AppxPackage "$env:TEMP\IA\Winget\Microsoft.DesktopAppInstaller.msixbundle" -ea SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-        Start-Job -Name InstallWinget2 {Add-AppxPackage https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle -ea SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-        Start-Job -Name InstallWinget3 {Start-BitsTransfer -Source "https://cdn.winget.microsoft.com/cache/source.msix" -Destination "$env:TEMP\IA\Winget\Source.msix" -ea SilentlyContinue | out-null;Add-AppxPackage -Path "$env:TEMP\IA\Winget\Source.msix" | out-null;DISM.EXE /Online /Add-ProvisionedAppxPackage /PackagePath:"$env:TEMP\IA\Winget\Source.msix" /SkipLicense | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-        Install-Script winget-install -Force
-        Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-        Start-Sleep 1
-        Relaunch
-    }
-    Start-Job -Name ConfigWinget1 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name ConfigWinget2 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-    write-host -f C "`r`n *** Updating Winget ***"
-    Install-Script winget-install -Force
-    Start-Job -Name UpdateWinget {winget-install -Force} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-    winget-install -CheckForUpdate
-    Ins-winget-ps
+    
+    # Install VCLibs
+    Install-UpdateVCLibs
+    
+    # Install UIXaml
+    Install-UpdateMicrosoftUIXaml
+    
+    # install Microsoft.DesktopAppInstaller
+    Install-OrUpdateDesktopAppInstaller
+    
+    Start-Job -Name ConfigWinget1 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe} | Wait-Job -Timeout 100 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name ConfigWinget2 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe} | Wait-Job -Timeout 100 | Format-Table -Wrap -AutoSize -Property Name,State
+    
+    # Install Winget client module
+    Ins-winget-Client
+    
+    # Install Scoop & git
+    Ins-Scoop-git
+    
     winget source reset --force
-    winget upgrade Microsoft.AppInstaller --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-arSALang
@@ -1127,40 +1570,39 @@ Function Ins-arSALang
     Copy-UserInternationalSettingsToSystem -WelcomeScreen $True -NewUser $True
 }
 
-Function Set-en-US-Culture #Need fix
-{
-    Write-Host -f C "`r`n *** Setting en-US Culture (Regional format) *** `r`n"
-    Import-Module International -Force -ea silentlycontinue | out-null
-    Start-Job -Name CultureENGB {Set-Culture -CultureInfo en-US} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-sleep 1
-    $culture = Get-Culture
-    $culture.DateTimeFormat.LongDatePattern = 'dd MMMM yyyy'
-    $culture.DateTimeFormat.ShortDatePattern = 'dd/MM/yyyy'
-    $culture.DateTimeFormat.LongTimePattern = 'hh:mm:ss tt'
-    $culture.DateTimeFormat.ShortTimePattern = 'hh:mm tt'
-    $culture.DateTimeFormat.ShortDatePattern = 'd/MM/yyyy'
-    $culture.DateTimeFormat.FirstDayOfWeek = 'Saturday'
-    $culture.NumberFormat.DigitSubstitution = 'Context'
-    Start-Job -Name CustomCulture {Set-Culture -CultureInfo $culture} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-    # Use this to see all properties    # $culture | Format-List -Property *     # $culture.DateTimeFormat     # $culture.NumberFormat
-    Start-sleep 4
-    AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
-    reg add "HKCU\Control Panel\International" /V sLongDate /T REG_SZ /D "dddd dd/MMMM/yyyy" /F
-    AddRegEntry 'HKCU:\Control Panel\International' 'sShortDate' 'dd/MM/yyyy' 'String'
-    reg add "HKCU\Control Panel\International" /V sShortDate /T REG_SZ /D "dd/MM/yyyy" /F
-    AddRegEntry 'HKCU:\Control Panel\International' 'sTimeFormat' 'hh:mm:ss tt' 'String'
-    reg add "HKCU\Control Panel\International" /V sTimeFormat /T REG_SZ /D "hh:mm:ss tt" /F
-    AddRegEntry 'HKCU:\Control Panel\International' 'sShortTime' 'hh:mm tt' 'String'
-    reg add "HKCU\Control Panel\International" /V sShortTime /T REG_SZ /D "hh:mm tt" /F
-    AddRegEntry 'HKCU:\Control Panel\International' 'iFirstDayOfWeek' '5' 'String' # Saturday
-    reg add "HKCU\Control Panel\International" /V iFirstDayOfWeek /T REG_SZ /D "5" /F
-    AddRegEntry 'HKCU:\Control Panel\International' 'NumShape' '0' 'String' # Native digits number shape # 0 - Context # 1 - default # 2 - Always local
-    reg add "HKCU\Control Panel\International" /V NumShape /T REG_SZ /D "0" /F
-    reg add "HKCU\Control Panel\International" /V iCalendarType /T REG_SZ /D "1" /F
-    AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
-    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
-    Start-sleep 2
-    Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
+Function Set-en-US-Culture {
+    Write-Host -ForegroundColor Cyan "`r`n *** Setting en-US Culture (Regional format) *** `r`n"
+    
+    # Import the module (if available)
+    Import-Module International -Force -ErrorAction SilentlyContinue | Out-Null
+    
+    # Set culture for future sessions using registry
+    Set-Culture -CultureInfo en-US
+    
+    # Customize the date/time formats
+    $intlPath = 'HKCU:\Control Panel\International'
+    
+    # Calendar type (1 = Gregorian)
+    Set-ItemProperty -Path $IntlPath -Name iCalendarType -Value 1
+    
+    # Set registry values directly
+    Set-ItemProperty -Path $intlPath -Name 'sLongDate' -Value 'dd MMMM yyyy'
+    Set-ItemProperty -Path $intlPath -Name 'sShortDate' -Value 'dd/MM/yyyy'
+    Set-ItemProperty -Path $intlPath -Name 'sTimeFormat' -Value 'hh:mm:ss tt'
+    Set-ItemProperty -Path $intlPath -Name 'sShortTime' -Value 'hh:mm tt'
+    Set-ItemProperty -Path $intlPath -Name 'iFirstDayOfWeek' -Value "5" # Saturday
+    Set-ItemProperty -Path $intlPath -Name 'iFirstWeekOfYear' -Value "0"
+    Set-ItemProperty -Path $intlPath -Name 'iPaperSize' -Value "9"
+    Set-ItemProperty -Path $intlPath -Name 'NumShape' -Value "0"  # 0=Context, 1=Native, 2=Traditional
+    
+    # Set additional settings
+    Set-ItemProperty -Path "$intlPath\User Profile" -Name 'ShowTextPrediction' -Value 1 -Type DWord
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name 'AutoRestartShell' -Value 1 -Type DWord
+        
+    Write-Host "Restarting Explorer to apply system-wide changes..."
+    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+    
+    Write-Host "Culture settings updated. Changes will take full effect after restarting PowerShell."
 }
 
 Function Ins-enUSLang
@@ -1220,7 +1662,7 @@ Function Ins-Terminal
 Function Ins-DotNetRuntime
 {
     Write-Host -f C "`r`n *** Installing .Net Runtime All versions *** `r`n"
-    if (choco list --lo -r -e dotnet-all) {Choco upgrade dotnet-all} else {Choco install dotnet-all -y}
+    if (choco list -l -e -r dotnet-all) {Choco upgrade dotnet-all -y} else {Choco install dotnet-all -y}
     (Find-WinGetPackage "Microsoft.DotNet.DesktopRuntime").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
     (Find-WinGetPackage "Microsoft.DotNet.Runtime").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
     (Find-WinGetPackage "Microsoft.DotNet.AspNetCore").Id | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
@@ -1229,7 +1671,7 @@ Function Ins-DotNetRuntime
 Function Ins-VCPPRuntime
 {
     Write-Host -f C "`r`n *** Installing Visual C++ Runtime All versions *** `r`n"
-    if (choco list --lo -r -e vcredist-all) {Choco upgrade vcredist-all} else {Choco install vcredist-all -y}
+    if (choco list -l -e -r vcredist-all) {Choco upgrade vcredist-all -y} else {Choco install vcredist-all -y}
     (Find-WinGetPackage "Microsoft.VCRedist").Id | Where-Object {-not $_.EndsWith("arm64")} | ForEach-Object {winget install -e --id $_ --silent --accept-source-agreements --accept-package-agreements --uninstall-previous}
 }
 
@@ -1237,20 +1679,20 @@ Function Ins-JavaRuntime
 {
     Write-Host -f C "`r`n *** Installing Java Runtime Environment *** `r`n"
     winget install -e --id Oracle.JavaRuntimeEnvironment --silent --accept-source-agreements --accept-package-agreements
-    if (choco list --lo -r -e javaruntime) {Choco upgrade javaruntime} else {Choco install javaruntime -y}
+    if (choco list -l -e -r javaruntime) {Choco upgrade javaruntime -y} else {Choco install javaruntime -y}
 }
 
 Function Ins-XNA
 {
     Write-Host -f C "`r`n *** Installing Microsoft XNA Framework Redistributable *** `r`n"
-    if (choco list --lo -r -e xna) {Choco upgrade xna} else {Choco install xna -y}
+    if (choco list -l -e -r xna) {Choco upgrade xna -y} else {Choco install xna -y}
     winget install -e --id Microsoft.XNARedist --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-AdobeAIRRuntime
 {
     Write-Host -f C "`r`n *** Installing Adobe AIR Runtime *** `r`n"
-    if (choco list --lo -r -e adobeair) {Choco upgrade adobeair} else {Choco install adobeair -y}
+    if (choco list -l -e -r adobeair) {Choco upgrade adobeair -y} else {Choco install adobeair -y}
     winget install -e --id HARMAN.AdobeAIR --silent --accept-source-agreements --accept-package-agreements
 }
 
@@ -1271,13 +1713,13 @@ Function Ins-NotepadPP
 {
     Write-Host -f C "`r`n *** Installing Notepad++ *** `r`n"
     winget install -e --name 'Notepad++' --silent --accept-source-agreements --accept-package-agreements
-    if (choco list --lo -r -e notepadplusplus.install) {Choco upgrade notepadplusplus.install} else {Choco install notepadplusplus.install -y}
+    if (choco list -l -e -r notepadplusplus.install) {Choco upgrade notepadplusplus.install -y} else {Choco install notepadplusplus.install -y}
 }
 
 Function Ins-Chrome
 {
     Write-Host -f C "`r`n *** Installing Chrome *** `r`n"
-    if (choco list --lo -r -e googlechrome) {Choco upgrade googlechrome --ignore-checksums} else {Choco install googlechrome --ignore-checksums -y}
+    if (choco list -l -e -r googlechrome) {Choco upgrade googlechrome --ignore-checksums -y} else {Choco install googlechrome --ignore-checksums -y}
     winget install -e --id 'Google.Chrome' --silent --accept-source-agreements --accept-package-agreements
     # remove logon chrome
     Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{8A69D345-D564-463c-AFF1-A69D9E530F96}"  -Recurse -force -ea SilentlyContinue | out-null
@@ -1552,17 +1994,6 @@ Function Set-ChromePopupSettings {
     }
 }
 
-# Export the function if we're in a module context
-if ($MyInvocation.MyCommand.CommandType -eq "Script") {
-    # Add aliases for easier use
-    Set-Alias -Name Set-ChromePopups -Value Set-ChromePopupSettings
-    Set-Alias -Name chrome-popups -Value Set-ChromePopupSettings
-    
-    Write-Host "Chrome Popup Settings function loaded. Use Set-ChromePopupSettings to manage popup settings." -ForegroundColor Green
-    Write-Host "Available actions: Allow, Block, Default, ShowGUI" -ForegroundColor Yellow
-    Write-Host "Example: Set-ChromePopupSettings -Action Allow -Force" -ForegroundColor Cyan
-}
-
 Function Tweak-Edge
 {
     Write-Host -f C "`r`n *** Tweaking Edge *** `r`n"
@@ -1591,8 +2022,30 @@ Function Ins-AcrobatRdr
     if ($Acrobat) {Write-Host -f C "Adobe Acrobat (64-bit) found installed"}
     else
     {
-        if (choco list --lo -r -e adobereader) {Choco upgrade adobereader} else {Choco install adobereader -y}
+        if (choco list -l -e -r adobereader) {Choco upgrade adobereader -y} else {Choco install adobereader -y}
         winget install -e --id 'Adobe.Acrobat.Reader.64-bit' --silent --accept-source-agreements --accept-package-agreements
+    }
+}
+
+Function Convert-GoogleDriveUrl {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Url,
+        
+        [Parameter(Mandatory=$true)]
+        [string]$Key
+    )
+
+    # Define regex pattern to extract the file ID from various Google Drive URL formats
+    $pattern = 'https://drive\.google\.com/file/d/(?<FileId>[a-zA-Z0-9_-]+)'
+    
+    if ($Url -match $pattern) {
+        $fileId = $matches.FileId
+        return "https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${Key}"
+    }
+    else {
+        Write-Error "URL does not match Google Drive file pattern. Example: https://drive.google.com/file/d/FILE_ID"
+        return $null
     }
 }
 
@@ -1626,10 +2079,10 @@ Function Unins-Acrobat
     winget uninstall -e --id "Adobe.Acrobat.Reader.64-bit"
     winget uninstall -e --id "Adobe.Acrobat.Pro"
     Write-Host -f C "`r`n *** Removing All Acrobat left overs *** `r`n"
-    #16etkp4rCcon2NyGGh0oYSocHhB_054cm
-    Start-BitsTransfer -Source 'https://www.googleapis.com/drive/v3/files/16etkp4rCcon2NyGGh0oYSocHhB_054cm?alt=media&key=AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8' -Destination "$env:TEMP\AdobeAcroCleaner.exe"  -ea SilentlyContinue | out-null
-    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=0","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=1","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+    $DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/16etkp4rCcon2NyGGh0oYSocHhB_054cm" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
+    if ($DDURL) {Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcroCleaner.exe"  -ea SilentlyContinue | out-null}
+    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=0","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=1","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
 function Fix-AdobeAcrobatProPdfThumbnails {
@@ -2092,7 +2545,7 @@ function Invoke-AcrobatFix {
     foreach ($path in $paths) {
         try {
             if (Test-Path $path) {
-                Remove-Item -Path $path -Recurse -Force -ErrorAction Stop
+                Remove-Item -Path $path -Recurse -Force -ea SilentlyContinue
             }
         }
         catch {
@@ -2140,28 +2593,6 @@ function Invoke-AcrobatFix {
     Write-Host "Acrobat fix completed successfully!"
 }
 
-Function Convert-GoogleDriveUrl {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Url,
-        
-        [Parameter(Mandatory=$false)]
-        [string]$Key = "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
-    )
-
-    # Define regex pattern to extract the file ID from various Google Drive URL formats
-    $pattern = 'https://drive\.google\.com/file/d/(?<FileId>[a-zA-Z0-9_-]+)'
-    
-    if ($Url -match $pattern) {
-        $fileId = $matches.FileId
-        return "https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${Key}"
-    }
-    else {
-        Write-Error "URL does not match Google Drive file pattern. Example: https://drive.google.com/file/d/FILE_ID"
-        return $null
-    }
-}
-
 Function Ins-AcrobatPro
 {
     Unins-Acrobat
@@ -2169,8 +2600,8 @@ Function Ins-AcrobatPro
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
     Try{Set-MpPreference -DisableRealtimeMonitoring $true -ea SilentlyContinue | out-null} Catch{}
     Stop-Service -Name "WinDefend" -Force -ea SilentlyContinue | out-null
-    $DDURL = Convert-GoogleDriveUrl "https://drive.google.com/file/d/1TUxSGweMW7M9-B-ueqcGnAT1d3co1oG1"
-    Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null
+    $DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/1TUxSGweMW7M9-B-ueqcGnAT1d3co1oG1" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
+    if ($DDURL) {Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null}
     Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     Remove-Item -path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -ea silentlycontinue | Out-Null
     $printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
@@ -2185,14 +2616,14 @@ Function Ins-AcrobatPro
 Function Ins-WinRAR
 {
     Write-Host -f C "`r`n *** Installing WinRAR *** `r`n"
-    if (choco list --lo -r -e winrar) {Choco upgrade winrar --ignore-checksums} else {Choco install winrar --ignore-checksums -y}
+    if (choco list -l -e -r winrar) {Choco upgrade winrar --ignore-checksums -y} else {Choco install winrar --ignore-checksums -y}
     winget install -e --id 'RARLab.WinRAR' --silent --accept-source-agreements --accept-package-agreements
 }
 
 Function Ins-KLiteMega
 {
     Write-Host -f C "`r`n *** Installing K-Lite Codec Pack Mega *** `r`n"
-    if (choco list --lo -r -e k-litecodecpackmega) {Choco upgrade k-litecodecpackmega} else {Choco install k-litecodecpackmega -y}
+    if (choco list -l -e -r k-litecodecpackmega) {Choco upgrade k-litecodecpackmega -y} else {Choco install k-litecodecpackmega -y}
     winget install -e --id 'CodecGuide.K-LiteCodecPack.Mega' --silent --accept-source-agreements --accept-package-agreements
 }
 
@@ -2218,7 +2649,7 @@ Function Ins-GIMP
 Function Ins-OpenAl
 {
     Write-Host -f C "`r`n *** Installing OpenAl *** `r`n"
-    if (choco list --lo -r -e openal) {Choco upgrade openal} else {Choco install openal -y}
+    if (choco list -l -e -r openal) {Choco upgrade openal -y} else {Choco install openal -y}
 }
 
 Function Ins-WhatsApp
@@ -2316,7 +2747,7 @@ Function UpdateAll
 Function Ins-DirectX
 {
     Write-Host -f C "`r`n *** Installing DirectX Extra Files *** `r`n"
-    if (choco list --lo -r -e directx) {Choco upgrade directx} else {Choco install directx -y}
+    if (choco list -l -e -r directx) {Choco upgrade directx -y} else {Choco install directx -y}
     scoop bucket add games
     scoop install games/dxwrapper
     scoop update dxwrapper
@@ -3855,7 +4286,7 @@ Function New-OfficeShortcuts {
         )
         foreach ($reg in $regPaths) {
             try {
-                $path = (Get-ItemProperty -Path $reg -ErrorAction Stop).'(default)'
+                $path = (Get-ItemProperty -Path $reg -ea SilentlyContinue).'(default)'
                 if (Test-Path $path) { return $path }
             } catch { }
         }
@@ -4086,11 +4517,11 @@ $taskbar_layout3 =
 Function Ins-ExtraFonts
 {
     Write-Host -f C "`r`n *** Installing Extra Fonts *** `r`n"
-    if (choco list --lo -r -e dejavufonts) {Write-Host -f C "dejavufonts already installed"} else {Choco install dejavufonts}
-    if (choco list --lo -r -e victormononf) {Choco upgrade victormononf} else {Choco install victormononf}
-    if (choco list --lo -r -e montserrat.font) {Choco upgrade montserrat.font} else {Choco install montserrat.font}
-    if (choco list --lo -r -e opensans) {Choco upgrade opensans} else {Choco install opensans}
-    if (choco list --lo -r -e cascadiafonts) {Choco upgrade cascadiafonts} else {Choco install cascadiafonts}
+    if (choco list -l -e -r dejavufonts) {Write-Host -f C "dejavufonts already installed"} else {Choco install dejavufonts -y}
+    if (choco list -l -e -r victormononf) {Choco upgrade victormononf -y} else {Choco install victormononf -y}
+    if (choco list -l -e -r montserrat.font) {Choco upgrade montserrat.font -y} else {Choco install montserrat.font -y}
+    if (choco list -l -e -r opensans) {Choco upgrade opensans -y} else {Choco install opensans -y}
+    if (choco list -l -e -r cascadiafonts) {Choco upgrade cascadiafonts -y} else {Choco install cascadiafonts -y}
 }
 
 Function Pin-WhatsappWebChrome
@@ -4128,16 +4559,7 @@ Function Clean-up
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Cleaning up *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    # temp fix
-    AddRegEntry 'HKCU:\Control Panel\International' 'sLongDate' 'dd MMMM yyyy' 'String'
-    AddRegEntry 'HKCU:\Control Panel\International' 'sShortDate' 'dd/MM/yyyy' 'String'
-    AddRegEntry 'HKCU:\Control Panel\International' 'sTimeFormat' 'hh:mm:ss tt' 'String'
-    AddRegEntry 'HKCU:\Control Panel\International' 'sShortTime' 'hh:mm tt' 'String'
-    AddRegEntry 'HKCU:\Control Panel\International' 'iFirstDayOfWeek' '5' 'String' # Saturday
-    AddRegEntry 'HKCU:\Control Panel\International' 'NumShape' '0' 'String' # Native digits number shape # 0 - Context # 1 - default # 2 - Always local
-    reg add "HKCU\Control Panel\International" /V iCalendarType /T REG_SZ /D "1" /F
-    AddRegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowTextPrediction' '1' 'DWord'
-    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
+    
     # Wait for all background jobs to finish
     Wait-Job -State Running
     # Optionally receive and display the results of all jobs
@@ -4274,6 +4696,7 @@ Function Clear-PrintQueue {
 
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
