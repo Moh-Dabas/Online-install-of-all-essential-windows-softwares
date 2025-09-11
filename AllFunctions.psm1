@@ -1620,21 +1620,20 @@ Function Set-en-US-Culture {
     $intlPath = 'HKCU:\Control Panel\International'
     
     # Calendar type (1 = Gregorian)
-    Set-ItemProperty -Path $IntlPath -Name iCalendarType -Value 1
-    
+    AddRegEntry -Path $IntlPath -Name iCalendarType -Value '1' -Type 'String'
     # Set registry values directly
-    Set-ItemProperty -Path $intlPath -Name 'sLongDate' -Value 'dd MMMM yyyy'
-    Set-ItemProperty -Path $intlPath -Name 'sShortDate' -Value 'dd/MM/yyyy'
-    Set-ItemProperty -Path $intlPath -Name 'sTimeFormat' -Value 'hh:mm:ss tt'
-    Set-ItemProperty -Path $intlPath -Name 'sShortTime' -Value 'hh:mm tt'
-    Set-ItemProperty -Path $intlPath -Name 'iFirstDayOfWeek' -Value "5" # Saturday
-    Set-ItemProperty -Path $intlPath -Name 'iFirstWeekOfYear' -Value "0"
-    Set-ItemProperty -Path $intlPath -Name 'iPaperSize' -Value "9"
-    Set-ItemProperty -Path $intlPath -Name 'NumShape' -Value "0"  # 0=Context, 1=Native, 2=Traditional
+    AddRegEntry -Path $intlPath -Name 'sLongDate' -Value 'dd MMMM yyyy' -Type 'String'
+    AddRegEntry -Path $intlPath -Name 'sShortDate' -Value 'dd/MM/yyyy' -Type 'String'
+    AddRegEntry -Path $intlPath -Name 'sTimeFormat' -Value 'hh:mm:ss tt' -Type 'String'
+    AddRegEntry -Path $intlPath -Name 'sShortTime' -Value 'hh:mm tt' -Type 'String'
+    AddRegEntry -Path $intlPath -Name 'iFirstDayOfWeek' -Value "5" -Type 'String' # Saturday
+    AddRegEntry -Path $intlPath -Name 'iFirstWeekOfYear' -Value "0" -Type 'String'
+    AddRegEntry -Path $intlPath -Name 'iPaperSize' -Value "9" -Type 'String'
+    AddRegEntry -Path $intlPath -Name 'NumShape' -Value "0"  -Type 'String' # 0=Context, 1=Native, 2=Traditional
     
     # Set additional settings
-    Set-ItemProperty -Path "$intlPath\User Profile" -Name 'ShowTextPrediction' -Value 1 -Type DWord
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name 'AutoRestartShell' -Value 1 -Type DWord
+    AddRegEntry -Path "$intlPath\User Profile" -Name 'ShowTextPrediction' -Value 1 -Type DWord
+    AddRegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name 'AutoRestartShell' -Value 1 -Type DWord
         
     Write-Host "Restarting Explorer to apply system-wide changes..."
     Stop-Process -Name explorer -Force -EA SilentlyContinue
@@ -2996,7 +2995,7 @@ Function Registry-Tweaks
     # Desktop icon sort order. 0x40000002 = sort by Name (ascending).
 
     $sortBinary = [byte[]] (0x02,0x00,0x00,0x40)
-    AddRegEntry -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "Sort" -Value $sortBinary -Type Binary
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "Sort" -Value $sortBinary -Type Binary
     # Same as above in binary form (02 00 00 40 = Name ascending).
 
     AddRegEntry "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" "FFlags" "0x40200225" 'DWord'
