@@ -1566,10 +1566,29 @@ Function Ins-arSALang
     Write-Host "Installing Arabic (Saudi Arabia) language pack..." -ForegroundColor Cyan
     $Lang = "ar-SA"
     $LCID = 1025    # Arabic (Saudi Arabia)
-    Add-WindowsCapability -Online -Name Language.Basic~~~$Lang~0.0.1.0 -EA SilentlyContinue
-    Add-WindowsCapability -Online -Name Language.Handwriting~~~$Lang~0.0.1.0 -EA SilentlyContinue
-    Add-WindowsCapability -Online -Name Language.OCR~~~$Lang~0.0.1.0 -EA SilentlyContinue
-    Add-WindowsCapability -Online -Name Language.Speech~~~$Lang~0.0.1.0 -EA SilentlyContinue
+    
+    function WCap {
+        param(
+            [Parameter(Mandatory=$true, Position=1)]
+            [string]$Cap,
+            [Parameter(Mandatory=$true, Position=2)]
+            [string]$Lang
+        )
+        $Installed = (Get-WindowsCapability -Online -Name Language.$Cap~~~$Lang~0.0.1.0 -EA SilentlyContinue).State
+        If ($Installed -ne "Installed") {write-Host -f C "Installing $Lang $Cap Windows Capability";Add-WindowsCapability -Online -Name Language.$Cap~~~$Lang~0.0.1.0 -EA SilentlyContinue}
+        else {write-Host -f C "$Lang $Cap Windows Capability already installed"}
+        return 
+    }
+    
+    WCap Basic $Lang
+    WCap Handwriting $Lang
+    WCap OCR $Lang
+    WCap Speech $Lang
+    WCap TextToSpeech $Lang
+    WCap Handwriting $Lang
+    WCap Handwriting ar-EG # Unified
+    Add-WindowsCapability -Online -Name Language.Fonts.Arab~~~und-ARAB~0.0.1.0 -EA SilentlyContinue
+    
     if (Get-Command -Name Install-Language -EA SilentlyContinue) {Start-Job -Name InsAr {Install-Language -Language ar-SA -EA SilentlyContinue} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State}
     Set-WinHomeLocation 0xcd
     Set-WinDefaultInputMethodOverride -InputTip "0401:00000401" #Default input language Arabic
@@ -1607,6 +1626,43 @@ Function Ins-arSALang
     AddRegEntry "HKCU:\Software\Microsoft\Office\16.0\Common\ProofingTools\ar-SA" "ArabicStrictTaaMarboota" '1' 'DWord'
 }
 
+Function Restart-ExplorerSilently {
+        
+    Write-Host "Restarting Explorer to apply system-wide changes..."
+    # AddRegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "RestorePreviousFolderOpenState" '0' 'DWORD'
+    # AddRegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "PersistBrowsers" '0' 'DWORD'
+    # AddRegEntry "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWORD'
+    # AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
+
+    # Force terminate Explorer processes
+    try {
+        Write-Host "Terminating Explorer processes..."
+        # $shell = New-Object -ComObject Shell.Application
+        # $shell.Windows() | ForEach-Object {$_.Quit()}
+        # Terminate Taskbar only
+        $ProcessId = (Get-WmiObject -Class Win32_process -Filter "name='Explorer.exe'" |  Where-Object {$_.Commandline -NotLike "*/factory*"} | Select-Object -First 1).ProcessId
+        Get-Process -Id $ProcessId | Stop-Process -Force
+    }
+    catch {Write-Warning "Failed to terminate Explorer processes: $($_.Exception.Message)"}
+    
+    # Brief pause to ensure complete termination
+    Start-Sleep -Milliseconds 1000
+
+    # Restart Windows Explorer
+    try {
+        Write-Host "Restarting Windows Explorer..."
+        Start-Process "userinit.exe" -windowstyle hidden
+        # Start-Process "userinit.exe" -nonewwindow
+        # Start-Process "explorer.exe"
+        # Brief pause to ensure complete termination
+        # Start-Sleep -Milliseconds 2000
+        # $shell = New-Object -ComObject Shell.Application
+        # $shell.Windows() | ForEach-Object {$_.Quit()}
+        Write-Host "Windows Explorer restarted successfully."
+    }
+    catch {Write-Error "Failed to restart Windows Explorer: $($_.Exception.Message)"}
+}
+
 Function Set-en-US-Culture {
     Write-Host -ForegroundColor Cyan "`r`n *** Setting en-US Culture (Regional format) *** `r`n"
     
@@ -1632,11 +1688,9 @@ Function Set-en-US-Culture {
     AddRegEntry -Path $intlPath -Name 'NumShape' -Value "0"  -Type 'String' # 0=Context, 1=Native, 2=Traditional
     
     # Set additional settings
-    AddRegEntry -Path "$intlPath\User Profile" -Name 'ShowTextPrediction' -Value 1 -Type DWord
-    AddRegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name 'AutoRestartShell' -Value 1 -Type DWord
-        
-    Write-Host "Restarting Explorer to apply system-wide changes..."
-    Stop-Process -Name explorer -Force -EA SilentlyContinue
+    AddRegEntry -Path "$intlPath\User Profile" -Name 'ShowTextPrediction' -Value '1' -Type 'DWord'
+    
+    Restart-ExplorerSilently
     
     Write-Host "Culture settings updated."
 }
@@ -2287,16 +2341,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
     }
 
     # 5. Restart Explorer to apply changes
-    Write-Host "Restarting Windows Explorer to apply changes..." -ForegroundColor Yellow
-    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
-    try {
-        Get-Process explorer | Stop-Process -Force
-        Start-Sleep -Seconds 2
-        Start-Process explorer.exe
-        Write-Host "Explorer restarted."
-    } catch {
-        Write-Warning ("Failed to restart Explorer: " + $_)
-    }
+    Restart-ExplorerSilently
 
     Write-Host "Adobe Acrobat Pro PDF thumbnail fix completed." -ForegroundColor Green
 }
@@ -2736,7 +2781,7 @@ Function Unins-Copilot
     # remove copilot from taskbar
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowCopilotButton' '0' 'DWord'
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
-    Stop-Process -ProcessName explorer -Force -EA SilentlyContinue | out-null
+    Restart-ExplorerSilently
 }
 
 Function Unins-Xbox
@@ -3439,9 +3484,6 @@ Function Registry-Tweaks
 
     AddRegEntry 'HKCU:\Control Panel\Desktop' 'HungAppTimeout' '1500' 'String'
     # Hung app timeout (ms) before "Not responding".
-
-    AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' 'AutoRestartShell' '1' 'DWord'
-    # Automatically restart Explorer shell if it crashes.
 
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl' 'IRQ8Priority' '1' 'DWord'
     # Give system clock (IRQ8) priority boost (legacy tweak).
@@ -4670,9 +4712,7 @@ $taskbar_layout3 =
         }
         $registry.Dispose()
     }
-    Write-Host -f C "Restarting explorer to pin application to taskbar"
-    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
-    Stop-Process -ProcessName explorer -Force -EA SilentlyContinue | out-null
+    Restart-ExplorerSilently
 }
 
 Function Ins-ExtraFonts
@@ -4730,10 +4770,8 @@ Function Clean-up
     Remove-Job -Job $_
     }
     Clear-PrintQueue
+    Restart-ExplorerSilently
     Start-sleep 1
-    Stop-Process -ProcessName explorer -Force -EA SilentlyContinue | out-null
-    Start-Process explorer.exe
-    Write-Host "Explorer restarted."
     Refresh-Desktop
     Change_computer_name
     Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -EA SilentlyContinue | out-null
@@ -4852,11 +4890,10 @@ Function Clear-PrintQueue {
     Write-Output "Starting Print Spooler service..."
     Start-Service -Name Spooler
 
-    Write-Output "Restarting Explorer shell..."
-    Start-Process explorer.exe
-
+    Restart-ExplorerSilently
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
