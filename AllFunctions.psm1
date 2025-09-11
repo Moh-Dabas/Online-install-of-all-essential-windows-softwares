@@ -65,14 +65,17 @@ Function AddRegEntry
     )
     try
     {
-        if(!(Test-Path -LiteralPath $Path -ea SilentlyContinue)) {New-Item $Path -force -ea SilentlyContinue | out-null}
-        if(Test-Path -LiteralPath $Path -ea SilentlyContinue) {New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force -ea SilentlyContinue | out-null}
-        if(Test-Path -LiteralPath $Path -ea SilentlyContinue) {Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -Force -ea SilentlyContinue | out-null}
+        if(Get-ItemProperty -Path $Path -Name $Name -EA SilentlyContinue) {Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -Force -EA SilentlyContinue | out-null}
+        else {
+            if(!(Test-Path $Path -EA SilentlyContinue)) {New-Item $Path -force -EA SilentlyContinue | out-null}
+            New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force -EA SilentlyContinue | out-null
+        }
     }
     catch
     {
         try # Second Method
         {
+            Write-Host "PowerShell Method Failed trying CMD method ..." -ForegroundColor Red
             $Path = $Path.replace(':','') 
             switch ($Type)
             {
@@ -82,10 +85,7 @@ Function AddRegEntry
             if ($typeCMD -ne $null) {Reg Add $Path /v $Name /t $typeCMD /d $Value /f | out-null}
             else {Write-Host -f red "Unsupported type"}
         }
-        catch
-        {
-            Write-Host -f red "Error: " + $Error # Might need takeown or runing as system or trusted installer
-        }
+        catch {Write-Host -f red "Might need takeown or runing as system or trusted installer 'n Error: " + $Error}
     }
 }
 
@@ -110,7 +110,7 @@ Function Remove-AppxApp {
         $pkgFullName = $_.PackageFullName
         Write-Host "Removing package: $pkgFullName" -ForegroundColor Cyan
 
-        Remove-AppxPackage -Package $pkgFullName -ErrorAction SilentlyContinue
+        Remove-AppxPackage -Package $pkgFullName -EA SilentlyContinue
 
         # Wait until the package is fully removed with timeout
         $maxWaitSeconds = 60
@@ -137,7 +137,7 @@ Function Remove-AppxApp {
 
     Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like "*$AppName*" } | ForEach-Object {
         Write-Host "Removing provisioned package: $($_.PackageName)" -ForegroundColor Cyan
-        Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue
+        Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -EA SilentlyContinue
     }
 
     Write-Host "Operation completed." -ForegroundColor Green
@@ -176,12 +176,12 @@ Function AdminTakeownership
     [Parameter(Mandatory=$true, Position=0)]
     [string]$Path
     )
-    if (Test-Path -Path $Path -PathType Leaf -ea SilentlyContinue)
+    if (Test-Path -Path $Path -PathType Leaf -EA SilentlyContinue)
     {
         takeown /a /f $Path
         icacls $Path /t /c /grant "administrators:F"
     }
-    elseif (Test-Path -Path $Path -PathType Container -ea SilentlyContinue)
+    elseif (Test-Path -Path $Path -PathType Container -EA SilentlyContinue)
     {
         takeown /a /r /d y /f $Path
         icacls $Path /t /c /grant "administrators:F"
@@ -192,7 +192,7 @@ Function AdminTakeownership
 function Check-Internet {
     $connected = $false
     for ($i = 0; $i -lt 50; $i++) {
-        $ping = Test-Connection -ComputerName 8.8.8.8 -Count 1 -Quiet -ErrorAction SilentlyContinue
+        $ping = Test-Connection -ComputerName 8.8.8.8 -Count 1 -Quiet -EA SilentlyContinue
         if ($ping) {
             $connected = $true
             break
@@ -228,7 +228,7 @@ function Get-WiFiAdapters {
     param()
     
     # Import the NetAdapter module
-    Import-Module NetAdapter -ErrorAction SilentlyContinue
+    Import-Module NetAdapter -EA SilentlyContinue
     
     # Get active Wi-Fi adapters
     $wifiAdapters = Get-NetAdapter | Where-Object {
@@ -294,18 +294,18 @@ function Restart-WiFiAdapters {
                 param($AdapterName, $Timeout)
                 
                 # Import the NetAdapter module
-                Import-Module NetAdapter -ErrorAction SilentlyContinue
+                Import-Module NetAdapter -EA SilentlyContinue
                 
                 try {
                     # Restart the adapter
-                    Restart-NetAdapter -Name $AdapterName -Confirm:$false -ea SilentlyContinue
+                    Restart-NetAdapter -Name $AdapterName -Confirm:$false -EA SilentlyContinue
                     
                     # Wait for it to come back online
                     $startTime = Get-Date
                     $success = $false
                     
                     while (((Get-Date) - $startTime).TotalSeconds -lt $Timeout) {
-                        $adapter = Get-NetAdapter -Name $AdapterName -ErrorAction SilentlyContinue
+                        $adapter = Get-NetAdapter -Name $AdapterName -EA SilentlyContinue
                         if ($adapter -and $adapter.Status -eq 'Up') {
                             $success = $true
                             break
@@ -355,11 +355,11 @@ function Restart-WiFiAdapters {
             
             try {
                 # Restart the adapter
-                Restart-NetAdapter -Name $adapter.Name -Confirm:$false -ea SilentlyContinue
+                Restart-NetAdapter -Name $adapter.Name -Confirm:$false -EA SilentlyContinue
                 
                 # Wait for the adapter to disappear (go down)
                 $downStart = Get-Date
-                while ((Get-NetAdapter -Name $adapter.Name -ErrorAction SilentlyContinue) -and 
+                while ((Get-NetAdapter -Name $adapter.Name -EA SilentlyContinue) -and 
                       (((Get-Date) - $downStart).TotalSeconds -lt 5)) {
                     Start-Sleep -Milliseconds 100
                 }
@@ -369,7 +369,7 @@ function Restart-WiFiAdapters {
                 $adapterRestarted = $false
                 
                 while (((Get-Date) - $startTime).TotalSeconds -lt $Timeout) {
-                    $currentAdapter = Get-NetAdapter -Name $adapter.Name -ErrorAction SilentlyContinue
+                    $currentAdapter = Get-NetAdapter -Name $adapter.Name -EA SilentlyContinue
                     if ($currentAdapter -and $currentAdapter.Status -eq 'Up') {
                         $adapterRestarted = $true
                         Write-Host "Adapter $($adapter.Name) is back online" -ForegroundColor Green
@@ -584,7 +584,7 @@ function Restart-WlanService {
     
     try {
         # Restart the service
-        Restart-Service -Name wlansvc -Force -ea SilentlyContinue
+        Restart-Service -Name wlansvc -Force -EA SilentlyContinue
         
         # Wait for service to reach running state with timeout
         $service = Get-Service -Name wlansvc
@@ -777,8 +777,8 @@ Function Invoke-W32TimeResync {
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\tzautoupdate' 'Start' '3' 'DWord' # Autoupdate timezone
 
     # Start services if not running
-    Start-Service -Name "W32Time" -ErrorAction SilentlyContinue | Out-Null
-    Start-Service -Name "tzautoupdate" -ErrorAction SilentlyContinue | Out-Null
+    Start-Service -Name "W32Time" -EA SilentlyContinue | Out-Null
+    Start-Service -Name "tzautoupdate" -EA SilentlyContinue | Out-Null
 
     $success = $false
 
@@ -813,7 +813,7 @@ Function InitializeCommands
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Initializing *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    Set-ExecutionPolicy Bypass -Force -ea SilentlyContinue | out-null
+    Set-ExecutionPolicy Bypass -Force -EA SilentlyContinue | out-null
     $ErrorActionPreference = 'SilentlyContinue'
     $progressPreference = 'SilentlyContinue'
     $ConfirmPreference = 'None'
@@ -826,13 +826,13 @@ Function InitializeCommands
     #Tls all
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12, [Net.SecurityProtocolType]::Ssl3
-    New-Item -Path "$env:TEMP\IA" -ItemType Directory -ea SilentlyContinue | out-null
+    New-Item -Path "$env:TEMP\IA" -ItemType Directory -EA SilentlyContinue | out-null
     Write-Host -f C "`r`n*** Disabling proxies ***`r`n"
     Set HTTP_PROXY=
     Set HTTPS_PROXY=
     Invoke-W32TimeResync
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\BITS' 'Start' '2' 'DWord'
-    Start-Job -Name BITS {Start-Service -Name 'BITS' -ea silentlycontinue | out-null} # Service needed for fast download
+    Start-Job -Name BITS {Start-Service -Name 'BITS' -EA SilentlyContinue | out-null} # Service needed for fast download
     WifiPriority
 }
 
@@ -994,19 +994,19 @@ Function MaxPowerPlan
     powercfg /setacvalueindex $MaxPlanGUID '44f3beca-a7c0-460e-9df2-bb8b99e0cba6' '3619c3f2-afb2-4afc-b0e9-e7fef372de36' '0x00000002' | out-null
     powercfg /setdcvalueindex $MaxPlanGUID '44f3beca-a7c0-460e-9df2-bb8b99e0cba6' '3619c3f2-afb2-4afc-b0e9-e7fef372de36' '0x00000002' | out-null
     # AMD power slider overlay # sub_GUID: 'c763b4ec-0e50-4b6b-9bed-2b92a6ee884e' # setting_GUID: '7ec1751b-60ed-4588-afb5-9819d3d77d90' # 3 Best performance
-    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\c763b4ec-0e50-4b6b-9bed-2b92a6ee884e\7ec1751b-60ed-4588-afb5-9819d3d77d90' -ea SilentlyContinue)
+    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\c763b4ec-0e50-4b6b-9bed-2b92a6ee884e\7ec1751b-60ed-4588-afb5-9819d3d77d90' -EA SilentlyContinue)
     {
         powercfg /setacvalueindex $MaxPlanGUID 'c763b4ec-0e50-4b6b-9bed-2b92a6ee884e' '7ec1751b-60ed-4588-afb5-9819d3d77d90' '0x00000003' | out-null
         powercfg /setdcvalueindex $MaxPlanGUID 'c763b4ec-0e50-4b6b-9bed-2b92a6ee884e' '7ec1751b-60ed-4588-afb5-9819d3d77d90' '0x00000003' | out-null
     }
     # ATI graphics powerplay settings # sub_GUID: 'f693fb01-e858-4f00-b20f-f30e12ac06d6' # setting_GUID: '191f65b5-d45c-4a4f-8aae-1ab8bfd980e6' # 1 Best performance
-    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\f693fb01-e858-4f00-b20f-f30e12ac06d6\191f65b5-d45c-4a4f-8aae-1ab8bfd980e6' -ea SilentlyContinue)
+    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\f693fb01-e858-4f00-b20f-f30e12ac06d6\191f65b5-d45c-4a4f-8aae-1ab8bfd980e6' -EA SilentlyContinue)
     {
         powercfg /setacvalueindex $MaxPlanGUID 'f693fb01-e858-4f00-b20f-f30e12ac06d6' '191f65b5-d45c-4a4f-8aae-1ab8bfd980e6' '0x00000001' | out-null
         powercfg /setdcvalueindex $MaxPlanGUID 'f693fb01-e858-4f00-b20f-f30e12ac06d6' '191f65b5-d45c-4a4f-8aae-1ab8bfd980e6' '0x00000001' | out-null
     }
     # Switchable dynamic graphics global settings # sub_GUID: 'e276e160-7cb0-43c6-b20b-73f5dce39954' # setting_GUID: 'a1662ab2-9d34-4e53-ba8b-2639b9e20857' # 3 Maximize performance
-    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\e276e160-7cb0-43c6-b20b-73f5dce39954\a1662ab2-9d34-4e53-ba8b-2639b9e20857' -ea SilentlyContinue)
+    if (Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\11111111-1111-1111-1111-111111111111\e276e160-7cb0-43c6-b20b-73f5dce39954\a1662ab2-9d34-4e53-ba8b-2639b9e20857' -EA SilentlyContinue)
     {
         powercfg /setacvalueindex $MaxPlanGUID 'e276e160-7cb0-43c6-b20b-73f5dce39954' 'a1662ab2-9d34-4e53-ba8b-2639b9e20857' '0x00000003' | out-null
         powercfg /setdcvalueindex $MaxPlanGUID 'e276e160-7cb0-43c6-b20b-73f5dce39954' 'a1662ab2-9d34-4e53-ba8b-2639b9e20857' '0x00000003' | out-null
@@ -1074,13 +1074,13 @@ Function Ins-Nuget
     Write-Host -f C "***************************** Installing Nuget provider *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
     # Nuget PackageProvider
-    if ((Get-PackageProvider -Name NuGet -ListAvailable -ea silentlycontinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget PackageProvider already exists"}
-    else {Start-Job -Name PackageProviderNuGet {Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State;if (get-packageprovider -Name NuGet -ea silentlycontinue) {Write-Host -f C "Successfully Installed"}}
-    Import-PackageProvider -Name NuGet -Force -ea silentlycontinue | out-null
+    if ((Get-PackageProvider -Name NuGet -ListAvailable -EA SilentlyContinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget PackageProvider already exists"}
+    else {Start-Job -Name PackageProviderNuGet {Install-PackageProvider -Name NuGet -Confirm:$False -Scope AllUsers -Force -EA SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State;if (get-packageprovider -Name NuGet -EA SilentlyContinue) {Write-Host -f C "Successfully Installed"}}
+    Import-PackageProvider -Name NuGet -Force -EA SilentlyContinue | out-null
     # NuGet Module
-    if ((Get-Module -Name NuGet -ListAvailable -ea silentlycontinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget Module already exists"}
-    else {Start-Job -Name ModuleNuGet {Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State}
-    Import-Module NuGet -Force -ea silentlycontinue | out-null
+    if ((Get-Module -Name NuGet -ListAvailable -EA SilentlyContinue | select -ExpandProperty Name -First 1) -eq "NuGet") {Write-Host -f C "Nuget Module already exists"}
+    else {Start-Job -Name ModuleNuGet {Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State}
+    Import-Module NuGet -Force -EA SilentlyContinue | out-null
 }
 
 Function Ins-Choco
@@ -1089,12 +1089,12 @@ Function Ins-Choco
     Write-Host -f C "***************************** Installing Chocolatey *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
     # Ensure Chocolatey is installed
-    if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+    if (-not (Get-Command choco -EA SilentlyContinue)) {
         Write-Host "Chocolatey not found. Installing..." -ForegroundColor Yellow
         Set-ExecutionPolicy Bypass -Scope Process -Force;
         iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
     }
-    try {$ChocoInstalled = Get-Command -Name choco -ea silentlycontinue} catch {}
+    try {$ChocoInstalled = Get-Command -Name choco -EA SilentlyContinue} catch {}
     if ($ChocoInstalled) {write-host "Choco is already installed"}
     else {
         iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
@@ -1110,28 +1110,28 @@ Function Ins-Choco
     
     Get-PackageProvider -Name "Chocolatey" -ForceBootstrap | out-null
     if (choco list -l -e -r Chocolatey-core.extension) {Choco upgrade Chocolatey-core.extension -y} else {Choco install Chocolatey-core.extension -y}
-    Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1 -Force -ea silentlycontinue | out-null
+    Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1 -Force -EA SilentlyContinue | out-null
     Choco upgrade Chocolatey -y
     refreshenv
 }
 
 Function Ins-Scoop-git
 {
-    try {$scoopInstalled = Get-Command -Name scoop -ea silentlycontinue} catch {}
+    try {$scoopInstalled = Get-Command -Name scoop -EA SilentlyContinue} catch {}
     if ($scoopInstalled) {write-host "scoop is already installed"} else {write-host "`n *** Installing scoop *** `n";iex "& {$(irm get.scoop.sh)} -RunAsAdmin"}
-    try {$gitInstalled = Get-Command -Name git -ea silentlycontinue} catch {}
+    try {$gitInstalled = Get-Command -Name git -EA SilentlyContinue} catch {}
     if ($gitInstalled) {write-host "git is already installed `n Trying to update git";scoop update git} else {write-host "Installing git";scoop install git}
     if (Get-Command -Name scoop) {write-host "Trying to update scoop";scoop update}
 }
 
 Function Ins-winget-Client
 {
-    try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -ea silentlycontinue} catch {$WinGetClientInstalled =$false}
+    try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -EA SilentlyContinue} catch {$WinGetClientInstalled =$false}
     if (-not $WinGetClientInstalled)
     {
         Install-PackageProvider -Name NuGet -Force | Out-Null
-        Start-Job -Name ModuleWinGet {Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name,State
-        Import-Module Microsoft.WinGet.Client -Force -ea silentlycontinue | out-null
+        Start-Job -Name ModuleWinGet {Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA SilentlyContinue | out-null} | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name,State
+        Import-Module Microsoft.WinGet.Client -Force -EA SilentlyContinue | out-null
         repair-wingetpackagemanager
         Relaunch
     }
@@ -1224,7 +1224,7 @@ function Install-UpdateVCLibs {
         if (-not $installedPackage) {
             Write-Host "Microsoft.VCLibs not found. Installing version $onlineVersion..."
             Invoke-WebRequest -Uri $validDownloadUrl -OutFile $tempFile
-            Add-AppxPackage -Path $tempFile -ea SilentlyContinue
+            Add-AppxPackage -Path $tempFile -EA SilentlyContinue
             Write-Host "Microsoft.VCLibs version $onlineVersion installed successfully."
         }
         else {
@@ -1247,7 +1247,7 @@ function Install-UpdateVCLibs {
         }
     }
     catch {throw "Failed to install/update Microsoft.VCLibs: $_"}
-    finally {if (Test-Path $tempFile) {Remove-Item $tempFile -ErrorAction SilentlyContinue}}
+    finally {if (Test-Path $tempFile) {Remove-Item $tempFile -EA SilentlyContinue}}
 }
 
 <#
@@ -1301,7 +1301,7 @@ function Install-UpdateMicrosoftUIXaml {
     }
     
     # Check if already installed (using wildcard to match all Microsoft.UI.Xaml packages)
-    $installedPackages = Get-AppxPackage -Name "Microsoft.UI.Xaml*" -ErrorAction SilentlyContinue
+    $installedPackages = Get-AppxPackage -Name "Microsoft.UI.Xaml*" -EA SilentlyContinue
     
     if ($installedPackages) {
         # Extract version from Name property (e.g., "Microsoft.UI.Xaml.2.3" -> "2.3")
@@ -1417,8 +1417,8 @@ function Install-UpdateMicrosoftUIXaml {
     
     # Cleanup
     Write-Host "Cleaning up temporary files..." -ForegroundColor Yellow
-    Remove-Item $extractPath -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item $downloadPath -Force -ErrorAction SilentlyContinue
+    Remove-Item $extractPath -Recurse -Force -EA SilentlyContinue
+    Remove-Item $downloadPath -Force -EA SilentlyContinue
     
     Write-Host "Microsoft.UI.Xaml installation/update process completed." -ForegroundColor Green
 }
@@ -1443,7 +1443,7 @@ function Install-OrUpdateDesktopAppInstaller {
     $desktopAppInstaller = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller'
     
     # Check if winget command is available
-    $wingetAvailable = Get-Command -Name winget -ErrorAction SilentlyContinue
+    $wingetAvailable = Get-Command -Name winget -EA SilentlyContinue
 
     if ($desktopAppInstaller -and $wingetAvailable) {
         Write-Host "Both DesktopAppInstaller package and winget command are available. Attempting to upgrade..." -ForegroundColor Green
@@ -1528,7 +1528,7 @@ function Install-UsingBITS {
             Remove-Job -Job $job -Force 
         }
         if (Test-Path $installerPath) { 
-            Remove-Item $installerPath -Force -ErrorAction SilentlyContinue 
+            Remove-Item $installerPath -Force -EA SilentlyContinue 
         }
     }
 }
@@ -1563,18 +1563,55 @@ Function Install-Winget
 Function Ins-arSALang
 {
     Write-Host -f C "`r`n *** Installing Arabic-SA language *** `r`n"
-    Start-Job -Name InsAr {Install-Language -Language ar-SA} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+    Write-Host "Installing Arabic (Saudi Arabia) language pack..." -ForegroundColor Cyan
+    $Lang = "ar-SA"
+    $LCID = 1025    # Arabic (Saudi Arabia)
+    Add-WindowsCapability -Online -Name Language.Basic~~~$Lang~0.0.1.0 -EA SilentlyContinue
+    Add-WindowsCapability -Online -Name Language.Handwriting~~~$Lang~0.0.1.0 -EA SilentlyContinue
+    Add-WindowsCapability -Online -Name Language.OCR~~~$Lang~0.0.1.0 -EA SilentlyContinue
+    Add-WindowsCapability -Online -Name Language.Speech~~~$Lang~0.0.1.0 -EA SilentlyContinue
+    if (Get-Command -Name Install-Language -EA SilentlyContinue) {Start-Job -Name InsAr {Install-Language -Language ar-SA -EA SilentlyContinue} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State}
     Set-WinHomeLocation 0xcd
     Set-WinDefaultInputMethodOverride -InputTip "0401:00000401" #Default input language Arabic
     Set-WinSystemLocale -SystemLocale ar-SA
     Copy-UserInternationalSettingsToSystem -WelcomeScreen $True -NewUser $True
+    Write-Host "Adding $Lang to user's language list (will NOT remove existing languages)..." -ForegroundColor Yellow
+    try {
+    $current = Get-WinUserLanguageList
+    if ($current.LanguageTag -notcontains $Lang) {
+        $new = New-WinUserLanguageList -Language $Lang
+        $current.Add($new[0])
+        Set-WinUserLanguageList -LanguageList $current -Force
+        Write-Host "Added $Lang to WinUserLanguageList." -ForegroundColor Green
+    } else {Write-Host "$Lang already present in WinUserLanguageList." -ForegroundColor Green}
+    }
+    catch {Write-Host "Could not modify WinUserLanguageList: $_" -ForegroundColor Red}
+    # Strict rules for Arabic spelling
+    Write-Host "Configuring strict Arabic proofing rules in Windows..." -ForegroundColor Cyan
+    AddRegEntry 'HKCU:\Software\Microsoft\Spelling\Options' "$($Lang):StrictInitialAlefHamza" '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Spelling\Options' "$($Lang):StrictFinalYaa" '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Spelling\Options' "$($Lang):StrictTaaMarboota" '1' 'DWord'
+    AddRegEntry "HKCU:\Software\Microsoft\Spelling\ar-SA" "StrictInitialAlefHamza" '1' 'DWord'
+    AddRegEntry "HKCU:\Software\Microsoft\Spelling\ar-SA" "StrictFinalYaa" '1' 'DWord'
+    AddRegEntry "HKCU:\Software\Microsoft\Spelling\ar-SA" "StrictTaaMarboota" '1' 'DWord'
+    
+    Write-Host "Applying Arabic strict proofing rules in Office..." -ForegroundColor Cyan
+    AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\office' "ArabicStrictAlefHamza" '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\office' "ArabicStrictFinalYaa" '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\office' "ArabicStrictTaaMarboota" '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\Override\ar-SA' "ArabicStrictAlefHamza" '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\Override\ar-SA' "ArabicStrictFinalYaa" '1' 'DWord'
+    AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\Override\ar-SA' "ArabicStrictTaaMarboota" '1' 'DWord'
+    AddRegEntry "HKCU:\Software\Microsoft\Office\16.0\Common\ProofingTools\ar-SA" "ArabicStrictAlefHamza" '1' 'DWord'
+    AddRegEntry "HKCU:\Software\Microsoft\Office\16.0\Common\ProofingTools\ar-SA" "ArabicStrictFinalYaa" '1' 'DWord'
+    AddRegEntry "HKCU:\Software\Microsoft\Office\16.0\Common\ProofingTools\ar-SA" "ArabicStrictTaaMarboota" '1' 'DWord'
 }
 
 Function Set-en-US-Culture {
     Write-Host -ForegroundColor Cyan "`r`n *** Setting en-US Culture (Regional format) *** `r`n"
     
     # Import the module (if available)
-    Import-Module International -Force -ErrorAction SilentlyContinue | Out-Null
+    Import-Module International -Force -EA SilentlyContinue | Out-Null
     
     # Set culture for future sessions using registry
     Set-Culture -CultureInfo en-US
@@ -1600,9 +1637,9 @@ Function Set-en-US-Culture {
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name 'AutoRestartShell' -Value 1 -Type DWord
         
     Write-Host "Restarting Explorer to apply system-wide changes..."
-    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+    Stop-Process -Name explorer -Force -EA SilentlyContinue
     
-    Write-Host "Culture settings updated. Changes will take full effect after restarting PowerShell."
+    Write-Host "Culture settings updated."
 }
 
 Function Ins-enUSLang
@@ -1624,10 +1661,10 @@ Function Ins-enUSLang
 Function Unins-enGBLang
 {
     Write-Host -f C "`r`n *** Removing English-GB language *** `r`n"
-    Uninstall-Language -Language en-GB;lpksetup.exe /u en-GB /s /r
-    Remove-Item -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Control\ContentIndex\Language\English_UK"  -Recurse -force -ea SilentlyContinue | out-null
-    Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile\en-GB"  -Recurse -force -ea SilentlyContinue | out-null
-    Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile System Backup\en-GB"  -Recurse -force -ea SilentlyContinue | out-null
+    Uninstall-Language -Language en-GB;lpksetup.exe /u en-GB /s
+    Remove-Item -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Control\ContentIndex\Language\English_UK"  -Recurse -force -EA SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile\en-GB"  -Recurse -force -EA SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile System Backup\en-GB"  -Recurse -force -EA SilentlyContinue | out-null
 }
 
 Function Tweak-Language
@@ -1722,15 +1759,15 @@ Function Ins-Chrome
     if (choco list -l -e -r googlechrome) {Choco upgrade googlechrome --ignore-checksums -y} else {Choco install googlechrome --ignore-checksums -y}
     winget install -e --id 'Google.Chrome' --silent --accept-source-agreements --accept-package-agreements
     # remove logon chrome
-    Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{8A69D345-D564-463c-AFF1-A69D9E530F96}"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{8A69D345-D564-463c-AFF1-A69D9E530F96}"  -Recurse -force -EA SilentlyContinue | out-null
     # disable chrome services
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\GoogleChromeElevationService' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\gupdate' 'Start' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\gupdatem' 'Start' '4' 'DWord'
     # remove chrome tasks
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineCore'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdaterTaskSystem'} | Unregister-ScheduledTask -Confirm:$false -ea SilentlyContinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineCore'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'GoogleUpdaterTaskSystem'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
     # Allow popups on all chrome profiles (will prompt to close Chrome if running)
     Set-ChromePopupSettings -Action Allow
 }
@@ -1763,7 +1800,7 @@ Function Set-ChromePopupSettings {
         
         if (-not $Force) {
             # Check if Chrome is running
-            $chromeProcesses = Get-Process -Name "chrome" -ErrorAction SilentlyContinue
+            $chromeProcesses = Get-Process -Name "chrome" -EA SilentlyContinue
             if ($chromeProcesses) {
                 if ($statusBox) {
                     $statusBox.Text += "Chrome is running. Please close Chrome first or use -Force parameter.`n"
@@ -1774,7 +1811,7 @@ Function Set-ChromePopupSettings {
             }
         } else {
             # Force close Chrome
-            Stop-Process -Name "chrome" -ErrorAction SilentlyContinue
+            Stop-Process -Name "chrome" -EA SilentlyContinue
             Start-Sleep -Seconds 2
         }
         
@@ -1886,8 +1923,8 @@ Function Set-ChromePopupSettings {
     # GUI function
     function Show-PopupSettingsGUI {
         # Add required assemblies for GUI
-        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-        Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
+        Add-Type -AssemblyName System.Windows.Forms -EA SilentlyContinue
+        Add-Type -AssemblyName System.Drawing -EA SilentlyContinue
         [System.Windows.Forms.Application]::MessageBox("This will modify Chrome settings. Ensure Chrome is closed before continuing.", "Chrome Popup Settings Manager", "Ok", "Information")
         # Main form
         $form = New-Object System.Windows.Forms.Form
@@ -2003,22 +2040,22 @@ Function Tweak-Edge
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main' 'AllowPrelaunch' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer\Storage\microsoft.microsoftedge_8wekyb3d8bbwe\MicrosoftEdge\PhishingFilter' 'EnabledV9' '0' 'DWord'
     # remove logon edge
-    Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{9459C573-B17A-45AE-9F64-1857B5D58CEE}"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\Software\Microsoft\Active Setup\Installed Components\{9459C573-B17A-45AE-9F64-1857B5D58CEE}"  -Recurse -force -EA SilentlyContinue | out-null
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\TabPreloader' 'AllowTabPreloading' '0' 'DWord'
     # disable edge services
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\MicrosoftEdgeElevationService' 'Start' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\edgeupdate' 'Start' '4' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\edgeupdatem' 'Start' '4' 'DWord'
     # remove edge tasks
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateTaskMachineCore'} | Unregister-ScheduledTask -Confirm:$false -ea silentlycontinue | out-null
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -ea silentlycontinue | out-null
-    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateBrowserReplacementTask'} | Unregister-ScheduledTask -Confirm:$false -ea silentlycontinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateTaskMachineCore'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateTaskMachineUA'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
+    Get-ScheduledTask | Where-Object {$_.Taskname -match 'MicrosoftEdgeUpdateBrowserReplacementTask'} | Unregister-ScheduledTask -Confirm:$false -EA SilentlyContinue | out-null
 }
 
 Function Ins-AcrobatRdr
 {
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Reader DC *** `r`n"
-    try {$Acrobat = Get-Package -Name 'Adobe Acrobat (64-bit)' -ea silentlycontinue} catch {}
+    try {$Acrobat = Get-Package -Name 'Adobe Acrobat (64-bit)' -EA SilentlyContinue} catch {}
     if ($Acrobat) {Write-Host -f C "Adobe Acrobat (64-bit) found installed"}
     else
     {
@@ -2059,7 +2096,7 @@ Function Unins-Acrobat
     $paths = @('HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\')
     $installedPrograms = foreach ($registryPath in $paths) {
         try {
-            Get-ChildItem -LiteralPath $registryPath -ea silentlycontinue | Get-ItemProperty | Where-Object { $_.PSChildName -ne $null }
+            Get-ChildItem -LiteralPath $registryPath -EA SilentlyContinue | Get-ItemProperty | Where-Object { $_.PSChildName -ne $null }
         } catch {Write-warning "Error reaging registry"}
     }
     # Filter programs with Adobe Acrobat in their display name
@@ -2080,9 +2117,9 @@ Function Unins-Acrobat
     winget uninstall -e --id "Adobe.Acrobat.Pro"
     Write-Host -f C "`r`n *** Removing All Acrobat left overs *** `r`n"
     $DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/16etkp4rCcon2NyGGh0oYSocHhB_054cm" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
-    if ($DDURL) {Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcroCleaner.exe"  -ea SilentlyContinue | out-null}
-    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=0","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name,State
-    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=1","/cleanlevel=1" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name,State
+    if ($DDURL) {Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcroCleaner.exe"  -EA SilentlyContinue | out-null}
+    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -EA SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=0","/cleanlevel=1" -EA SilentlyContinue | out-null}} | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name,State
+    Start-Job -Name CleanerAcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -EA SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent","/product=1","/cleanlevel=1" -EA SilentlyContinue | out-null}} | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
 function Fix-AdobeAcrobatProPdfThumbnails {
@@ -2098,7 +2135,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
         Write-Host "Deleting thumbnail cache files..." -ForegroundColor Yellow
         try {
             $thumbCachePath = "$env:LOCALAPPDATA\Microsoft\Windows\Explorer"
-            Get-ChildItem -Path $thumbCachePath -Include "*thumbcache*.db" -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+            Get-ChildItem -Path $thumbCachePath -Include "*thumbcache*.db" -File -EA SilentlyContinue | Remove-Item -Force -EA SilentlyContinue
             Write-Host "Thumbnail cache files deleted."
         } catch {
             Write-Warning ("Failed to delete thumbnail cache files: " + $_)
@@ -2135,9 +2172,9 @@ function Fix-AdobeAcrobatProPdfThumbnails {
     Write-Host "Starting Adobe Acrobat Pro PDF thumbnail fix..." -ForegroundColor Cyan
     
     # Stop relevant services
-    Stop-Service -Name "AppReadiness" -Force -ErrorAction SilentlyContinue
+    Stop-Service -Name "AppReadiness" -Force -EA SilentlyContinue
     # Stop Explorer temporarily
-    Stop-Process -Name "explorer" -ErrorAction SilentlyContinue
+    Stop-Process -Name "explorer" -EA SilentlyContinue
 
     # 1. Clear thumbnail cache
     Clear-ThumbnailCacheWithDiskCleanup -SageSetNumber $DiskCleanupSageSetNumber
@@ -2152,7 +2189,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
     )
 
     foreach ($path in $cachePaths) {
-        Get-ChildItem $path -ErrorAction SilentlyContinue | Remove-Item -Force
+        Get-ChildItem $path -EA SilentlyContinue | Remove-Item -Force
     }
 
     # Reset thumbnail related registry settings
@@ -2163,7 +2200,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 
     foreach ($regPath in $regPaths) {
         if (Test-Path $regPath) {
-            Remove-Item $regPath -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item $regPath -Recurse -Force -EA SilentlyContinue
         }
     }
 
@@ -2173,7 +2210,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
     Write-Host "Enabling thumbnails in Folder Options via registry..." -ForegroundColor Yellow
     try {
         $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-        Set-ItemProperty -Path $regPath -Name "IconsOnly" -Value 0
+        AddRegEntry -Path $regPath -Name "IconsOnly" -Value 0
         Write-Host "Thumbnails enabled in Folder Options."
     } catch {
         Write-Warning ("Failed to set Folder Options registry key: " + $_)
@@ -2216,7 +2253,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
         )
         foreach ($p in $paths) {
             try {
-                $path = (Get-ItemProperty -Path $p -ErrorAction SilentlyContinue).'(Default)'
+                $path = (Get-ItemProperty -Path $p -EA SilentlyContinue).'(Default)'
                 if ($path -and (Test-Path $path)) {
                     return $path
                 }
@@ -2434,7 +2471,7 @@ function Invoke-AcrobatFix {
     foreach ($item in $registryChanges) {
         try {
             if (-not (Test-Path $item.Path)) {New-Item -Path $item.Path -Force | Out-Null}
-            Set-ItemProperty -Path $item.Path -Name $item.Name -Value $item.Value -Type $item.Type -Force
+            AddRegEntry -Path $item.Path -Name $item.Name -Value $item.Value -Type $item.Type -Force
         }
         catch {} # Silently continue on errors to ensure uninterrupted execution
     }
@@ -2451,7 +2488,7 @@ function Invoke-AcrobatFix {
 
     foreach ($item in $registryDeletes) {
         try {
-            Remove-ItemProperty -Path $item.Path -Name $item.Name -Force -ErrorAction SilentlyContinue
+            Remove-ItemProperty -Path $item.Path -Name $item.Name -Force -EA SilentlyContinue
         }
         catch {
             # Silently continue if property doesn't exist
@@ -2465,7 +2502,7 @@ function Invoke-AcrobatFix {
 
     foreach ($key in $registryKeyDeletes) {
         try {
-            Remove-Item -Path $key -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path $key -Recurse -Force -EA SilentlyContinue
         }
         catch {
             # Silently continue if key doesn't exist
@@ -2481,7 +2518,7 @@ function Invoke-AcrobatFix {
     
     foreach ($process in $processes) {
         try {
-            Get-Process -Name $process -ErrorAction SilentlyContinue | Stop-Process -Force
+            Get-Process -Name $process -EA SilentlyContinue | Stop-Process -Force
         }
         catch {
             # Silently continue if process isn't running
@@ -2498,10 +2535,10 @@ function Invoke-AcrobatFix {
     foreach ($service in $services) {
         try {
             # Stop the service if it's running
-            Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
+            Stop-Service -Name $service -Force -EA SilentlyContinue
             
             # Disable the service from starting automatically
-            Set-Service -Name $service -StartupType Disabled -ErrorAction SilentlyContinue
+            Set-Service -Name $service -StartupType Disabled -EA SilentlyContinue
         }
         catch {
             # Silently continue if service doesn't exist or can't be modified
@@ -2521,10 +2558,10 @@ function Invoke-AcrobatFix {
     foreach ($task in $adobeTasks) {
         try {
             # Disable the task first
-            Disable-ScheduledTask -TaskName $task.TaskName -ErrorAction SilentlyContinue
+            Disable-ScheduledTask -TaskName $task.TaskName -EA SilentlyContinue
             
             # Then completely remove it
-            Unregister-ScheduledTask -TaskName $task.TaskName -Confirm:$false -ErrorAction SilentlyContinue
+            Unregister-ScheduledTask -TaskName $task.TaskName -Confirm:$false -EA SilentlyContinue
         }
         catch {
             # Silently continue if task cannot be modified or removed
@@ -2545,7 +2582,7 @@ function Invoke-AcrobatFix {
     foreach ($path in $paths) {
         try {
             if (Test-Path $path) {
-                Remove-Item -Path $path -Recurse -Force -ea SilentlyContinue
+                Remove-Item -Path $path -Recurse -Force -EA SilentlyContinue
             }
         }
         catch {
@@ -2561,7 +2598,7 @@ function Invoke-AcrobatFix {
     try {
         Get-ChildItem -Path "$env:WINDIR\SYSTEM32\TASKS" | Where-Object {
             ($_.Name -match 'Adobe') -or ($_.Name -match 'Acrobat')
-        } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        } | Remove-Item -Recurse -Force -EA SilentlyContinue
     }
     catch {
         # Silently continue on errors
@@ -2578,10 +2615,10 @@ function Invoke-AcrobatFix {
         try {
             # Check if the path exists before trying to access it
             if (Test-Path $runPath) {
-                $properties = Get-ItemProperty -Path $runPath -ErrorAction SilentlyContinue
+                $properties = Get-ItemProperty -Path $runPath -EA SilentlyContinue
                 if ($properties) {
                     $properties.PSObject.Properties | Where-Object {$_.Name -match 'Adobe' -or $_.Name -match 'Acrobat'} | ForEach-Object {
-                        Remove-ItemProperty -Path $runPath -Name $_.Name -Force -ErrorAction SilentlyContinue
+                        Remove-ItemProperty -Path $runPath -Name $_.Name -Force -EA SilentlyContinue
                     }
                 }
             }
@@ -2598,12 +2635,12 @@ Function Ins-AcrobatPro
     Unins-Acrobat
     #Set-MpPreference -DisableRealtimeMonitoring $false
     Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
-    Try{Set-MpPreference -DisableRealtimeMonitoring $true -ea SilentlyContinue | out-null} Catch{}
-    Stop-Service -Name "WinDefend" -Force -ea SilentlyContinue | out-null
+    Try{Set-MpPreference -DisableRealtimeMonitoring $true -EA SilentlyContinue | out-null} Catch{}
+    Stop-Service -Name "WinDefend" -Force -EA SilentlyContinue | out-null
     $DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/1TUxSGweMW7M9-B-ueqcGnAT1d3co1oG1" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
-    if ($DDURL) {Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -ea SilentlyContinue | out-null}
-    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-    Remove-Item -path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -ea silentlycontinue | Out-Null
+    if ($DDURL) {Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -EA SilentlyContinue | out-null}
+    Start-Job -Name AcrobatPro {if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+    Remove-Item -path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -EA SilentlyContinue | Out-Null
     $printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
     Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
     (New-Object -ComObject WScript.Network).SetDefaultPrinter('Adobe PDF')
@@ -2700,7 +2737,7 @@ Function Unins-Copilot
     # remove copilot from taskbar
     AddRegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' 'ShowCopilotButton' '0' 'DWord'
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
-    Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
+    Stop-Process -ProcessName explorer -Force -EA SilentlyContinue | out-null
 }
 
 Function Unins-Xbox
@@ -2708,12 +2745,12 @@ Function Unins-Xbox
     Write-Host -f C "`r`n *** Uninstalling Xbox & Game Bar *** `r`n"
     Remove-AppxApp -AppName "Xbox"
     AddRegEntry "HKLM:\System\CurrentControlSet\Services\xbgm" "Start" '4' 'DWORD'
-    Set-Service -Name XblAuthManager -StartupType Disabled -ea silentlycontinue | out-null
-    Set-Service -Name XblGameSave -StartupType Disabled -ea silentlycontinue | out-null
-    Set-Service -Name XboxGipSvc -StartupType Disabled -ea silentlycontinue | out-null
-    Set-Service -Name XboxNetApiSvc -StartupType Disabled -ea silentlycontinue | out-null
+    Set-Service -Name XblAuthManager -StartupType Disabled -EA SilentlyContinue | out-null
+    Set-Service -Name XblGameSave -StartupType Disabled -EA SilentlyContinue | out-null
+    Set-Service -Name XboxGipSvc -StartupType Disabled -EA SilentlyContinue | out-null
+    Set-Service -Name XboxNetApiSvc -StartupType Disabled -EA SilentlyContinue | out-null
     # Disabling scheduled tasks
-    Get-ScheduledTask -TaskName 'XblGameSaveTask' | Disable-ScheduledTask -ea silentlycontinue | out-null
+    Get-ScheduledTask -TaskName 'XblGameSaveTask' | Disable-ScheduledTask -EA SilentlyContinue | out-null
     #  Disable Game DVR
     AddRegEntry 'HKCU:\System\GameConfigStore' 'GameDVR_Enabled' '0' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\ApplicationManagement\AllowGameDVR' 'value' '0' 'DWord'
@@ -2727,10 +2764,10 @@ Function Unins-Xbox
 Function Unins-MSTeams
 {
     Write-Host -f C "`r`n *** Uninstalling Microsoft Teams *** `r`n"
-    if (Get-Module -Name UninstallTeams -ListAvailable -ea silentlycontinue) {Write-Host -f C "UninstallTeams Module already exists"}
-    else {Start-Job -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-List -Property Name,State}
-    Import-Module UninstallTeams -Force -ea silentlycontinue | out-null
-    Install-Script UninstallTeams -Confirm:$False -Force -ea silentlycontinue | out-null
+    if (Get-Module -Name UninstallTeams -ListAvailable -EA SilentlyContinue) {Write-Host -f C "UninstallTeams Module already exists"}
+    else {Start-Job -Name UninstallTeams {Install-Module -Name UninstallTeams -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-List -Property Name,State}
+    Import-Module UninstallTeams -Force -EA SilentlyContinue | out-null
+    Install-Script UninstallTeams -Confirm:$False -Force -EA SilentlyContinue | out-null
     UninstallTeams -DisableChatWidget -AllUsers
     UninstallTeams -DisableOfficeTeamsInstall
     UninstallTeams
@@ -2758,7 +2795,7 @@ Function Ins-DirectX
     #wt winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements
     #Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '-p "Windows PowerShell"','winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
     # Run on Latest PowerShell
-    #try {$PSLatestInstalled = Get-Command -Name pwsh -ea silentlycontinue} catch {}
+    #try {$PSLatestInstalled = Get-Command -Name pwsh -EA SilentlyContinue} catch {}
     #if ($PSLatestInstalled) {pwsh -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -Command "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements"}
 }
 
@@ -2778,19 +2815,19 @@ Function Windows-Update
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\UsoSvc' 'Start' '3' 'DWord'
     AddRegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\WaaSMedicSvc' 'Start' '3' 'DWord'
     # Start Services
-    Start-Service -Name "wuauserv" -ea silentlycontinue | out-null
-    Start-Service -Name "UsoSvc" -ea silentlycontinue | out-null
+    Start-Service -Name "wuauserv" -EA SilentlyContinue | out-null
+    Start-Service -Name "UsoSvc" -EA SilentlyContinue | out-null
     # Use PSWindowsUpdate Module
-    If (-not (Get-Module -ListAvailable -Name PSWindowsUpdateModule)) {Start-Job -Name PSWindowsUpdateModule {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State}
-    Import-Module PSWindowsUpdate -Force -ea silentlycontinue | out-null
-    Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -ea silentlycontinue | out-null}
-    Start-Job -Name WindowsUpdate {Get-WindowsUpdate -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue}
+    If (-not (Get-Module -ListAvailable -Name PSWindowsUpdateModule)) {Start-Job -Name PSWindowsUpdateModule {Install-Module -Name PSWindowsUpdate -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA SilentlyContinue | out-null} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State}
+    Import-Module PSWindowsUpdate -Force -EA SilentlyContinue | out-null
+    Get-WUServiceManager | Foreach-Object {Add-WUServiceManager -ServiceID $_.ServiceID -Confirm:$false -EA SilentlyContinue | out-null}
+    Start-Job -Name WindowsUpdate {Get-WindowsUpdate -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -EA SilentlyContinue}
     (New-Object -ComObject Microsoft.Update.ServiceManager).Services | Select Name,ServiceID | foreach {if($_.Name -match "Store"){$StoreServiceID=$_.ServiceID}} #Get Store Service ID
-    Start-Job -Name WindowsStoreAppsUpdate {Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -ea silentlycontinue}
+    Start-Job -Name WindowsStoreAppsUpdate {Get-WindowsUpdate -ServiceID $StoreServiceID -Install -ForceInstall -AcceptAll -IgnoreReboot -Silent -EA SilentlyContinue}
     # Use kbupdate Module
     try {
-        if (-not (Get-Module -ListAvailable -Name kbupdate)) {Install-Module kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -ea silentlycontinue}
-        Import-Module kbupdate -Force -ea silentlycontinue | out-null
+        if (-not (Get-Module -ListAvailable -Name kbupdate)) {Install-Module kbupdate -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA SilentlyContinue}
+        Import-Module kbupdate -Force -EA SilentlyContinue | out-null
         Get-KbNeededUpdate | Install-KbUpdate -AllNeeded
     } catch {}
     # Old Windows
@@ -2819,10 +2856,10 @@ Function DeepTweaks
 Function Dis-BitLocker
 {
     Write-Host -f C "`r`n *** Disabling BitLocker *** `r`n"
-    Get-BitLockerVolume | foreach {manage-bde -unlock $_.MountPoint -recoverypassword (Get-BitLockerVolume -MountPoint $_.MountPoint).KeyProtector.RecoveryPassword -ea SilentlyContinue} | out-null
+    Get-BitLockerVolume | foreach {manage-bde -unlock $_.MountPoint -recoverypassword (Get-BitLockerVolume -MountPoint $_.MountPoint).KeyProtector.RecoveryPassword -EA SilentlyContinue} | out-null
     Get-BitLockerVolume | foreach {manage-bde -off $_.MountPoint} | out-null
-    #Clear-BitLockerAutoUnlock -ea SilentlyContinue | out-null
-    #Get-BitLockerVolume | foreach {Disable-BitLocker -MountPoint $_.MountPoint -ea SilentlyContinue} | out-null
+    #Clear-BitLockerAutoUnlock -EA SilentlyContinue | out-null
+    #Get-BitLockerVolume | foreach {Disable-BitLocker -MountPoint $_.MountPoint -EA SilentlyContinue} | out-null
 }
 
 Function EnableSMB1Protocol-Client
@@ -2880,13 +2917,13 @@ Function Fix-Share
     Start-Job -Name NFR9 {Set-NetFirewallRule -DisplayGroup "File And Printer Sharing" -Enabled True -Profile Any}
     Start-Job -Name NFR10 {Set-NetFirewallRule -DisplayGroup "Network Discovery" -Enabled True -Profile Any}
     # Make sure required protocols are enabled in the adapter (they should be by default)
-    Start-Job -Name NetAdapter1 {Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "File and Printer Sharing for Microsoft Networks" -ea SilentlyContinue | out-null}}
-    Start-Job -Name NetAdapter2 {Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "Client for Microsoft Networks" -ea SilentlyContinue | out-null}}
-    Remove-Item "$env:windir\System32\GroupPolicyUsers" -Recurse -Force -ea SilentlyContinue | out-null
-    Remove-Item "$env:windir\System32\GroupPolicy" -Recurse -Force -ea SilentlyContinue | out-null
+    Start-Job -Name NetAdapter1 {Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "File and Printer Sharing for Microsoft Networks" -EA SilentlyContinue | out-null}}
+    Start-Job -Name NetAdapter2 {Get-NetAdapter | foreach {Enable-NetAdapterBinding -Name $_.Name -DisplayName "Client for Microsoft Networks" -EA SilentlyContinue | out-null}}
+    Remove-Item "$env:windir\System32\GroupPolicyUsers" -Recurse -Force -EA SilentlyContinue | out-null
+    Remove-Item "$env:windir\System32\GroupPolicy" -Recurse -Force -EA SilentlyContinue | out-null
     gpupdate /force
     # Get-ComputerInfo -Property CsWorkgroup | Select-Object -ExpandProperty CsWorkgroup
-    Add-Computer -WorkGroupName "WORKGROUP" -ea SilentlyContinue | out-null
+    Add-Computer -WorkGroupName "WORKGROUP" -EA SilentlyContinue | out-null
     Set-SmbClientConfiguration -EnableInsecureGuestLogons:$true -Force -Confirm:$false
     Set-SmbClientConfiguration -SkipCertificateCheck:$true -Force -Confirm:$false
     Set-SmbClientConfiguration -EnableSecuritySignature:$true -Force -Confirm:$false
@@ -2941,10 +2978,10 @@ Function Fix-Share
 Function Tweak-schtasks
 {
     Write-Host -f C "`r`n *** Disabling scheduled tasks that are considered unnecessary *** `r`n"
-    Get-ScheduledTask -TaskName 'Consolidator' | Disable-ScheduledTask -ea SilentlyContinue | out-null
-    Get-ScheduledTask -TaskName 'UsbCeip' | Disable-ScheduledTask -ea SilentlyContinue | out-null
-    Get-ScheduledTask -TaskName 'DmClient' | Disable-ScheduledTask -ea SilentlyContinue | out-null
-    Get-ScheduledTask -TaskName 'DmClientOnScenarioDownload' | Disable-ScheduledTask -ea SilentlyContinue | out-null
+    Get-ScheduledTask -TaskName 'Consolidator' | Disable-ScheduledTask -EA SilentlyContinue | out-null
+    Get-ScheduledTask -TaskName 'UsbCeip' | Disable-ScheduledTask -EA SilentlyContinue | out-null
+    Get-ScheduledTask -TaskName 'DmClient' | Disable-ScheduledTask -EA SilentlyContinue | out-null
+    Get-ScheduledTask -TaskName 'DmClientOnScenarioDownload' | Disable-ScheduledTask -EA SilentlyContinue | out-null
 }
 
 Function Registry-Tweaks
@@ -2959,7 +2996,7 @@ Function Registry-Tweaks
     # Desktop icon sort order. 0x40000002 = sort by Name (ascending).
 
     $sortBinary = [byte[]] (0x02,0x00,0x00,0x40)
-    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "Sort" -Value $sortBinary -Type Binary
+    AddRegEntry -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "Sort" -Value $sortBinary -Type Binary
     # Same as above in binary form (02 00 00 40 = Name ascending).
 
     AddRegEntry "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" "FFlags" "0x40200225" 'DWord'
@@ -3045,10 +3082,10 @@ Function Registry-Tweaks
     AddRegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'DisableLogonBackgroundImage' '0' 'DWord'
     # Keep logon background image (0=use image, 1=solid color).
 
-    Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticecaption' -force -ea SilentlyContinue | out-null
+    Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticecaption' -force -EA SilentlyContinue | out-null
     # Remove legal notice caption (if exists).
 
-    Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticetext' -force -ea SilentlyContinue | out-null
+    Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticetext' -force -EA SilentlyContinue | out-null
     # Remove legal notice text (if exists).
 
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'dontdisplaylastusername' '0' 'DWord'
@@ -3091,10 +3128,10 @@ Function Registry-Tweaks
     # DOWNLOADED FILES / ATTACHMENTS
     # ===============================
 
-    Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments"  -Recurse -force -EA SilentlyContinue | out-null
     # Clear existing machine Attachment policies (reset).
 
-    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments"  -Recurse -force -EA SilentlyContinue | out-null
     # Clear existing user Attachment policies (reset).
 
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments' 'SaveZoneInformation' '1' 'DWord'
@@ -3160,7 +3197,7 @@ Function Registry-Tweaks
     AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' 'NumberOfSIUFInPeriod' '0' 'DWord'
     # Feedback frequency count (0 = never prompt).
 
-    Remove-ItemProperty -LiteralPath 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' -Name 'PeriodInNanoSeconds' -force -ea SilentlyContinue | out-null
+    Remove-ItemProperty -LiteralPath 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' -Name 'PeriodInNanoSeconds' -force -EA SilentlyContinue | out-null
     # Remove feedback timing window (reset).
 
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\System' 'AllowCommercialDataPipeline' '0' 'DWord'
@@ -3273,16 +3310,16 @@ Function Registry-Tweaks
     # STARTUP / PERFORMANCE CLEANUP
     # ===============================
 
-    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -EA SilentlyContinue | out-null
     # Clear per-user startup entries.
 
-    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunNotification"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunNotification"  -Recurse -force -EA SilentlyContinue | out-null
     # Clear per-user startup notifications list.
 
-    Remove-Item -LiteralPath "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -EA SilentlyContinue | out-null
     # Clear 32-bit machine-wide startup entries.
 
-    Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"  -Recurse -force -EA SilentlyContinue | out-null
     # Clear machine-wide startup entries.
 
     # ===============================
@@ -3679,16 +3716,16 @@ Function ShrinkC-MakeNew
     [Parameter(Mandatory=$true, Position=0)]
     [string]$DriveLetter
     )
-    if (Get-Volume -DriveLetter $DriveLetter -ea SilentlyContinue) {Write-warning "Partition $DriveLetter already exist";return}
+    if (Get-Volume -DriveLetter $DriveLetter -EA SilentlyContinue) {Write-warning "Partition $DriveLetter already exist";return}
     $CSizeMax = (Get-PartitionSupportedSize -DriveLetter C).SizeMax
     $CSizeMin = (Get-PartitionSupportedSize -DriveLetter C).SizeMin
     $CShrink = ($CSizeMax - $CSizeMin)/1000000000 #Shrinkable amount in GB
     if ($CShrink -gt 70)
     {
-        Resize-Partition -DriveLetter C -Size ($CSizeMax - 50GB) -ea SilentlyContinue | out-null
+        Resize-Partition -DriveLetter C -Size ($CSizeMax - 50GB) -EA SilentlyContinue | out-null
         $CDiskNumber = (Get-Volume | where DriveLetter -eq "C" | Get-Partition | Get-Disk).Number
-        New-Partition -DiskNumber $CDiskNumber -UseMaximumSize -DriveLetter $DriveLetter -ea SilentlyContinue | out-null
-        Format-Volume -DriveLetter $DriveLetter -FileSystem NTFS -Force -ea SilentlyContinue | out-null
+        New-Partition -DiskNumber $CDiskNumber -UseMaximumSize -DriveLetter $DriveLetter -EA SilentlyContinue | out-null
+        Format-Volume -DriveLetter $DriveLetter -FileSystem NTFS -Force -EA SilentlyContinue | out-null
     }
     else {Write-Host -f C "`r`n Not Enough shrinkable Space on Partition C"}
 }
@@ -3698,22 +3735,22 @@ Function D-ScanFolder
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "************************* Creating Drive D (If not found) & Creating shared Scan folder in it **************************"
     Write-Host -f C "======================================================================================================================`r`n" 
-    if (!(Get-Volume -DriveLetter D -ea SilentlyContinue)) {ShrinkC-MakeNew "D"}
-    elseif ((Get-Volume -DriveLetter D -ea SilentlyContinue).DriveType -ne "Fixed")
+    if (!(Get-Volume -DriveLetter D -EA SilentlyContinue)) {ShrinkC-MakeNew "D"}
+    elseif ((Get-Volume -DriveLetter D -EA SilentlyContinue).DriveType -ne "Fixed")
     {
         try{$successful = $true;Set-WmiInstance -InputObject (Get-WmiObject -Class Win32_volume -Filter "DriveLetter = 'd:'" ) -Arguments @{DriveLetter='Z:'}}
         catch{$successful = $false;Write-Host -f C "Busy Removable Partition D"}
         if ($successful) {ShrinkC-MakeNew "D"}
     }
-    if ((Get-Volume -DriveLetter D -ea SilentlyContinue).DriveType -eq "Fixed")
+    if ((Get-Volume -DriveLetter D -EA SilentlyContinue).DriveType -eq "Fixed")
     {
-        if (!(Test-Path -Path "D:\Scans" -ea SilentlyContinue)) {New-Item -Path "D:\" -Name "Scans" -ItemType Directory -ea SilentlyContinue | out-null}
-        Remove-SmbShare -Name "Scans" -Confirm:$False -Force -ea silentlycontinue | out-null
-        if (!([System.IO.Directory]::Exists("\\localhost\Scans"))) {New-SmbShare -Name "Scans" -Path "D:\Scans" -FullAccess "Everyone" -ea SilentlyContinue | out-null}
-        else {Grant-SmbShareAccess -Name "Scans" -AccountName "Everyone" -AccessRight Full -Force -ea SilentlyContinue | out-null}
+        if (!(Test-Path -Path "D:\Scans" -EA SilentlyContinue)) {New-Item -Path "D:\" -Name "Scans" -ItemType Directory -EA SilentlyContinue | out-null}
+        Remove-SmbShare -Name "Scans" -Confirm:$False -Force -EA SilentlyContinue | out-null
+        if (!([System.IO.Directory]::Exists("\\localhost\Scans"))) {New-SmbShare -Name "Scans" -Path "D:\Scans" -FullAccess "Everyone" -EA SilentlyContinue | out-null}
+        else {Grant-SmbShareAccess -Name "Scans" -AccountName "Everyone" -AccessRight Full -Force -EA SilentlyContinue | out-null}
         $s=(New-Object -COM WScript.Shell).CreateShortcut("$env:PUBLIC\Desktop\Scans.lnk");$s.TargetPath="D:\Scans\";$s.Save()
     }
-    Remove-SmbShare -Name "Users" -Confirm:$False -Force -ea silentlycontinue | out-null
+    Remove-SmbShare -Name "Users" -Confirm:$False -Force -EA SilentlyContinue | out-null
 }
 
 Function Adj-Hosts
@@ -3977,19 +4014,19 @@ Function Adj-Hosts
 127.0.0.1 secure.asap-utilities.com
 127.0.0.1 server2.asap-utilities.com
 "@
-    Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Force -ea SilentlyContinue | out-null
+    Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Force -EA SilentlyContinue | out-null
 }
 
 Function uninsSara-Office
 {
     Write-Host -f C "`r`n *** Removing currently installed MS office products using SaraCmd *** `r`n"
     # Run SaraCMD non-interactive Script
-    New-Item -Path "$env:TEMP\IA\office" -ItemType Directory -ea SilentlyContinue | out-null
+    New-Item -Path "$env:TEMP\IA\office" -ItemType Directory -EA SilentlyContinue | out-null
     Invoke-WebRequest -Uri "https://aka.ms/SaRAEnterpriseHelper" -OutFile "$env:TEMP\IA\office\ExecuteSaraCmd.zip"
-    Expand-Archive -LiteralPath "$env:TEMP\IA\office\ExecuteSaraCmd.zip" -DestinationPath "$env:TEMP\IA\office" -Force -ea SilentlyContinue | out-null
+    Expand-Archive -LiteralPath "$env:TEMP\IA\office\ExecuteSaraCmd.zip" -DestinationPath "$env:TEMP\IA\office" -Force -EA SilentlyContinue | out-null
     $SNIfile = "$env:TEMP\IA\office\ExecuteSaraCmd.ps1"
     $find = '$SaraScenarioArgument = ""';$replace = '$SaraScenarioArgument = "-S OfficeScrubScenario -Script -AcceptEula -OfficeVersion All"'
-    (Get-Content $SNIfile).replace($find, $replace) | Set-Content -Path $SNIfile -Force -ea SilentlyContinue | out-null
+    (Get-Content $SNIfile).replace($find, $replace) | Set-Content -Path $SNIfile -Force -EA SilentlyContinue | out-null
     & "$SNIfile"
 }
 
@@ -4019,8 +4056,8 @@ Function Stop-OfficeProcess
     Write-Host "Stopping running Office applications ..."
     $OfficeProcessesArray = "lync", "winword", "excel", "msaccess", "mstore", "infopath", "setlang", "msouc", "ois", "onenote", "outlook", "powerpnt", "mspub", "groove", "visio", "winproj", "graph", "teams"
     foreach ($ProcessName in $OfficeProcessesArray) {
-        if (get-process -Name $ProcessName -ErrorAction SilentlyContinue) {
-            if (Stop-Process -Name $ProcessName -Force -ErrorAction SilentlyContinue) {
+        if (get-process -Name $ProcessName -EA SilentlyContinue) {
+            if (Stop-Process -Name $ProcessName -Force -EA SilentlyContinue) {
                 Write-Output "Process $ProcessName was stopped."
             }
             else {
@@ -4036,14 +4073,14 @@ Function Unins-MSOffice
     Stop-OfficeProcess
     
     #Expand-Archive -LiteralPath "$env:TEMP\IA\office\OfficeToolPlus.zip" -DestinationPath "$env:TEMP\IA\office" -Force
-    #Start-Job -Name OfficeToolPlus {if (Test-Path -Path "$env:TEMP\IA\office" -ea SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\IA\office" -ea SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+    #Start-Job -Name OfficeToolPlus {if (Test-Path -Path "$env:TEMP\IA\office" -EA SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\IA\office" -EA SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
     #./"Office Tool Plus.Console.exe" deploy /rmall /display false
     #./"Office Tool Plus.Console.exe" ospp /clall
 }
 
 Function Uninscomponents-Office
 {
-    Get-Package -Name "*Office*" -ErrorAction SilentlyContinue | Uninstall-Package
+    Get-Package -Name "*Office*" -EA SilentlyContinue | Uninstall-Package
     # Remove MS Store Office 365
     Remove-AppxApp -AppName "Microsoft.Office.Desktop"
     Get-AppxProvisionedPackage -online | %{if ($_.packagename -match "Microsoft.Office.Desktop") {$_ | Remove-AppxProvisionedPackage -AllUsers}}
@@ -4053,8 +4090,8 @@ Function ActivateOfficeKMS
 {
     Write-Host -f C "`r`n *** Activating office using KMS *** `r`n"
     $Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs";$Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
-    if (Test-Path -Path $Officeospp64 -ea SilentlyContinue) {$office64 = $true}
-    elseif (Test-Path -Path $Officeospp32 -ea SilentlyContinue) {$office64 = $false}
+    if (Test-Path -Path $Officeospp64 -EA SilentlyContinue) {$office64 = $true}
+    elseif (Test-Path -Path $Officeospp32 -EA SilentlyContinue) {$office64 = $false}
     else {Write-Host -f C "Office16 ospp.vbs not found";return}
     
     if ($office64) {$Licenses = (Get-ChildItem "$Env:Programfiles\Microsoft Office\root\Licenses16\ProPlus2021VL_KMS*.xrm-ms").fullname}
@@ -4081,63 +4118,167 @@ Function ActivateOfficeKMS
 
 Function Config-Office
 {
-    # Office
+    # -----------------------------
+    # Office Application Settings
+    # -----------------------------
+    # Disable automatic updates (user won’t get updates)
     AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'EnableAutomaticUpdates' '0' 'DWord'
+    # Hide update-related options in the UI (user cannot enable updates manually)
     AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'HideEnableDisableUpdates' '1' 'DWord'
+
+    # Prevent Microsoft Teams from auto-installing when Office is installed or updated
     AddRegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'PreventTeamsInstall' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Common\MailSettings' 'InlineTextPrediction' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel' 'AutoSaveInterval' '2' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel' 'ExcelWorkbookAutoRecoverDirty' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'A4Letter' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'AutoRecoverTime' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'DeveloperTools' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'DisableBootToOfficeStart' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'EnableAccChecker' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'Maximized' '3' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'Xl9_hijri' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'AraDate' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'BackgroundOpen' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'BkgrndPag' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DeveloperTools' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DisableBootToOfficeStart' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DisableDarkMode' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'NumForm' '2' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'PreferredView' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'Ruler' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'ShowBkg' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\Common\ClientTelemetry' 'DisableTelemetry' '1' 'DWord'
+
+    # Enable inline text prediction in Outlook/Word mail editor (AI predictive text)
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Common\MailSettings' 'InlineTextPrediction' '1' 'DWord'
+
+
+    # -----------------------------
+    # Common Office Policies
+    # -----------------------------
+    # Default dictation language = English (US)
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'ActiveDictationLanguage' 'en-US' 'String'
-    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'QMEnable' '0' 'DWord'
+    # Set UI theme = Dark Gray (3)
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'UI Theme' '3' 'DWord'
+
+
+    # -----------------------------
+    # Telemetry & Privacy
+    # -----------------------------
+    # Disable Office telemetry (client-side)
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\Common\ClientTelemetry' 'DisableTelemetry' '1' 'DWord'
+    # Disable sending telemetry (policy)
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\Common\ClientTelemetry' 'SendTelemetry' '3' 'DWord'
+    # Block sending customer info
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\common\privacy" "SendCustomerInfo" '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'SendCustomerData' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'SendCustomerDataOptIn' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'SendCustomerDataOptInReason' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'UI Theme' '3' 'DWord'
-    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'UpdateReliabilityData' '0' 'DWord'
+    # Disable feedback collection
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Feedback' 'Enabled' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Feedback' 'IncludeEmail' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Feedback' 'SurveyEnabled' '0' 'DWord'
+    # Disable quality metrics collection
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'QMEnable' '0' 'DWord'
+    # Disable update reliability data collection
+    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'UpdateReliabilityData' '0' 'DWord'
+    # Disable connected services and online content
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'ControllerConnectedServicesEnabled' '2' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'DisconnectedState' '2' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'DownloadContentDisabled' '2' 'DWord'
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'UserContentDisabled' '2' 'DWord'
+    # Disable Cloud Login prompts
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\common\signin" "SignInOptions" '3' 'DWord'
+    # Disable online content for all apps
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\common\internet" "UseOnlineContent" '0' 'DWord'
+    # Per-application online content disabling
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\word\options" "UseOnlineContent" '0' 'DWord'
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\excel\options" "UseOnlineContent" '0' 'DWord'
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\powerpoint\options" "UseOnlineContent" '0' 'DWord'
+    # Disable connected experiences
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\common\officecloud" "UseOnlineContent" '0' 'DWord'
+
+    # -----------------------------
+    # Office Service Manager (OSM)
+    # -----------------------------
+    # Enable file obfuscation (for telemetry data)
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\osm' 'EnableFileObfuscation' '1' 'DWord'
+    # Block OSM uploads
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\osm' 'EnableUpload' '0' 'DWord'
+    # Disable logging in OSM
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\osm' 'Enablelogging' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\Common\ClientTelemetry' 'SendTelemetry' '3' 'DWord'
-    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecoverdelay' '1' 'DWord'
-    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecoverenabled' '1' 'DWord'
-    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecovertime' '1' 'DWord'
-    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'disableboottoofficestart' '1' 'DWord'
-    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'keepunsavedchanges' '1' 'DWord'
-    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'recognizesmarttags' '2' 'DWord'
+
+
+    # -----------------------------
+    # Word Configuration
+    # -----------------------------
+    # Enable Arabic date formatting
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'AraDate' '1' 'DWord'
+    # Prevent Word from opening files in the background
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'BackgroundOpen' '0' 'DWord'
+    # Enable background pagination for long docs
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'BkgrndPag' '1' 'DWord'
+    # Show Developer tab in the ribbon
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DeveloperTools' '1' 'DWord'
+    # Skip Start screen when opening Word
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DisableBootToOfficeStart' '1' 'DWord'
+    # Force Word to use light mode (disable dark mode)
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'DisableDarkMode' '1' 'DWord'
+    # Default number formatting = context (2 = Hindi/Arabic context)
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'NumForm' '2' 'DWord'
+    # Default to Print Layout view when opening documents
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'PreferredView' '0' 'DWord'
+    # Hide ruler by default
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'Ruler' '0' 'DWord'
+    # Show background graphics in documents
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Word\Options' 'ShowBkg' '1' 'DWord'
+    # Set default paper size to A4 in Word Wizards
     AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Office\16.0\Word\Wizards' 'PageSize' 'A4' 'String'
+
+
+    # -----------------------------
+    # Excel Configuration
+    # -----------------------------
+    # Default to A4 paper size instead of Letter
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'A4Letter' '1' 'DWord'
+    # Show Developer tab in the ribbon
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'DeveloperTools' '1' 'DWord'
+    # Skip the Start screen when opening Excel
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'DisableBootToOfficeStart' '1' 'DWord'
+    # Disable Accessibility Checker from running automatically
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'EnableAccChecker' '0' 'DWord'
+    # Open Excel maximized by default (3 = maximized)
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'Maximized' '3' 'DWord'
+    # Force Gregorian calendar instead of Hijri
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'Xl9_hijri' '0' 'DWord'
+    # Recognize smart tags = limited (2)
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'recognizesmarttags' '2' 'DWord'
+    # VBA force Loading
+    AddRegEntry 'HKCU:\SOFTWARE\Microsoft\Office\16.0\Excel\options' 'ForceVBALoadFromSource' '1' 'DWord'
+    
+    
+    # -----------------------------
+    # Excel Security Settings
+    # -----------------------------
+    # Disable warning prompts for external data connections
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'DataConnectionWarnings' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'WorkbookLinkWarnings' '0' 'DWord'
+    # Disable rich data type connection warnings
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'RichDataConnectionWarnings' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'DisableDDEServerLaunch' '0' 'DWord'
+    # Disable workbook link warnings (linked files won’t trigger alerts)
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'WorkbookLinkWarnings' '0' 'DWord'
+    # Show macro warnings, but do not disable them (1 = enable warnings)
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'VBAWarnings' '1' 'DWord'
+    # Allow access to VBA project model (needed for macros)
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security' 'AccessVBOM' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'OpenInProtectedView' '2' 'DWord'
+
+
+    # -----------------------------
+    # Excel AutoRecover & Backup
+    # -----------------------------
+    # AutoRecover every 1 minute (default is 10)
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Options' 'AutoRecoverTime' '1' 'DWord'
+    # AutoSave every 1 minute
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel' 'AutoSaveInterval' '1' 'DWord'
+    # Try to recover corrupted workbooks
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel' 'ExcelWorkbookAutoRecoverDirty' '1' 'DWord'
+    # Policy-based AutoRecover delay = 1 min
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecoverdelay' '1' 'DWord'
+    # Policy-based AutoRecover enabled
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecoverenabled' '1' 'DWord'
+    # Policy-based AutoRecover time = 1 min
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'autorecovertime' '1' 'DWord'
+    # Policy: skip Start screen
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'disableboottoofficestart' '1' 'DWord'
+    # Always recover unsaved changes (policy enforced)
+    AddRegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'keepunsavedchanges' '1' 'DWord'
+
+
+    # -----------------------------
+    # Excel File Block & Protected View
+    # -----------------------------
+    # Disable opening blocked file types in Protected View (0 = allow opening normally)
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'OpenInProtectedView' '0' 'DWord'
+    # Allow older Excel formats (disable blocking)
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL4Workbooks' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL4Worksheets' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL4Macros' '0' 'DWord'
@@ -4147,21 +4288,42 @@ Function Config-Office
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL2Workbooks' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL2Worksheets' '0' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\FileBlock' 'XL2Macros' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableInternetFilesInPV' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableAttachmentsInPV' '0' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableUnsafeLocationsInPV' '0' 'DWord'
+
+    # Protected View (PV) settings
+    # 0 = Enabled (use PV), 1 = Disabled (do not use PV)
+    # Allow files from the internet to open normally
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableInternetFilesInPV' '1' 'DWord'
+    # Allow email attachments to open normally
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableAttachmentsInPV' '1' 'DWord'
+    # Allow files from unsafe locations to open normally
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\ProtectedView' 'DisableUnsafeLocationsInPV' '1' 'DWord'
+
+
+    # -----------------------------
+    # Excel Trusted Locations
+    # -----------------------------
+    # Allow network locations to be trusted
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations' 'AllowNetworkLocations' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location90' 'Path' 'C:\\' 'String'
+    # Trust entire C:\ drive
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location90' 'Path' 'C:\' 'String'
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location90' 'AllowSubfolders' '1' 'DWord'
-    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location91' 'Path' 'D:\\' 'String'
+    # Trust entire D:\ drive
+    AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location91' 'Path' 'D:\' 'String'
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location91' 'AllowSubfolders' '1' 'DWord'
+    # Trust all mapped network drives
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location92' 'Path' '\\' 'String'
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location92' 'AllowSubfolders' '1' 'DWord'
+    # Trust all UNC paths
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location93' 'Path' '//' 'String'
     AddRegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location93' 'AllowSubfolders' '1' 'DWord'
-    
-    Get-printer | ForEach-Object {set-printconfiguration -printerobject $_ -Papersize A4 -DuplexingMode OneSided}
-    $Printers = Get-Printer;Foreach ($Printer in $Printers){Set-PrintConfiguration -PrinterName $Printer.name -PaperSize A4 -DuplexingMode OneSided}
+
+
+    # -----------------------------
+    # Printer Configuration
+    # -----------------------------
+    # Loop through all installed printers and force A4 + single-sided printing
+    $Printers = Get-Printer
+    Foreach ($Printer in $Printers) {Set-PrintConfiguration -PrinterName $Printer.Name -PaperSize A4 -DuplexingMode OneSided}
 }
 
 Function Deploy-Office
@@ -4173,9 +4335,9 @@ Function Deploy-Office
         if ($Filelink -ne $null) {break}
     }
     if ($Filelink -ne $null) {Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe"}
-    if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe" -ea SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -ea SilentlyContinue | out-null}
+    if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe" -EA SilentlyContinue) {Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office","/quiet","/passive","/norestart" -EA SilentlyContinue | out-null}
     Write-Host -f C "`r`n *** Installing Office ... *** `r`n"
-    if (Test-Path -Path "$env:TEMP\IA\office\setup.exe" -ea SilentlyContinue) {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -ea SilentlyContinue | out-null}
+    if (Test-Path -Path "$env:TEMP\IA\office\setup.exe" -EA SilentlyContinue) {Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure","$env:TEMP\IA\office\configuration.xml" -EA SilentlyContinue | out-null}
     else {Write-Host -f C "`r`n Failed to download & extract Office Deployment Tool"}
 }
 
@@ -4225,7 +4387,7 @@ Function configurationFile21PP
 <Display Level="None" AcceptEULA="TRUE" />
 </Configuration>
 "@
-    Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
+    Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -EA SilentlyContinue | out-null
 }
 
 Function configurationFile24PP
@@ -4274,7 +4436,7 @@ Function configurationFile24PP
 <Display Level="None" AcceptEULA="TRUE" />
 </Configuration>
 "@
-    Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -ea SilentlyContinue | out-null
+    Set-Content -Path "$env:TEMP\IA\office\Configuration.xml" -Value $ConfigurationFile -Force -EA SilentlyContinue | out-null
 }
 
 Function New-OfficeShortcuts {
@@ -4286,7 +4448,7 @@ Function New-OfficeShortcuts {
         )
         foreach ($reg in $regPaths) {
             try {
-                $path = (Get-ItemProperty -Path $reg -ea SilentlyContinue).'(default)'
+                $path = (Get-ItemProperty -Path $reg -EA SilentlyContinue).'(default)'
                 if (Test-Path $path) { return $path }
             } catch { }
         }
@@ -4511,7 +4673,7 @@ $taskbar_layout3 =
     }
     Write-Host -f C "Restarting explorer to pin application to taskbar"
     AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
-    Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
+    Stop-Process -ProcessName explorer -Force -EA SilentlyContinue | out-null
 }
 
 Function Ins-ExtraFonts
@@ -4531,9 +4693,9 @@ Function Pin-WhatsappWebChrome
     $Chrome=(Get-ItemProperty -Path $key -Name '(Default)').'(default)'
     if ($chrome -eq $null)
     {
-        if (Test-Path '${env:ProgramFiles(x86)}\Google\Chrome' -ea SilentlyContinue) {
+        if (Test-Path '${env:ProgramFiles(x86)}\Google\Chrome' -EA SilentlyContinue) {
             $chrome = '${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe'
-            } elseif (Test-Path '$Env:Programfiles\Google\Chrome' -ea SilentlyContinue) {
+            } elseif (Test-Path '$Env:Programfiles\Google\Chrome' -EA SilentlyContinue) {
             $chrome = '$Env:Programfiles\Google\Chrome\Application\chrome.exe'
         } else {Write-Host "Not Found"}
     }
@@ -4570,13 +4732,13 @@ Function Clean-up
     }
     Clear-PrintQueue
     Start-sleep 1
-    Stop-Process -ProcessName explorer -Force -ea SilentlyContinue | out-null
+    Stop-Process -ProcessName explorer -Force -EA SilentlyContinue | out-null
     Start-Process explorer.exe
     Write-Host "Explorer restarted."
     Refresh-Desktop
     Change_computer_name
-    Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -ea SilentlyContinue | out-null
-    Remove-Item -LiteralPath "$env:TEMP" -Force -Recurse -ea SilentlyContinue | out-null
+    Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -EA SilentlyContinue | out-null
+    Remove-Item -LiteralPath "$env:TEMP" -Force -Recurse -EA SilentlyContinue | out-null
     }
 
 Function Change_computer_name {
@@ -4655,7 +4817,7 @@ Function Clear-PrintQueue {
     #>
 
     Write-Output "Stopping Print Spooler service..."
-    Stop-Service -Name Spooler -Force -ErrorAction SilentlyContinue
+    Stop-Service -Name Spooler -Force -EA SilentlyContinue
 
     # Kill related processes (ignore errors if they don't exist)
     $processes = @(
@@ -4669,7 +4831,7 @@ Function Clear-PrintQueue {
     )
 
     foreach ($p in $processes) {
-        Get-Process -Name $p -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Get-Process -Name $p -EA SilentlyContinue | Stop-Process -Force -EA SilentlyContinue
     }
 
     Start-Sleep -Seconds 2
@@ -4678,14 +4840,14 @@ Function Clear-PrintQueue {
 
     # First try normal PowerShell print job cleanup
     Get-Printer | ForEach-Object {
-        Get-PrintJob -PrinterName $_.Name -ErrorAction SilentlyContinue |
-        Remove-PrintJob -Confirm:$false -ErrorAction SilentlyContinue
+        Get-PrintJob -PrinterName $_.Name -EA SilentlyContinue |
+        Remove-PrintJob -Confirm:$false -EA SilentlyContinue
     }
 
     # Then do the hard clear in case jobs are still locked
     $spoolPath = "$env:SystemRoot\System32\spool\PRINTERS"
     if (Test-Path $spoolPath) {
-        Remove-Item "$spoolPath\*" -Force -ErrorAction SilentlyContinue -Confirm:$false
+        Remove-Item "$spoolPath\*" -Force -EA SilentlyContinue -Confirm:$false
     }
 
     Write-Output "Starting Print Spooler service..."
