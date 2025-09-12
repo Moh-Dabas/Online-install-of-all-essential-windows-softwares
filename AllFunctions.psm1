@@ -2778,10 +2778,207 @@ Function Unins-MSTeams
     UninstallTeams
 }
 
+Function Convert-WinGetOutput
+{
+	[CmdletBinding(
+		SupportsShouldProcess=$True,
+		ConfirmImpact="Low"
+	)]
+    Param
+    (
+        [Parameter(ValueFromPipeline,Mandatory=$true)]
+        [String[]]$Output
+    )
+
+    Begin
+    {
+		$Columns = @()
+        $Packages = @()
+        $ResultOutput = @()
+    }
+
+    Process
+    {
+        #Check if header exist
+        $HeaderRow = [String]( $Output -match "Name|Version" -notmatch "Found" | Select-Object -First 1 ) 
+		if($HeaderRow)
+		{
+			$HeaderColumns = $HeaderRow -split "\s+"
+			$MaxLength = ([String]$HeaderRow).Length
+			If($HeaderColumns)
+			{
+				#If header exist then pars columns width
+				For (($i = 0); $i -lt $HeaderColumns.Length; $i++)
+				{
+					$ColumnLength = $HeaderRow.IndexOf($HeaderColumns[$i+1]) - $HeaderRow.IndexOf($HeaderColumns[$i])
+					if($ColumnLength -lt 0) { $ColumnLength = $MaxLength - $HeaderRow.IndexOf($HeaderColumns[$i]) }
+
+					$Columns += [PSCustomObject]@{
+						"Name" = $HeaderColumns[$i]
+						"Index" = $HeaderRow.IndexOf($HeaderColumns[$i])
+						"Length" = $ColumnLength
+					}
+				}
+			}
+		} else
+		{
+			#If problems throw warning
+            $ResultWarning = [String]($Output -Match "No applicable update found.|No package found matching input criteria.|No installed package found matching input criteria.|Installer failed with exit code")
+            if($ResultWarning)
+            {
+                Write-Warning $ResultWarning
+                Return
+            }
+		}
+
+        #Parse each packages
+        ForEach($Row in $Output)
+        {
+            if($Row -match "----") { $RowIndex = 0 } elseif($null -ne $RowIndex) { $RowIndex++ }
+
+			if($Row -match "upgrades available.")
+			{
+				$RowIndex = $null
+			}
+			
+            If([Int]$RowIndex -gt 0)
+            {
+                $PackageInfo = @{}
+
+                #Parse each column
+                Foreach($Column in $Columns)
+                {
+                    #Check column length
+                    if($Row.Length -gt ($Column.Index + $Column.Length))
+                    {
+                        $Length = $Column.Length
+                    } else {
+                        $Length = $Row.Length - $Column.Index
+                    }
+
+                    #Parse column
+                    Try{
+                        $PackageInfo[$Column.Name] = $Row.SubString($Column.Index,$Length ).Trim()
+                    }
+                    Catch
+                    {
+                        $PackageInfo[$Column.Name] = $null
+                    }
+                }
+
+                #Change object type
+				$Package = [PSCustomObject]$PackageInfo
+                $Package.PSTypeNames.Clear()
+				if($Columns.Name -contains "Available")
+				{
+					$Package.PSTypeNames.Add('PSWinGet.Package.Available')
+				} elseif($Columns.Name -contains "Version" -and $Columns.Name -notcontains "Id")
+				{
+					$Package.PSTypeNames.Add('PSWinGet.Package.Versions')
+				} else
+				{
+					$Package.PSTypeNames.Add('PSWinGet.Package')
+				}
+
+                #Add package to list
+                if($PackageInfo["Version"])
+                {
+					$Packages += $Package
+                }
+            } else {
+                #If no packages return raw output
+                $ResultOutput += $Row #| Where-Object { $_ -notmatch "█|▒" }
+            }
+        }
+    }
+
+    End
+    {
+        if($Packages.Count)
+        {
+            Return $Packages
+        } else {
+            Return $ResultOutput
+        }
+    }
+}
+
+Function Get-WinGetPackageMod
+{
+	[CmdletBinding(
+		DefaultParameterSetName = "Package",
+		SupportsShouldProcess=$True,
+		ConfirmImpact="Low"
+	)]
+    Param
+    (
+        [Parameter(ParameterSetName = 'Package', Position=0)]
+		[String]$Id,
+		[Parameter(ParameterSetName = 'Package')]
+        [String]$Name,
+		[Parameter(ParameterSetName = 'Package')]
+        [String]$Moniker,
+		[Parameter(ParameterSetName = 'Package')]
+        [String]$Tag,
+		[Parameter(ParameterSetName = 'Package')]
+        [Switch]$Exact,
+		[Parameter(ParameterSetName = 'Package')]
+        [Switch]$available
+    )
+
+    Begin
+    {
+        If ($PSBoundParameters['Debug']) { $DebugPreference = 'Continue' }
+    }
+
+    Process
+    {
+        $Command = "winget list --accept-source-agreements"
+
+        if($Id) { $Command += " --id $Id" }
+        if($Name) { $Command += " --name $Name" }
+        if($Moniker) { $Command += " --moniker $Moniker" }
+        if($Tag) { $Command += " --tag $Tag" }
+        if($Exact) { $Command += " --exact" }
+		if($available) { $Command += " --upgrade-available --accept-source-agreements" }
+
+        Write-Verbose $Command
+        $Result = Invoke-Expression -Command $Command | Where-Object { $_ }
+        $Result | ForEach-Object { Write-Debug $_ }
+
+        if($Result)
+        {
+            Return Convert-WinGetOutput -Output $Result
+        } else {
+            Write-Warning "Missing result."
+        }
+    }
+
+    End {}
+}
+
 Function UpdateAll
 {
     Write-Host -f C "`r`n *** Updating all installed applications *** `r`n"
-    winget upgrade --all --silent --accept-source-agreements --accept-package-agreements --force
+    # Use your custom function to get available upgrades
+    $upgrades = Get-WinGetPackageMod -available
+    # Filter out Adobe Acrobat and upgrade remaining packages
+    foreach ($package in $upgrades) {
+        if ($package.Id -notlike "*Acrobat*") {
+            try {
+                Write-Host "Upgrading: $($package.Name) ($($package.Id))"
+                winget upgrade --id $package.Id --silent --accept-package-agreements --accept-source-agreements --force
+                Write-Host "Successfully upgraded: $($package.Id)" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "Failed to upgrade: $($package.Id)" -ForegroundColor Red
+                Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "Skipping Adobe Acrobat: $($package.Id)" -ForegroundColor Yellow
+        }
+    }
+    # winget upgrade --all --silent --accept-source-agreements --accept-package-agreements --force
     choco upgrade all -y
     refreshenv
 }
@@ -4865,6 +5062,7 @@ Function Clear-PrintQueue {
     Restart-ExplorerSilently
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
