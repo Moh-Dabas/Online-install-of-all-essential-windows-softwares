@@ -207,7 +207,7 @@ function Check-Internet {
     }
 }
 
-function Get-WiFiAdapters {
+Function Get-WiFiAdapters {
     <#
     .SYNOPSIS
     Retrieves active Wi-Fi adapters.
@@ -402,7 +402,7 @@ Function Fix-InternetConnection {
     netsh interface ip delete arpcache
 }
 
-function Invoke-WiFiScan {
+Function Invoke-WiFiScan {
     param([string]$InterfaceName)
 
     $wlanApi = @"
@@ -568,14 +568,14 @@ public class WlanApi
             }
         }
         [WlanApi]::WlanFreeMemory($netPtr)
-        
+        $out = $out | Sort-Object Signal -Descending | Format-Table -Property SSID, Signal, Secure, Profile -AutoSize -Wrap
         $out += ([Environment]::NewLine)
-        return $out | Sort-Object Signal -Descending
+        return $out
     }
     finally {[WlanApi]::WlanCloseHandle($client, [IntPtr]::Zero) | Out-Null}
 }
 
-function Restart-WlanService {
+Function Restart-WlanService {
     [CmdletBinding()]
     param(
         [int]$Timeout = 60,
@@ -604,11 +604,11 @@ function Restart-WlanService {
         Start-Sleep -Seconds $PostStartDelay
         
         Write-Host "wlansvc is fully initialized. Proceeding with network scan..."
-        return $true
+        return
     }
     catch {
         Write-Error "Failed to restart wlansvc: $_"
-        return $false
+        return
     }
 }
 
@@ -628,84 +628,57 @@ Function Set-WiFiAutoConnect {
     Requires running PowerShell as Administrator
     #>
         
-    # Get all Wi-Fi profile names
     try {
-        $profiles = (netsh wlan show profiles) | 
-            Where-Object { $_ -match "All User Profile" } | 
-            ForEach-Object { $_.Split(":")[1].Trim() }
-        
-        if (-not $profiles) {
-            Write-Host "No Wi-Fi profiles found." -ForegroundColor Yellow
-            return
-        }
+        # Get all Saved Wi-Fi profiles
+        $WiFiprofiles = (netsh wlan show profiles) | Where-Object {$_ -match "All User Profile"} | ForEach-Object {$_.Split(":")[1].Trim()}
+        if (-not $WiFiprofiles) {Write-Host "No Wi-Fi profiles found." -F Yellow;return}
         
         # Set each profile to auto-connect
-        foreach ($profile in $profiles) {
-            netsh wlan set profileparameter name="$profile" connectionmode=auto
-            Write-Host "Set '$profile' to auto-connect" -ForegroundColor Green
+        foreach ($WiFiprofile in $WiFiprofiles) {
+            Write-Host -f DarkBlue "Set $WiFiprofile to auto-connect"
+            netsh wlan set profileparameter name="$WiFiprofile" connectionmode=auto
         }
-        
         Write-Host "All Wi-Fi profiles have been set to auto-connect." -ForegroundColor Green
-        
-    } catch {
-        Write-Error "An error occurred: $_"
-    }
+    } catch {Write-Error "An error occurred: $_"}
 }
 
 Function WifiPriority {
     Fix-InternetConnection
-    # Get Wi-Fi adapters
+    
+    # Get all Saved Wi-Fi profiles
+    $WiFiprofiles = (netsh wlan show profiles) | Where-Object {$_ -match "All User Profile"} | ForEach-Object {$_.Split(":")[1].Trim()}
+    if (-not $WiFiprofiles) {Write-Host "No Wi-Fi profiles found." -F Yellow;return}
+    Set-WiFiAutoConnect
+    
+    # Get active Wi-Fi adapters
     $wifiAdapters = Get-WiFiAdapters
     if (-not $wifiAdapters) {
         Write-Output "No active Wi-Fi adapter found."
         return
     }
-
-    $interfaceAlias = $wifiAdapters | Select-Object -ExpandProperty Name -First 1
-
-    $savedProfiles = netsh wlan show profiles | Select-String "All User Profile" | ForEach-Object {
-        ($_ -split ":")[1].Trim()
-    }
-
-    if (-not $savedProfiles) {
-        Write-Output "No saved Wi-Fi profiles found."
-        return
-    }
-
+    
+    # if not currently connected to WiFi network return
+    $currentState = netsh wlan show interfaces | Select-String '^\s*State\s*:\s*(.+)$' | ForEach-Object {($_ -split ":\s*", 2)[1].Trim()} | Select-Object -First 1
+    if ($currentState -ne "connected") {Write-Output "Not connected to a WiFi network.";return}
+    # Get current wifi Adapter
+    $currentInterface = netsh wlan show interfaces | Select-String '^\s*Name\s*:\s*(.+)$' | ForEach-Object {($_ -split ":\s*", 2)[1].Trim()} | Select-Object -First 1
+    # Get current SSID
+    $currentSSID = netsh wlan show interfaces | Select-String '^\s*SSID\s*:\s*(.+)$' | ForEach-Object {($_ -split ":\s*", 2)[1].Trim()} | Select-Object -First 1
     # Check if currently connected SSID is already 5GHz
-    $currentSSID = netsh wlan show interfaces |
-        Select-String '^\s*SSID\s*:\s*(.+)$' |
-        ForEach-Object { ($_ -split ":\s*", 2)[1].Trim() } |
-        Select-Object -First 1
-
-    $currentBand = netsh wlan show interfaces |
-        Select-String '^\s*Radio type\s*:\s*(.+)$' |
-        ForEach-Object { ($_ -split ":\s*", 2)[1].Trim() } |
-        Select-Object -First 1
-
-    if ($currentSSID -and $currentBand -match '5') {
+    $currentBand = netsh wlan show interfaces | Select-String '^\s*Band\s*:\s*(.+)$' | ForEach-Object {($_ -split ":\s*", 2)[1].Trim()} | Select-Object -First 1
+    if ($currentBand -match '5 GHz') {
         Write-Output "Already connected to 5GHz network: $currentSSID"
-
-        $fiveGhzProfiles = $savedProfiles | Where-Object { $_ -eq $currentSSID }
-
-        if ($fiveGhzProfiles) {
-            $priority = 1
-            foreach ($profile in $fiveGhzProfiles) {
-                netsh wlan set profileorder name="$profile" interface="$interfaceAlias" priority=$priority | Out-Null
-                netsh wlan set profileparameter name="$profile" connectionmode=auto | Out-Null
-                $priority++
-            }
-            Write-Output "Prioritized: $currentSSID"
-        }
-
-        Check-Internet
-        return
+        $currentProfile = $WiFiprofiles | Where-Object {$_ -eq $currentSSID}
+        If ($currentProfile) {
+            netsh wlan set profileorder name="$currentProfile" interface="$interfaceAlias" priority= 1 | Out-Null
+            netsh wlan set profileparameter name="$currentProfile" connectionmode=auto | Out-Null
+        } else {Write-Output "Failed to get the Current Network saved profile.";return}
     }
     
-    Set-WiFiAutoConnect
     Write-Host "Restarting WiFi interfaces & WLAN AutoConfig service (wlansvc)..."
-    Restart-WiFiAdapters -Timeout 60 -Parallel
+    Restart-WiFiAdapters -Timeout 60 -Parallel:$true
     Restart-WlanService -Timeout 60 -PostStartDelay 5
+    
     Invoke-WiFiScan
     
     $scanResults = netsh wlan show networks mode=bssid
@@ -719,7 +692,6 @@ Function WifiPriority {
     
     $fiveGhzSSIDs = @()
     $ssid = ""
-
     foreach ($line in $scanResults) {
         if ($line -match "^\s*SSID\s+\d+\s*:\s*(.+)$") {
             $ssid = $Matches[1].Trim()
@@ -729,39 +701,37 @@ Function WifiPriority {
             }
         }
     }
-
     if (-not $fiveGhzSSIDs) {
         Write-Output "No 5GHz networks found."
         return
     }
 
-    $fiveGhzProfiles = $savedProfiles | Where-Object { $fiveGhzSSIDs -contains $_ }
-
+    $fiveGhzProfiles = $WiFiprofiles | Where-Object {$fiveGhzSSIDs -contains $_}
     if (-not $fiveGhzProfiles) {
         Write-Output "No matching saved 5GHz profiles found."
         return
     }
-
-    $priority = 1
-    foreach ($profile in $fiveGhzProfiles) {
-        netsh wlan set profileorder name="$profile" interface="$interfaceAlias" priority=$priority | Out-Null
-        netsh wlan set profileparameter name="$profile" connectionmode=auto | Out-Null
+    
+    if ($currentProfile) {$priority = 2} else {$priority = 1}
+    foreach ($fiveGhzProfile in $fiveGhzProfiles) {
+        netsh wlan set profileorder name="fiveGhzProfile" interface="$interfaceAlias" priority=$priority | Out-Null
+        netsh wlan set profileparameter name="fiveGhzProfile" connectionmode=auto | Out-Null
         $priority++
     }
-
-    $profileLines = netsh wlan show profiles interface="$interfaceAlias" | Select-String "All User Profile" | ForEach-Object {
-        ($_ -split ":")[1].Trim()
+        
+    # Get all saved Wi-Fi profile names
+    $profileNames = (netsh wlan show profiles) | Where-Object {$_ -match "All User Profile"} | ForEach-Object {$_.Split(":")[1].Trim()}
+    # Get priority for each profile by checking the automatic connection order
+    Write-Host "Wi-Fi Profiles and Their Connection Priority:" -ForegroundColor Green
+    Write-Host "---------------------------------------------"
+    $priority = 1
+    foreach ($name in $profileNames) {
+    Write-Host "$priority. $name" -ForegroundColor Cyan
+    $priority++
     }
-
-    if (-not $profileLines) {
-        Write-Output "Failed to read profile list after update."
-        return
-    }
-
-    $topProfile = $profileLines[0]
-    netsh wlan connect name="$topProfile" interface="$interfaceAlias" | Out-Null
-    Write-Output "Prioritized: $topProfile"
-
+    Write-Host "---------------------------------------------"
+    Write-Host "Wireless profiles are prioritized successfully `n" -ForegroundColor Green
+    
     Check-Internet
 }
 
@@ -1601,12 +1571,12 @@ Function Ins-arSALang
         $new = New-WinUserLanguageList -Language $Lang
         $current.Add($new[0])
         Set-WinUserLanguageList -LanguageList $current -Force
-        Write-Host -f C "Added $Lang to WinUserLanguageList." -ForegroundColor Green
-    } else {Write-Host -f C "$Lang already present in WinUserLanguageList." -ForegroundColor Green}
+        Write-Host -f Green "Added $Lang to WinUserLanguageList."
+    } else {Write-Host -f C "$Lang already present in WinUserLanguageList."}
     }
-    catch {Write-Host -f C "Could not modify WinUserLanguageList: $_" -ForegroundColor Red}
+    catch {Write-Host -f Red "Could not modify WinUserLanguageList: $_"}
     # Strict rules for Arabic spelling
-    Write-Host "Configuring strict Arabic proofing rules in Windows..." -ForegroundColor Cyan
+    Write-Host -f C "Configuring strict Arabic proofing rules in Windows..."
     AddRegEntry 'HKCU:\Software\Microsoft\Spelling\Options' "$($Lang):StrictInitialAlefHamza" '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Spelling\Options' "$($Lang):StrictFinalYaa" '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Spelling\Options' "$($Lang):StrictTaaMarboota" '1' 'DWord'
@@ -1614,7 +1584,7 @@ Function Ins-arSALang
     AddRegEntry "HKCU:\Software\Microsoft\Spelling\ar-SA" "StrictFinalYaa" '1' 'DWord'
     AddRegEntry "HKCU:\Software\Microsoft\Spelling\ar-SA" "StrictTaaMarboota" '1' 'DWord'
     
-    Write-Host -f C "Applying Arabic strict proofing rules in Office..." -ForegroundColor Cyan
+    Write-Host -f C "Applying Arabic strict proofing rules in Office..."
     AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\office' "ArabicStrictAlefHamza" '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\office' "ArabicStrictFinalYaa" '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\office' "ArabicStrictTaaMarboota" '1' 'DWord'
@@ -4895,6 +4865,7 @@ Function Clear-PrintQueue {
     Restart-ExplorerSilently
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
