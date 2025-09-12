@@ -85,7 +85,7 @@ Function AddRegEntry
             if ($typeCMD -ne $null) {Reg Add $Path /v $Name /t $typeCMD /d $Value /f | out-null}
             else {Write-Host -f red "Unsupported type"}
         }
-        catch {Write-Host -f red "Might need takeown or runing as system or trusted installer 'n Error: " + $Error}
+        catch {Write-Host -f red "Might need takeown or runing as system or trusted installer `n Error: " + $Error}
     }
 }
 
@@ -1594,17 +1594,17 @@ Function Ins-arSALang
     Set-WinDefaultInputMethodOverride -InputTip "0401:00000401" #Default input language Arabic
     Set-WinSystemLocale -SystemLocale ar-SA
     Copy-UserInternationalSettingsToSystem -WelcomeScreen $True -NewUser $True
-    Write-Host "Adding $Lang to user's language list (will NOT remove existing languages)..." -ForegroundColor Yellow
+    Write-Host -f C "Adding $Lang to user's language list (will NOT remove existing languages)..." -ForegroundColor Yellow
     try {
     $current = Get-WinUserLanguageList
     if ($current.LanguageTag -notcontains $Lang) {
         $new = New-WinUserLanguageList -Language $Lang
         $current.Add($new[0])
         Set-WinUserLanguageList -LanguageList $current -Force
-        Write-Host "Added $Lang to WinUserLanguageList." -ForegroundColor Green
-    } else {Write-Host "$Lang already present in WinUserLanguageList." -ForegroundColor Green}
+        Write-Host -f C "Added $Lang to WinUserLanguageList." -ForegroundColor Green
+    } else {Write-Host -f C "$Lang already present in WinUserLanguageList." -ForegroundColor Green}
     }
-    catch {Write-Host "Could not modify WinUserLanguageList: $_" -ForegroundColor Red}
+    catch {Write-Host -f C "Could not modify WinUserLanguageList: $_" -ForegroundColor Red}
     # Strict rules for Arabic spelling
     Write-Host "Configuring strict Arabic proofing rules in Windows..." -ForegroundColor Cyan
     AddRegEntry 'HKCU:\Software\Microsoft\Spelling\Options' "$($Lang):StrictInitialAlefHamza" '1' 'DWord'
@@ -1614,7 +1614,7 @@ Function Ins-arSALang
     AddRegEntry "HKCU:\Software\Microsoft\Spelling\ar-SA" "StrictFinalYaa" '1' 'DWord'
     AddRegEntry "HKCU:\Software\Microsoft\Spelling\ar-SA" "StrictTaaMarboota" '1' 'DWord'
     
-    Write-Host "Applying Arabic strict proofing rules in Office..." -ForegroundColor Cyan
+    Write-Host -f C "Applying Arabic strict proofing rules in Office..." -ForegroundColor Cyan
     AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\office' "ArabicStrictAlefHamza" '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\office' "ArabicStrictFinalYaa" '1' 'DWord'
     AddRegEntry 'HKCU:\Software\Microsoft\Shared Tools\Proofing Tools\1.0\office' "ArabicStrictTaaMarboota" '1' 'DWord'
@@ -1627,40 +1627,32 @@ Function Ins-arSALang
 }
 
 Function Restart-ExplorerSilently {
-        
-    Write-Host "Restarting Explorer to apply system-wide changes..."
-    # AddRegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "RestorePreviousFolderOpenState" '0' 'DWORD'
-    # AddRegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "PersistBrowsers" '0' 'DWORD'
-    # AddRegEntry "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWORD'
-    # AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
+    Write-Host -f C "Restarting Explorer to apply system-wide changes..."
+    AddRegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "RestorePreviousFolderOpenState" '0' 'DWORD'
+    AddRegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "PersistBrowsers" '0' 'DWORD'
+    AddRegEntry "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWORD'
+    AddRegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
 
     # Force terminate Explorer processes
     try {
-        Write-Host "Terminating Explorer processes..."
-        # $shell = New-Object -ComObject Shell.Application
-        # $shell.Windows() | ForEach-Object {$_.Quit()}
-        # Terminate Taskbar only
-        $ProcessId = (Get-WmiObject -Class Win32_process -Filter "name='Explorer.exe'" |  Where-Object {$_.Commandline -NotLike "*/factory*"} | Select-Object -First 1).ProcessId
-        Get-Process -Id $ProcessId | Stop-Process -Force
-    }
-    catch {Write-Warning "Failed to terminate Explorer processes: $($_.Exception.Message)"}
+        Write-Host -f C "Force terminating all Explorer processes..."
+        taskkill /f /im explorer.exe
+    } catch {Write-Warning "`n Failed to terminate Explorer processes: $($_.Exception.Message)"}
     
     # Brief pause to ensure complete termination
     Start-Sleep -Milliseconds 1000
-
     # Restart Windows Explorer
     try {
-        Write-Host "Restarting Windows Explorer..."
-        Start-Process "userinit.exe" -windowstyle hidden
-        # Start-Process "userinit.exe" -nonewwindow
-        # Start-Process "explorer.exe"
-        # Brief pause to ensure complete termination
-        # Start-Sleep -Milliseconds 2000
-        # $shell = New-Object -ComObject Shell.Application
-        # $shell.Windows() | ForEach-Object {$_.Quit()}
-        Write-Host "Windows Explorer restarted successfully."
-    }
-    catch {Write-Error "Failed to restart Windows Explorer: $($_.Exception.Message)"}
+        Write-Host -f C "Restarting Windows Explorer..."
+        Start-Process explorer.exe "$env:SystemRoot\System32\userinit.exe"
+        # Just in case, close all explorer windows
+        $shell = New-Object -ComObject Shell.Application
+        for ($i = 1; $i -le 500; $i++) {
+            $shell.Windows() | ForEach-Object {$_.Quit()}
+            Start-Sleep -Milliseconds 1
+        }
+    } catch {Write-Error "Failed to restart Windows Explorer: $($_.Exception.Message)"}
+    Write-Host -f C "Windows Explorer restarted successfully."
 }
 
 Function Set-en-US-Culture {
@@ -1738,7 +1730,6 @@ Function Ins-LatestPowershell
 {
     Write-Host -f C "`r`n *** Installing Latest Stable Powershell *** `r`n"
     winget install --id 'Microsoft.Powershell' --silent --accept-source-agreements --accept-package-agreements
-    
 }
 
 Function Ins-Terminal
@@ -4106,6 +4097,9 @@ Function Stop-OfficeProcess
             }
         } 
     }
+    sc stop ClickToRunSvc
+    taskkill /f /im OfficeClickToRun.exe
+    taskkill /f /im AppVShNotify.exe
 }
 
 Function Unins-MSOffice
@@ -4155,6 +4149,14 @@ Function ActivateOfficeKMS
         $Response = cscript //nologo "$officeospp" /act | Select-String -Pattern "successful"
         if ($Response -ne $null) {Write-Host -f C "MS Office Successfully Activated using KMS server: $KMS";break}
     }
+    reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\0ff1ce15-a989-479d-af46-f275c6370663" /f /reg:64
+    reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\0ff1ce15-a989-479d-af46-f275c6370663" /f /reg:32
+    reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform" /f /v KeyManagementServiceName /t REG_SZ /d "10.0.0.10" /reg:64
+    reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform" /f /v KeyManagementServiceName /t REG_SZ /d "10.0.0.10" /reg:32
+    start-process -FilePath "Online_KMS_Activation.cmd" -ArgumentList "/K-Office","/K-NoRenewalTask" -Verb RunAs
+    start-process -FilePath "TSforge_Activation.cmd" -ArgumentList "/Z-Office" -Verb RunAs 
+    Start-Process "$Env:Programfiles\Microsoft Office\Office16\OSPPREARM.EXE"
+    
 }
 
 Function Config-Office
@@ -4893,6 +4895,7 @@ Function Clear-PrintQueue {
     Restart-ExplorerSilently
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
 
 
