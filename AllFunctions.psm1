@@ -1564,7 +1564,7 @@ Function Ins-arSALang
     Set-WinDefaultInputMethodOverride -InputTip "0401:00000401" #Default input language Arabic
     Set-WinSystemLocale -SystemLocale ar-SA
     Copy-UserInternationalSettingsToSystem -WelcomeScreen $True -NewUser $True
-    Write-Host -f C "Adding $Lang to user's language list (will NOT remove existing languages)..." -ForegroundColor Yellow
+    Write-Host -f C "Adding $Lang to user's language list (will NOT remove existing languages)..."
     try {
     $current = Get-WinUserLanguageList
     if ($current.LanguageTag -notcontains $Lang) {
