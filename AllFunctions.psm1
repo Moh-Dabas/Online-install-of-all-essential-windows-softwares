@@ -1545,8 +1545,8 @@ Function Ins-arSALang
             [string]$Lang
         )
         $Installed = (Get-WindowsCapability -Online -Name Language.$Cap~~~$Lang~0.0.1.0 -EA SilentlyContinue).State
-        If ($Installed -ne "Installed") {write-Host -f C "Installing $Lang $Cap Windows Capability";Add-WindowsCapability -Online -Name Language.$Cap~~~$Lang~0.0.1.0 -EA SilentlyContinue}
-        else {write-Host -f C "$Lang $Cap Windows Capability already installed"}
+        If ($Installed -ne "Installed") {write-Host -f C "Installing $Lang $Cap Windows Capability `n";Add-WindowsCapability -Online -Name Language.$Cap~~~$Lang~0.0.1.0 -EA SilentlyContinue}
+        else {write-Host -f C "$Lang $Cap Windows Capability already installed `n"}
         return 
     }
     
