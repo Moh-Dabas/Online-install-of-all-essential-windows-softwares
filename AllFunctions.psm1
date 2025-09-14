@@ -4098,27 +4098,6 @@ Function uninsSara-Office
     & "$SNIfile"
 }
 
-Function uninsITPRO-Office
-{
-    Write-Host -f C "`r`n *** Removing currently installed MS office products using ITPRO codes *** `r`n"
-    $outputdir = "$env:TEMP\IA\office"
-    $weburl = "https://github.com/OfficeDev/Office-IT-Pro-Deployment-Scripts/tree/master/Office-ProPlus-Deployment/Remove-PreviousOfficeInstalls/"
-    for ($i = 1; $i -le 30; $i++){
-        $WebPage1 = Repeatiwr -Uri $weburl
-        $Filelinks = $WebPage1.Links | Where-Object {$_.href -like '*exe' -or $_.href -like '*vbs' -or $_.href -like '*ps1'} | Select-Object -ExpandProperty href | Select-Object -Unique
-        if ($Filelinks -ne $null) {break}
-    }
-    $Filelinks | ForEach-Object {
-        $outputFile = Split-Path $_ -leaf
-        Write-Host -f C "Downloading file '$outputFile'"
-        $fileFullname = Join-Path -Path $outputdir -ChildPath $outputFile
-        $fileUrl  = '{0}/{1}' -f $weburl.TrimEnd('/'), $outputFile
-        $fileUrl = $fileUrl.replace("tree", "raw")
-        Invoke-WebRequest $fileUrl -OutFile $fileFullname
-    }
-    & "$outputdir\Remove-PreviousOfficeInstalls.ps1"
-}
-
 Function Stop-OfficeProcess
 {
     Write-Host "Stopping running Office applications ..."
@@ -4138,62 +4117,108 @@ Function Stop-OfficeProcess
     taskkill /f /im AppVShNotify.exe
 }
 
-Function Unins-MSOffice
-{
+function Uninstall-MicrosoftOffice {
+
     Write-Host -f C "`r`n *** Uninstalling Microsoft Office *** `r`n"
     Stop-OfficeProcess
     
-    #Expand-Archive -LiteralPath "$env:TEMP\IA\office\OfficeToolPlus.zip" -DestinationPath "$env:TEMP\IA\office" -Force
-    #Start-Job -Name OfficeToolPlus {if (Test-Path -Path "$env:TEMP\IA\office" -EA SilentlyContinue) {Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\IA\office" -EA SilentlyContinue | out-null}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
-    #./"Office Tool Plus.Console.exe" deploy /rmall /display false
-    #./"Office Tool Plus.Console.exe" ospp /clall
-}
+    # Define registry paths to search for Office installations
+    $uninstallPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+    )
 
-Function Uninscomponents-Office
-{
-    Get-Package -Name "*Office*" -EA SilentlyContinue | Uninstall-Package
+    # Find all Microsoft Office installations
+    $officePrograms = Get-ItemProperty $uninstallPaths -ErrorAction SilentlyContinue | Where-Object {$_.DisplayName -like "*Microsoft Office*"}
+    if (-not $officePrograms) {
+        Write-Host "No Microsoft Office installations found."
+        return
+    }
+
+    foreach ($program in $officePrograms) {
+        Write-Host -f C "Uninstalling: $($program.DisplayName)"
+        
+        # Check if this is a ClickToRun Office installation
+        if ($program.UninstallString -like "*OfficeClickToRun*") {
+            try {
+                # Extract the executable path and parameters
+                $executablePath = $program.UninstallString.Split('"')[1]
+                $parameters = $program.UninstallString.Substring($executablePath.Length + 2) | Select-Object -First 1
+                
+                # Add parameters for silent uninstallation
+                $parameters += " updatepromptuser=False displaylevel=false forceappshutdown=True"
+                
+                Write-Host "Running: $executablePath $parameters"
+                Start-Process -FilePath $executablePath -ArgumentList $parameters -Wait -NoNewWindow
+                Write-Host -f Green "Successfully uninstalled: $($program.DisplayName)"
+            }
+            catch {
+                Write-Host -f Red "Failed to uninstall: $($program.DisplayName) - $($_.Exception.Message)"
+            }
+        }
+        else {
+            Write-Host -f Yellow "Skipping non-ClickToRun Office installation: $($program.DisplayName)"
+            Write-Host "This function only supports ClickToRun Office installations."
+        }
+    }
     # Remove MS Store Office 365
     Remove-AppxApp -AppName "Microsoft.Office.Desktop"
-    Get-AppxProvisionedPackage -online | %{if ($_.packagename -match "Microsoft.Office.Desktop") {$_ | Remove-AppxProvisionedPackage -AllUsers}}
+    # Clean any remaining package
+    Get-Package -Name "*Microsoft Office*" -EA SilentlyContinue | Uninstall-Package
 }
 
 Function ActivateOfficeKMS
 {
     Write-Host -f C "`r`n *** Activating office using KMS *** `r`n"
-    $Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs";$Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
-    if (Test-Path -Path $Officeospp64 -EA SilentlyContinue) {$office64 = $true}
-    elseif (Test-Path -Path $Officeospp32 -EA SilentlyContinue) {$office64 = $false}
-    else {Write-Host -f C "Office16 ospp.vbs not found";return}
     
-    if ($office64) {$Licenses = (Get-ChildItem "$Env:Programfiles\Microsoft Office\root\Licenses16\ProPlus2021VL_KMS*.xrm-ms").fullname}
-    else {$Licenses = (Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Office\root\Licenses16\ProPlus2021VL_KMS*.xrm-ms").fullname}
+    # Check Service
+    Start-Service -Name sppsvc
+    $ServiceNotRunning = (Get-Service -Name sppsvc).Status -ne 'Running'
+    If ($ServiceNotRunning) {Start-Sleep -seconds 10}
+    
+    $Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs";$Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
+    if (Test-Path -Path $Officeospp64 -EA SilentlyContinue) {$office64 = $true} elseif (Test-Path -Path $Officeospp32 -EA SilentlyContinue) {$office64 = $false} else {Write-Host -f C "Office16 ospp.vbs not found";return}
+    if ($office64) {$Licenses = (Get-ChildItem "$Env:Programfiles\Microsoft Office\root\Licenses16\ProPlus2021VL_KMS*.xrm-ms").fullname} else {$Licenses = (Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Office\root\Licenses16\ProPlus2021VL_KMS*.xrm-ms").fullname}
     If ($office64) {$officeospp =$Officeospp64} else {$officeospp =$Officeospp32}
-    $Licenses | ForEach-Object {
-        cscript //nologo "$officeospp" /inslic:"$_" | out-null
-        cscript //nologo "$env:WinDir\System32\slmgr.vbs" /ckms | out-null
-        cscript //nologo "$officeospp" /setprt:1688 | out-null
-        cscript //nologo "$officeospp" /unpkey:6F7TH | out-null
-        cscript //nologo "$officeospp" /inpkey:FXYTK-NJJ8C-GB6DW-3DYQT-6F7TH | out-null
-    }
-    for ($i = 1; $i -le 10; $i++) {
-        switch ($i)
-        {
-            1 {$KMS="kms8.MSGuides.com"};2 {$KMS="kms9.MSGuides.com"};3 {$KMS="107.175.77.7"};4 {$KMS="e8.us.to"};5 {$KMS="e9.us.to"}
-            6 {$KMS="kms.digiboy.ir"};7 {$KMS="kms.ddns.net"};8 {$KMS="kms.lotro.cc"};9 {$KMS="zh.us.to"}
-        }
-        cscript //nologo "$officeospp" /sethst:$KMS | out-null
-        $Response = cscript //nologo "$officeospp" /act | Select-String -Pattern "successful"
-        if ($Response -ne $null) {Write-Host -f C "MS Office Successfully Activated using KMS server: $KMS";break}
-    }
+    
+    $Office16 = Split-Path -Path $officeospp -Parent
+    $OSPPREARM = Join-Path $Office16 "OSPPREARM.EXE"
+    Start-Process $OSPPREARM
     reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\0ff1ce15-a989-479d-af46-f275c6370663" /f /reg:64
     reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\0ff1ce15-a989-479d-af46-f275c6370663" /f /reg:32
     reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform" /f /v KeyManagementServiceName /t REG_SZ /d "10.0.0.10" /reg:64
     reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform" /f /v KeyManagementServiceName /t REG_SZ /d "10.0.0.10" /reg:32
-    start-process -FilePath "Online_KMS_Activation.cmd" -ArgumentList "/K-Office","/K-NoRenewalTask" -Verb RunAs
-    start-process -FilePath "TSforge_Activation.cmd" -ArgumentList "/Z-Office" -Verb RunAs 
-    Start-Process "$Env:Programfiles\Microsoft Office\Office16\OSPPREARM.EXE"
     
+    $slmgr = "$env:WinDir\System32\slmgr.vbs"
+    cscript //nologo  $slmgr /ckms | out-null
+    
+    # cscript //nologo "$officeospp" /rearm
+    $unpkey = cscript $officeospp /dstatus | Select-String '^\s*Last 5 characters of installed product key\s*:\s*(.+)$' | ForEach-Object {($_ -split ":\s*", 2)[1].Trim()} | Select-Object -First 1
+    cscript //nologo "$officeospp" /unpkey:$unpkey | out-null
+    $Licenses | ForEach-Object {
+        cscript //nologo "$officeospp" /inslic:"$_" | out-null
+        cscript //nologo "$officeospp" /unpkey:6F7TH | out-null
+        cscript //nologo "$officeospp" /inpkey:FXYTK-NJJ8C-GB6DW-3DYQT-6F7TH | out-null
+    }
+    
+    $KMS_port = 1688
+    for ($i = 1; $i -le 10; $i++) {
+        switch ($i)
+        {
+            1 {$KMS_server="kms8.MSGuides.com"};2 {$KMS_server="kms9.MSGuides.com"};3 {$KMS_server="107.175.77.7"};4 {$KMS_server="e8.us.to"};5 {$KMS_server="e9.us.to"}
+            6 {$KMS_server="kms.digiboy.ir"};7 {$KMS_server="kms.ddns.net"};8 {$KMS_server="kms.lotro.cc"};9 {$KMS_server="zh.us.to"}
+        }
+        cscript //nologo "$officeospp" /setprt:$KMS_port | out-null
+        cscript //nologo "$officeospp" /sethst:$KMS_server | out-null
+        $Response = cscript //nologo "$officeospp" /act | Select-String -Pattern "successful"
+        if ($Response -ne $null) {Write-Host -f C "MS Office Successfully Activated using KMS server: $KMS_server";break}
+    }
+    
+    return
 }
+
+# start-process -FilePath "Online_KMS_Activation.cmd" -ArgumentList "/K-Office","/K-NoRenewalTask" -Verb RunAs
+# start-process -FilePath "TSforge_Activation.cmd" -ArgumentList "/Z-Office" -Verb RunAs
 
 Function Config-Office
 {
@@ -4242,20 +4267,20 @@ Function Config-Office
     # Disable update reliability data collection
     AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common' 'UpdateReliabilityData' '0' 'DWord'
     # Disable connected services and online content
-    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'ControllerConnectedServicesEnabled' '2' 'DWord'
-    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'DisconnectedState' '2' 'DWord'
-    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'DownloadContentDisabled' '2' 'DWord'
-    AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'UserContentDisabled' '2' 'DWord'
-    # Disable Cloud Login prompts
-    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\common\signin" "SignInOptions" '3' 'DWord'
+    #AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'ControllerConnectedServicesEnabled' '2' 'DWord'
+    #AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'DisconnectedState' '2' 'DWord'
+    #AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'DownloadContentDisabled' '2' 'DWord'
+    #AddRegEntry 'HKCU:\Software\Policies\Microsoft\Office\16.0\Common\Privacy' 'UserContentDisabled' '2' 'DWord'
+    #Disable Cloud Login prompts
+    # AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\common\signin" "SignInOptions" '3' 'DWord'
     # Disable online content for all apps
-    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\common\internet" "UseOnlineContent" '0' 'DWord'
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\common\internet" "UseOnlineContent" '1' 'DWord'
     # Per-application online content disabling
-    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\word\options" "UseOnlineContent" '0' 'DWord'
-    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\excel\options" "UseOnlineContent" '0' 'DWord'
-    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\powerpoint\options" "UseOnlineContent" '0' 'DWord'
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\word\options" "UseOnlineContent" '1' 'DWord'
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\excel\options" "UseOnlineContent" '1' 'DWord'
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\powerpoint\options" "UseOnlineContent" '1' 'DWord'
     # Disable connected experiences
-    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\common\officecloud" "UseOnlineContent" '0' 'DWord'
+    AddRegEntry "HKCU:\Software\Policies\Microsoft\office\16.0\common\officecloud" "UseOnlineContent" '1' 'DWord'
 
     # -----------------------------
     # Office Service Manager (OSM)
@@ -4618,10 +4643,8 @@ Function Ins-Office21PP
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Start Installing Office 2021 Pro Plus *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    Unins-MSOffice
+    Uninstall-MicrosoftOffice
     uninsSara-Office
-    uninsITPRO-Office
-    Uninscomponents-Office
     configurationFile21PP
     Deploy-Office
     ActivateOfficeKMS
@@ -4634,10 +4657,8 @@ Function Ins-Office24PP
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Start Installing Office 2024 Pro Plus *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    Unins-MSOffice
+    Uninstall-MicrosoftOffice
     uninsSara-Office
-    uninsITPRO-Office
-    Uninscomponents-Office
     configurationFile24PP
     Deploy-Office
     ActivateOfficeKMS
