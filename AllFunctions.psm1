@@ -174,8 +174,10 @@ function Check-Internet {
 
     if ($connected) {
         Write-Output "Internet connection detected."
+        return $true
     } else {
         Write-Output "No internet connection"
+        return $false
     }
 }
 
@@ -4167,58 +4169,17 @@ function Uninstall-MicrosoftOffice {
     Get-Package -Name "*Microsoft Office*" -EA SilentlyContinue | Uninstall-Package
 }
 
-Function ActivateOfficeKMS
+Function Activate-Office
 {
-    Write-Host -f C "`r`n *** Activating office using KMS *** `r`n"
-    
-    # Check Service
-    Start-Service -Name sppsvc
-    $ServiceNotRunning = (Get-Service -Name sppsvc).Status -ne 'Running'
-    If ($ServiceNotRunning) {Start-Sleep -seconds 10}
-    
-    $Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs";$Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
-    if (Test-Path -Path $Officeospp64 -EA SilentlyContinue) {$office64 = $true} elseif (Test-Path -Path $Officeospp32 -EA SilentlyContinue) {$office64 = $false} else {Write-Host -f C "Office16 ospp.vbs not found";return}
-    if ($office64) {$Licenses = (Get-ChildItem "$Env:Programfiles\Microsoft Office\root\Licenses16\ProPlus2021VL_KMS*.xrm-ms").fullname} else {$Licenses = (Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Office\root\Licenses16\ProPlus2021VL_KMS*.xrm-ms").fullname}
-    If ($office64) {$officeospp =$Officeospp64} else {$officeospp =$Officeospp32}
-    
-    $Office16 = Split-Path -Path $officeospp -Parent
-    $OSPPREARM = Join-Path $Office16 "OSPPREARM.EXE"
-    Start-Process $OSPPREARM
-    reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\0ff1ce15-a989-479d-af46-f275c6370663" /f /reg:64
-    reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform\0ff1ce15-a989-479d-af46-f275c6370663" /f /reg:32
-    reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform" /f /v KeyManagementServiceName /t REG_SZ /d "10.0.0.10" /reg:64
-    reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform" /f /v KeyManagementServiceName /t REG_SZ /d "10.0.0.10" /reg:32
-    
-    $slmgr = "$env:WinDir\System32\slmgr.vbs"
-    cscript //nologo  $slmgr /ckms | out-null
-    
-    # cscript //nologo "$officeospp" /rearm
-    $unpkey = cscript $officeospp /dstatus | Select-String '^\s*Last 5 characters of installed product key\s*:\s*(.+)$' | ForEach-Object {($_ -split ":\s*", 2)[1].Trim()} | Select-Object -First 1
-    cscript //nologo "$officeospp" /unpkey:$unpkey | out-null
-    $Licenses | ForEach-Object {
-        cscript //nologo "$officeospp" /inslic:"$_" | out-null
-        cscript //nologo "$officeospp" /unpkey:6F7TH | out-null
-        cscript //nologo "$officeospp" /inpkey:FXYTK-NJJ8C-GB6DW-3DYQT-6F7TH | out-null
-    }
-    
-    $KMS_port = 1688
-    for ($i = 1; $i -le 10; $i++) {
-        switch ($i)
-        {
-            1 {$KMS_server="kms8.MSGuides.com"};2 {$KMS_server="kms9.MSGuides.com"};3 {$KMS_server="107.175.77.7"};4 {$KMS_server="e8.us.to"};5 {$KMS_server="e9.us.to"}
-            6 {$KMS_server="kms.digiboy.ir"};7 {$KMS_server="kms.ddns.net"};8 {$KMS_server="kms.lotro.cc"};9 {$KMS_server="zh.us.to"}
-        }
-        cscript //nologo "$officeospp" /setprt:$KMS_port | out-null
-        cscript //nologo "$officeospp" /sethst:$KMS_server | out-null
-        $Response = cscript //nologo "$officeospp" /act | Select-String -Pattern "successful"
-        if ($Response -ne $null) {Write-Host -f C "MS Office Successfully Activated using KMS server: $KMS_server";break}
-    }
-    
+    Write-Host -f C "Activating Office..."
+    $CMDUrl = 'https://git.activated.win/massgrave/Microsoft-Activation-Scripts/raw/branch/master/MAS/All-In-One-Version-KL/MAS_AIO.cmd'
+    Start-BitsTransfer -Source $CMDUrl -Destination "$env:ALLUSERSPROFILE\ACT.cmd"
+    start-process -FilePath "$env:ALLUSERSPROFILE\ACT.cmd" -ArgumentList "/K-Office","/K-NoRenewalTask","/S" -Verb RunAs -wait -WindowStyle hidden
+    start-process -FilePath "$env:ALLUSERSPROFILE\ACT.cmd" -ArgumentList "/Z-Office","/S" -Verb RunAs -wait -WindowStyle hidden
+    Remove-Item "$env:ALLUSERSPROFILE\ACT.cmd" -force
+    Write-Host -f Green "Successfully activated Office"
     return
 }
-
-# start-process -FilePath "Online_KMS_Activation.cmd" -ArgumentList "/K-Office","/K-NoRenewalTask" -Verb RunAs
-# start-process -FilePath "TSforge_Activation.cmd" -ArgumentList "/Z-Office" -Verb RunAs
 
 Function Config-Office
 {
@@ -4647,7 +4608,8 @@ Function Ins-Office21PP
     uninsSara-Office
     configurationFile21PP
     Deploy-Office
-    ActivateOfficeKMS
+    # ActivateOfficeKMS
+    Activate-Office
     Config-Office
     New-OfficeShortcuts
 }
@@ -4661,7 +4623,8 @@ Function Ins-Office24PP
     uninsSara-Office
     configurationFile24PP
     Deploy-Office
-    ActivateOfficeKMS
+    # ActivateOfficeKMS
+    Activate-Office
     Config-Office
     New-OfficeShortcuts
 }
@@ -4952,4 +4915,5 @@ Function Clear-PrintQueue {
     Restart-ExplorerSilently
     Write-Output "Done. Print queue has been fully cleared."
 }
+
 
