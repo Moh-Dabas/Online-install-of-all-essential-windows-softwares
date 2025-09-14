@@ -1,4 +1,12 @@
 # Main commands
+
+# Powershell variables
+$Global:ErrorActionPreference = 'SilentlyContinue'
+$Global:progressPreference = 'SilentlyContinue'
+$Global:ConfirmPreference = 'None'
+$Global:Force = $true
+
+# Try Importing AllFunctions.psm1
 $ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 try{Import-Module -Name $ScriptDirectory\AllFunctions.psm1 -DisableNameChecking -Global -Force}
 catch{Write-Host "AllFunctions.psm1 file not found";Start-Sleep 5;exit}
@@ -64,6 +72,11 @@ Ins-ExtraFonts #Install Extra Fonts
 Fix-MSWindows #Fix Windows
 OpenMSStoreUpdate
 Clean-up
+
+
+
+
+
 
 
 

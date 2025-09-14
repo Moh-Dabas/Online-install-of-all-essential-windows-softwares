@@ -1,44 +1,13 @@
 # All functions Module
 
-Function Check-RunAsAdministrator()
-{
+function Check-RunAsAdministrator {
     #Get current user context
-    $CurrentUser = New-Object Security.Principal.WindowsPrincipal $([Security.Principal.WindowsIdentity]::GetCurrent())
+    $currentUser = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
     #Check user is running the script is member of Administrator Group
-    if($CurrentUser.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {Write-Host -F Green "`r`n*** Script is running with Administrator privileges ***`r`n"}
-    else
-    {
-        #Create a new Elevated process to Start PowerShell
-        $ElevatedProcess = New-Object System.Diagnostics.ProcessStartInfo "PowerShell"
-        # Specify the current script path and name as a parameter
-        $ElevatedProcess.Arguments = "& '" + $script:MyInvocation.MyCommand.Path + "'"
-        #Set the Process to elevated
-        $ElevatedProcess.Verb = "runas"
-        #Start the new elevated process
-        try {[System.Diagnostics.Process]::Start($ElevatedProcess)}
-        catch {Write-Host "User cancelled the UAC prompt or an error occurred."}
-        #Exit from the current, unelevated, process
-        Exit
-    }
-}
-
-Function Check-RunAsAdministrator2()
-{
-    # Check for admin rights
-    If (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        # Relaunch as admin
-        $scriptPath = $MyInvocation.MyCommand.Path
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = "powershell.exe"
-        $psi.Arguments = "-ExecutionPolicy Bypass -File `"$scriptPath`""
-        $psi.Verb = "runas"
-        try {
-            [System.Diagnostics.Process]::Start($psi) | Out-Null
-        } catch {
-            Write-Host "User cancelled the UAC prompt or an error occurred."
-        }
-        exit
-    }
+    if ($currentUser.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
+        Write-Host -ForegroundColor Green "`r`n*** Script is running with Administrator privileges ***`r`n"
+        return
+    } else {Relaunch}
 }
 
 Function Relaunch
@@ -190,6 +159,9 @@ Function AdminTakeownership
 }
 
 function Check-Internet {
+    $InternetAccess = (Get-NetConnectionProfile).IPv4Connectivity -contains "Internet"
+    if ($InternetAccess) {"Internet look connected but better test it"} else {"Internet disconnected waiting"}
+    Write-Output "Testing Internet connection"
     $connected = $false
     for ($i = 0; $i -lt 50; $i++) {
         $ping = Test-Connection -ComputerName 8.8.8.8 -Count 1 -Quiet -EA SilentlyContinue
@@ -224,7 +196,7 @@ Function Get-WiFiAdapters {
     }
     #>
     
-    [CmdletBinding()]
+    
     param()
     
     # Import the NetAdapter module
@@ -270,7 +242,7 @@ function Restart-WiFiAdapters {
     Restart-WiFiAdapters -Timeout 45 -Parallel
     #>
     
-    [CmdletBinding()]
+    
     param(
         [int]$Timeout = 60,
         [switch]$Parallel
@@ -576,7 +548,7 @@ public class WlanApi
 }
 
 Function Restart-WlanService {
-    [CmdletBinding()]
+    
     param(
         [int]$Timeout = 60,
         [int]$PostStartDelay = 5
@@ -639,7 +611,8 @@ Function Set-WiFiAutoConnect {
             netsh wlan set profileparameter name="$WiFiprofile" connectionmode=auto
         }
         Write-Host "All Wi-Fi profiles have been set to auto-connect." -ForegroundColor Green
-    } catch {Write-Error "An error occurred: $_"}
+    }
+    catch {Write-Error "An error occurred: $_"}
 }
 
 Function WifiPriority {
@@ -661,7 +634,7 @@ Function WifiPriority {
     $currentState = netsh wlan show interfaces | Select-String '^\s*State\s*:\s*(.+)$' | ForEach-Object {($_ -split ":\s*", 2)[1].Trim()} | Select-Object -First 1
     if ($currentState -ne "connected") {Write-Output "Not connected to a WiFi network.";return}
     # Get current wifi Adapter
-    $currentInterface = netsh wlan show interfaces | Select-String '^\s*Name\s*:\s*(.+)$' | ForEach-Object {($_ -split ":\s*", 2)[1].Trim()} | Select-Object -First 1
+    $currentInterface = (Get-NetConnectionProfile).InterfaceAlias
     # Get current SSID
     $currentSSID = netsh wlan show interfaces | Select-String '^\s*SSID\s*:\s*(.+)$' | ForEach-Object {($_ -split ":\s*", 2)[1].Trim()} | Select-Object -First 1
     # Check if currently connected SSID is already 5GHz
@@ -737,7 +710,7 @@ Function WifiPriority {
 
 Function Invoke-W32TimeResync {
     param(
-        [int]$MaxRetries = 60,
+        [int]$MaxRetries = 10,
         [int]$DelaySeconds = 1
     )
     
@@ -783,10 +756,6 @@ Function InitializeCommands
     Write-Host -f C "`r`n======================================================================================================================"
     Write-Host -f C "***************************** Initializing *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
-    Set-ExecutionPolicy Bypass -Force -EA SilentlyContinue | out-null
-    $ErrorActionPreference = 'SilentlyContinue'
-    $progressPreference = 'SilentlyContinue'
-    $ConfirmPreference = 'None'
     #UAC
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableLUA' '1' 'DWord'
     AddRegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ValidateAdminCodeSignatures' '0' 'DWord'
@@ -1094,19 +1063,6 @@ Function Ins-Scoop-git
     if (Get-Command -Name scoop) {write-host "Trying to update scoop";scoop update}
 }
 
-Function Ins-winget-Client
-{
-    try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -EA SilentlyContinue} catch {$WinGetClientInstalled =$false}
-    if (-not $WinGetClientInstalled)
-    {
-        Install-PackageProvider -Name NuGet -Force | Out-Null
-        Start-Job -Name ModuleWinGet {Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA SilentlyContinue | out-null} | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name,State
-        Import-Module Microsoft.WinGet.Client -Force -EA SilentlyContinue | out-null
-        repair-wingetpackagemanager
-        Relaunch
-    }
-}
-
 function Test-MicrosoftFileUrl {
     param(
         [string]$Url
@@ -1220,17 +1176,8 @@ function Install-UpdateVCLibs {
     finally {if (Test-Path $tempFile) {Remove-Item $tempFile -EA SilentlyContinue}}
 }
 
-<#
-.SYNOPSIS
-Installs or updates the Microsoft.UI.Xaml package system-wide
-
-.DESCRIPTION
-This script checks for and installs/updates the Microsoft.UI.Xaml package
-to the latest version available on NuGet.org without removing previous versions
-#>
-
 function Install-UpdateMicrosoftUIXaml {
-    [CmdletBinding()]
+    
     param(
         [Parameter(Mandatory=$false)]
         [switch]$Force
@@ -1239,29 +1186,22 @@ function Install-UpdateMicrosoftUIXaml {
     # Get the latest version of Microsoft.UI.Xaml using REST API
     Write-Host "Checking for latest version of Microsoft.UI.Xaml..." -ForegroundColor Yellow
     try {
-        # Use NuGet API to get package info
-        $packageUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.ui.xaml/index.json"
-        $versions = Invoke-RestMethod -Uri $packageUrl -UseBasicParsing
-        
-        # Filter out pre-release versions and convert to proper version objects
-        $stableVersions = $versions.versions | Where-Object { $_ -notmatch '-' } | ForEach-Object {
-            try {
-                [System.Version]$_
-            } catch {
-                # Skip versions that can't be converted
+        $uiXamlVersionsNugetUrl = 'https://packages.nuget.org/api/v2/package-versions/Microsoft.UI.Xaml'
+        $latestVersionString = @(Invoke-RestMethod -Uri $uiXamlVersionsNugetUrl -UseBasicParsing)[0] | Select-Object -Last 1
+        If (-not $latestVersionString) {
+            # Use NuGet API to get package info
+            $packageUrl = "https://api.nuget.org/v3-flatcontainer/microsoft.ui.xaml/index.json"
+            $versions = Invoke-RestMethod -Uri $packageUrl -UseBasicParsing
+            # Filter out pre-release versions and convert to proper version objects
+            $stableVersions = $versions.versions | Where-Object { $_ -notmatch '-' } | ForEach-Object {
+                try {[System.Version]$_} catch {} # Skip versions that can't be converted
             }
+            if (-not $stableVersions) {Write-Error "Failed to retrieve stable version information";return}
+            $latestVersion = $stableVersions | Sort-Object -Descending | Select-Object -First 1
+            $latestVersionString = $latestVersion.ToString()
         }
-        
-        if (-not $stableVersions) {
-            Write-Error "Failed to retrieve stable version information"
-            return
-        }
-        
-        $latestVersion = $stableVersions | Sort-Object -Descending | Select-Object -First 1
-        $latestVersionString = $latestVersion.ToString()
         
         Write-Host "Latest NuGet version available: $latestVersionString" -ForegroundColor Green
-        
         # Extract major.minor from latest version
         $latestMajorMinor = [System.Version]::new($latestVersion.Major, $latestVersion.Minor)
     }
@@ -1393,50 +1333,103 @@ function Install-UpdateMicrosoftUIXaml {
     Write-Host "Microsoft.UI.Xaml installation/update process completed." -ForegroundColor Green
 }
 
-function Install-OrUpdateDesktopAppInstaller {
+Function Ins-WingetDirect
+{
+    Write-Host "Falling back to direct installation method..." -ForegroundColor Yellow
+    # Install VCLibs
+    Install-UpdateVCLibs
+    # Install UIXaml
+    Install-UpdateMicrosoftUIXaml
+    # Install Winget
+    Install-UsingBITS
+}
+
+Function Ins-wingetClientModule
+{
+    Write-Host "Installing Microsoft.WinGet.Client Module..." -ForegroundColor Cyan
+    # install WinGet PowerShell Module (Microsoft.WinGet.Client) using chocolatey
+    if (choco list -l -e -r winget.powershell) {Choco upgrade winget.powershell -y} else {Choco install winget.powershell /core /desktop -y}
+    try {$WinGetClientInstalled = Get-Command -Name Find-WinGetPackage -EA SilentlyContinue} catch {Write-Host "Failed to Install Microsoft.WinGet.Client using chocolatey" -ForegroundColor Yellow}
+    if (-not $WinGetClientInstalled)
+    {
+        # install Module Microsoft.WinGet.Client
+        Install-Module Microsoft.WinGet.Client -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA SilentlyContinue
+        Import-Module Microsoft.WinGet.Client -Force -EA SilentlyContinue
+    }
+    try {$WinGetClientInstalled = Get-Command -Name Get-WinGetVersion -ea silentlycontinue} catch {Write-Host "Failed to Install Module Microsoft.WinGet.Client" -ForegroundColor Yellow}
+    if ($WinGetClientInstalled) {return $true} else {return $false}
+}
+
+Function Install-Winget-FirstMethod
+{
+    if (Ins-wingetClientModule) {
+        Write-Output "Installing Winget..."
+        Repair-WinGetPackageManager -AllUsers -Force -Latest
+    } else {return $false}
+}
+
+function Install-OrUpdateWinget {
     <#
     .SYNOPSIS
     Installs or updates the Microsoft Desktop App Installer (winget).
     
     .DESCRIPTION
     This function checks if both the DesktopAppInstaller package and winget command are available.
-    If both are available, it uses winget to update itself.
-    Otherwise, it performs a fresh installation using BITS transfer.
+    If both are available, try to update.
+    Otherwise, it performs a fresh installation trying 2 methods
     
     .EXAMPLE
-    Install-OrUpdateDesktopAppInstaller
+    Install-OrUpdateWinget
     #>
-    [CmdletBinding()]
+    
     param()
-
+    
     # Check if DesktopAppInstaller package is installed
     $desktopAppInstaller = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller'
     
     # Check if winget command is available
     $wingetAvailable = Get-Command -Name winget -EA SilentlyContinue
-
+    
     if ($desktopAppInstaller -and $wingetAvailable) {
-        Write-Host "Both DesktopAppInstaller package and winget command are available. Attempting to upgrade..." -ForegroundColor Green
+        Write-Host "Attempting to upgrade Winget..." -ForegroundColor Green
+        # Try to update winget if Needed
+        
+        # Get the current version
         try {
-            # Use winget to update with the correct package ID
-            winget upgrade --id Microsoft.AppInstaller --exact --silent --accept-package-agreements --accept-source-agreements
-            return $true
+            $currentVersion = (winget --version) -replace 'v'  # Remove 'v' prefix if present
+            Write-Host "Current Winget version: $currentVersion"
+        } catch {
+            Write-Host "Winget is not installed or not found in PATH."
+            # Try to install first method if fail use direct
+            If (-not (Install-Winget-FirstMethod)) {Ins-WingetDirect}
+            return
         }
-        catch {
-            Write-Warning "Failed to upgrade via winget: $($_.Exception.Message)"
-            Write-Host "Falling back to direct installation method..." -ForegroundColor Yellow
-            return Install-UsingBITS
+
+        # Fetch the latest release information from GitHub API
+        $url = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+        try {
+            $response = Invoke-RestMethod -Uri $url -Method Get
+            $onlineVersion = $response.tag_name -replace 'v'  # Remove 'v' prefix from the tag
+            Write-Host "Latest online version: $onlineVersion"
+        } catch {
+            Write-Host "Failed to retrieve the latest version online. Check your internet connection."
+            return
+        }
+
+        # Compare versions
+        if ($currentVersion -eq $onlineVersion) {
+            Write-Host "Your Winget is up to date." -ForegroundColor Green
+        } else {
+            Write-Host "A newer version of Winget is available." -ForegroundColor Yellow
+            # Try to install first method if fail use direct
+            If (-not (Install-Winget-FirstMethod)) {Ins-WingetDirect}
         }
     }
     else {
-        if ($desktopAppInstaller) {
-            Write-Host "DesktopAppInstaller package found but winget command not available. Reinstalling..." -ForegroundColor Yellow
-        }
-        else {
-            Write-Host "DesktopAppInstaller not found. Installing..." -ForegroundColor Yellow
-        }
-        return Install-UsingBITS
+        # Try to install first method if fail use direct
+        If (-not (Install-Winget-FirstMethod)) {Ins-WingetDirect}
     }
+    return
 }
 
 function Install-UsingBITS {
@@ -1459,6 +1452,7 @@ function Install-UsingBITS {
             param($url, $path)
             Start-BitsTransfer -Source $url -Destination $path
         } -ArgumentList "https://aka.ms/getwinget", $installerPath
+        # Another link "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
         
         # Wait for the download to complete with timeout
         $jobResult = $job | Wait-Job -Timeout 400
@@ -1509,20 +1503,14 @@ Function Install-Winget
     Write-Host -f C "***************************** Installing Winget & scoop & git *****************************"
     Write-Host -f C "======================================================================================================================`r`n"
     
-    # Install VCLibs
-    Install-UpdateVCLibs
-    
-    # Install UIXaml
-    Install-UpdateMicrosoftUIXaml
-    
-    # install Microsoft.DesktopAppInstaller
-    Install-OrUpdateDesktopAppInstaller
+    # Install or Update Winget & Dependencies using Chocolatey
+    if (choco list -l -e -r winget) {Choco upgrade winget -y} else {Choco install winget -y}
+        
+    # Install or Update Winget
+    Install-OrUpdateWinget
     
     Start-Job -Name ConfigWinget1 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe} | Wait-Job -Timeout 100 | Format-Table -Wrap -AutoSize -Property Name,State
     Start-Job -Name ConfigWinget2 {Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe} | Wait-Job -Timeout 100 | Format-Table -Wrap -AutoSize -Property Name,State
-    
-    # Install Winget client module
-    Ins-winget-Client
     
     # Install Scoop & git
     Ins-Scoop-git
@@ -1607,7 +1595,8 @@ Function Restart-ExplorerSilently {
     try {
         Write-Host -f C "Force terminating all Explorer processes..."
         taskkill /f /im explorer.exe
-    } catch {Write-Warning "`n Failed to terminate Explorer processes: $($_.Exception.Message)"}
+    }
+    catch {Write-Warning "`n Failed to terminate Explorer processes: $($_.Exception.Message)"}
     
     # Brief pause to ensure complete termination
     Start-Sleep -Milliseconds 1000
@@ -1621,7 +1610,8 @@ Function Restart-ExplorerSilently {
             $shell.Windows() | ForEach-Object {$_.Quit()}
             Start-Sleep -Milliseconds 1
         }
-    } catch {Write-Error "Failed to restart Windows Explorer: $($_.Exception.Message)"}
+    }
+    catch {Write-Error "Failed to restart Windows Explorer: $($_.Exception.Message)"}
     Write-Host -f C "Windows Explorer restarted successfully."
 }
 
@@ -2137,7 +2127,7 @@ Function Unins-Acrobat
 }
 
 function Fix-AdobeAcrobatProPdfThumbnails {
-    [CmdletBinding()]
+    
     param (
         [int]$DiskCleanupSageSetNumber = 65535
     )
@@ -2778,206 +2768,85 @@ Function Unins-MSTeams
     UninstallTeams
 }
 
-Function Convert-WinGetOutput
-{
-	[CmdletBinding(
-		SupportsShouldProcess=$True,
-		ConfirmImpact="Low"
-	)]
-    Param
-    (
-        [Parameter(ValueFromPipeline,Mandatory=$true)]
-        [String[]]$Output
+Function Update-WinGetPackages {
+    [CmdletBinding()]
+    Param(
+        [string[]]$NamePatterns = @(),
+        [string[]]$IdPatterns = @()
     )
+    
+    Ins-wingetClientModule
+    
+    # Import the module
+    Import-Module Microsoft.WinGet.Client -Force
 
-    Begin
-    {
-		$Columns = @()
-        $Packages = @()
-        $ResultOutput = @()
+    Write-Host -f C "Checking for available upgrades..."
+
+    # Get all packages and filter for those with available updates
+    $upgrades = Get-WinGetPackage | Where-Object { $_.IsUpdateAvailable }
+
+    if (-not $upgrades -or $upgrades.Count -eq 0) {
+        Write-Host -f C "No upgrades available."
+        return
     }
 
-    Process
-    {
-        #Check if header exist
-        $HeaderRow = [String]( $Output -match "Name|Version" -notmatch "Found" | Select-Object -First 1 ) 
-		if($HeaderRow)
-		{
-			$HeaderColumns = $HeaderRow -split "\s+"
-			$MaxLength = ([String]$HeaderRow).Length
-			If($HeaderColumns)
-			{
-				#If header exist then pars columns width
-				For (($i = 0); $i -lt $HeaderColumns.Length; $i++)
-				{
-					$ColumnLength = $HeaderRow.IndexOf($HeaderColumns[$i+1]) - $HeaderRow.IndexOf($HeaderColumns[$i])
-					if($ColumnLength -lt 0) { $ColumnLength = $MaxLength - $HeaderRow.IndexOf($HeaderColumns[$i]) }
+    # Format the output
+    $upgradeTable = $upgrades | Select-Object Name, Id, InstalledVersion, @{
+        Name='AvailableVersion'
+        Expression={if ($_.AvailableVersions.Count -gt 0) { $_.AvailableVersions[0] } else { "Unknown" }}
+    }
 
-					$Columns += [PSCustomObject]@{
-						"Name" = $HeaderColumns[$i]
-						"Index" = $HeaderRow.IndexOf($HeaderColumns[$i])
-						"Length" = $ColumnLength
-					}
-				}
-			}
-		} else
-		{
-			#If problems throw warning
-            $ResultWarning = [String]($Output -Match "No applicable update found.|No package found matching input criteria.|No installed package found matching input criteria.|Installer failed with exit code")
-            if($ResultWarning)
-            {
-                Write-Warning $ResultWarning
-                Return
-            }
-		}
+    Write-Host -f C "Found $($upgrades.Count) upgrade(s) available:"
+    $upgradeTable | Format-Table -AutoSize
 
-        #Parse each packages
-        ForEach($Row in $Output)
-        {
-            if($Row -match "----") { $RowIndex = 0 } elseif($null -ne $RowIndex) { $RowIndex++ }
-
-			if($Row -match "upgrades available.")
-			{
-				$RowIndex = $null
-			}
-			
-            If([Int]$RowIndex -gt 0)
-            {
-                $PackageInfo = @{}
-
-                #Parse each column
-                Foreach($Column in $Columns)
-                {
-                    #Check column length
-                    if($Row.Length -gt ($Column.Index + $Column.Length))
-                    {
-                        $Length = $Column.Length
-                    } else {
-                        $Length = $Row.Length - $Column.Index
-                    }
-
-                    #Parse column
-                    Try{
-                        $PackageInfo[$Column.Name] = $Row.SubString($Column.Index,$Length ).Trim()
-                    }
-                    Catch
-                    {
-                        $PackageInfo[$Column.Name] = $null
-                    }
-                }
-
-                #Change object type
-				$Package = [PSCustomObject]$PackageInfo
-                $Package.PSTypeNames.Clear()
-				if($Columns.Name -contains "Available")
-				{
-					$Package.PSTypeNames.Add('PSWinGet.Package.Available')
-				} elseif($Columns.Name -contains "Version" -and $Columns.Name -notcontains "Id")
-				{
-					$Package.PSTypeNames.Add('PSWinGet.Package.Versions')
-				} else
-				{
-					$Package.PSTypeNames.Add('PSWinGet.Package')
-				}
-
-                #Add package to list
-                if($PackageInfo["Version"])
-                {
-					$Packages += $Package
-                }
-            } else {
-                #If no packages return raw output
-                $ResultOutput += $Row #| Where-Object { $_ -notmatch "█|▒" }
+    # Filter out excluded packages
+    $upgradesToInstall = $upgrades | Where-Object {
+        $package = $_
+        $exclude = $false
+        
+        foreach ($pattern in $NamePatterns) {
+            if ($package.Name -like "*$pattern*") {
+                $exclude = $true
+                break
             }
         }
-    }
-
-    End
-    {
-        if($Packages.Count)
-        {
-            Return $Packages
-        } else {
-            Return $ResultOutput
+        
+        if (-not $exclude) {
+            foreach ($pattern in $IdPatterns) {
+                if ($package.Id -like "*$pattern*") {
+                    $exclude = $true
+                    break
+                }
+            }
         }
-    }
-}
-
-Function Get-WinGetPackageMod
-{
-	[CmdletBinding(
-		DefaultParameterSetName = "Package",
-		SupportsShouldProcess=$True,
-		ConfirmImpact="Low"
-	)]
-    Param
-    (
-        [Parameter(ParameterSetName = 'Package', Position=0)]
-		[String]$Id,
-		[Parameter(ParameterSetName = 'Package')]
-        [String]$Name,
-		[Parameter(ParameterSetName = 'Package')]
-        [String]$Moniker,
-		[Parameter(ParameterSetName = 'Package')]
-        [String]$Tag,
-		[Parameter(ParameterSetName = 'Package')]
-        [Switch]$Exact,
-		[Parameter(ParameterSetName = 'Package')]
-        [Switch]$available
-    )
-
-    Begin
-    {
-        If ($PSBoundParameters['Debug']) { $DebugPreference = 'Continue' }
+        
+        -not $exclude
     }
 
-    Process
-    {
-        $Command = "winget list --accept-source-agreements"
-
-        if($Id) { $Command += " --id $Id" }
-        if($Name) { $Command += " --name $Name" }
-        if($Moniker) { $Command += " --moniker $Moniker" }
-        if($Tag) { $Command += " --tag $Tag" }
-        if($Exact) { $Command += " --exact" }
-		if($available) { $Command += " --upgrade-available --accept-source-agreements" }
-
-        Write-Verbose $Command
-        $Result = Invoke-Expression -Command $Command | Where-Object { $_ }
-        $Result | ForEach-Object { Write-Debug $_ }
-
-        if($Result)
-        {
-            Return Convert-WinGetOutput -Output $Result
-        } else {
-            Write-Warning "Missing result."
-        }
+    # Show excluded packages
+    $excluded = $upgrades | Where-Object { $_.Id -notin $upgradesToInstall.Id }
+    if ($excluded.Count -gt 0) {
+        Write-Host -f Yellow "Excluded $($excluded.Count) package(s):"
+        $excluded | ForEach-Object { Write-Host "  - $($_.Name) ($($_.Id))" }
     }
 
-    End {}
+    if ($upgradesToInstall.Count -eq 0) {
+        Write-Host -f Yellow "All upgrades excluded based on filters."
+        return
+    }
+
+    Write-Host -f C "Upgrading $($upgradesToInstall.Count) package(s)..."
+
+    foreach ($package in $upgradesToInstall) {
+        Write-Host "Upgrading: $($package.Name) ($($package.Id))"
+        winget upgrade --id $package.Id --silent --accept-package-agreements --force
+    }
 }
 
 Function UpdateAll
 {
     Write-Host -f C "`r`n *** Updating all installed applications *** `r`n"
-    # Use your custom function to get available upgrades
-    $upgrades = Get-WinGetPackageMod -available
-    # Filter out Adobe Acrobat and upgrade remaining packages
-    foreach ($package in $upgrades) {
-        if ($package.Id -notlike "*Acrobat*") {
-            try {
-                Write-Host "Upgrading: $($package.Name) ($($package.Id))"
-                winget upgrade --id $package.Id --silent --accept-package-agreements --accept-source-agreements --force
-                Write-Host "Successfully upgraded: $($package.Id)" -ForegroundColor Green
-            }
-            catch {
-                Write-Host "Failed to upgrade: $($package.Id)" -ForegroundColor Red
-                Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
-            }
-        } else {
-            Write-Host "Skipping Adobe Acrobat: $($package.Id)" -ForegroundColor Yellow
-        }
-    }
+    Update-WinGetPackages -NamePatterns "Acrobat" -IdPatterns "Acrobat"
     # winget upgrade --all --silent --accept-source-agreements --accept-package-agreements --force
     choco upgrade all -y
     refreshenv
@@ -5062,24 +4931,4 @@ Function Clear-PrintQueue {
     Restart-ExplorerSilently
     Write-Output "Done. Print queue has been fully cleared."
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
