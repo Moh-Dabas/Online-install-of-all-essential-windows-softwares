@@ -2,6 +2,8 @@
 This will install all essential windows softwares online.
 How to use:
 
+Go to release and download then run or
+
   1- Press "Code" then "Download ZIP" to download the files
   
   2- Extract it
