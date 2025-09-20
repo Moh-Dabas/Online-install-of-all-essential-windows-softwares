@@ -2489,7 +2489,8 @@ function Invoke-AcrobatFix {
 	$paths = @(
 	"${env:COMMONPROGRAMFILES(X86)}\Adobe\OOBE\PDApp\IPC",
 	"${env:COMMONPROGRAMFILES}\Adobe\OOBE\PDApp\IPC",
-	"${env:COMMONPROGRAMFILES(X86)}\Adobe\AdobeGCClient"
+	"${env:COMMONPROGRAMFILES(X86)}\Adobe\AdobeGCClient",
+	"${env:SYSTEMDRIVE\Public\Documents\AdobeGCData"
 	)
 
 	foreach ($path in $paths) {
@@ -2589,6 +2590,25 @@ function Ins-GIMP {
 function Ins-OpenAl {
 	Write-Host -f C "`r`n *** Installing OpenAl *** `r`n"
 	if (choco list -l -e -r openal) { Choco upgrade openal -y } else { Choco install openal -y }
+}
+
+function Ins-Foxit {
+	# Step 1: Install Foxit PDF Reader via winget
+	Write-Host "📥 Installing Foxit PDF Reader..."
+	winget install -e --id "Foxit.FoxitReader" --silent --accept-source-agreements --accept-package-agreements
+
+	# Step 2: Set Foxit as the default thumbnail & preview handler for PDFs
+	Write-Host "🔧 Configuring Foxit as default PDF thumbnail provider..."
+	
+	# Apply thumbnail handler
+	AddRegEntry "HKCR\.pdf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" "(default)" "{1B0F3B9D-3A01-453F-BD45-0A9438F97BDA}" 'String'
+	# Apply preview handler
+	AddRegEntry "HKCR\.pdf\ShellEx\{8895b1c6-b41f-4c1c-a562-0d564250836f}" "(default)" "{1B0F3B9D-3A01-453F-BD45-0A9438F97BDA}" 'String'
+	
+	# Step 3: Restart Explorer to apply changes
+	Restart-ExplorerSilently
+
+	Write-Host "✅ Foxit PDF Reader installed and set as default thumbnail preview handler."
 }
 
 function Ins-WhatsApp {
@@ -3720,7 +3740,6 @@ function Adj-Hosts {
 127.0.0.1 local
 #</localhost>
 
-#<block-iobit>
 127.0.0.1 pf.iobit.com
 127.0.0.1 iunins.iobit.com
 127.0.0.1 sd.iobit.com
@@ -3728,9 +3747,6 @@ function Adj-Hosts {
 127.0.0.1 asc55.iobit.com
 127.0.0.1 is360.iobit.com
 127.0.0.1 asc.iobit.com
-#</block-iobit>
-
-#<block-wondershare>
 127.0.0.1 account.wondershare.com
 127.0.0.1 platform.wondershare.com
 127.0.0.1 cbs.wondershare.com
@@ -3744,9 +3760,6 @@ function Adj-Hosts {
 127.0.0.1 antipiracy.wondershare.com
 127.0.0.1 wondershare.com
 127.0.0.1 mail.insidews.wondershare.com
-#</block-wondershare>
-
-#<block-adobe>
 127.0.0.1 activate.adobe.com
 127.0.0.1 practivate.adobe.com
 127.0.0.1 ereg.adobe.com
@@ -3820,107 +3833,9 @@ function Adj-Hosts {
 127.0.0.1 prod-rel-ffc-ccm.oobesaas.adobe.com
 127.0.0.1 s-2.adobe.com
 127.0.0.1 s-3.adobe.com
-127.0.0.1 wwis-dubc1-vip100.adobe.com
-127.0.0.1 wwis-dubc1-vip101.adobe.com
-127.0.0.1 wwis-dubc1-vip102.adobe.com
-127.0.0.1 wwis-dubc1-vip103.adobe.com
-127.0.0.1 wwis-dubc1-vip104.adobe.com
-127.0.0.1 wwis-dubc1-vip105.adobe.com
-127.0.0.1 wwis-dubc1-vip106.adobe.com
-127.0.0.1 wwis-dubc1-vip107.adobe.com
-127.0.0.1 wwis-dubc1-vip108.adobe.com
-127.0.0.1 wwis-dubc1-vip109.adobe.com
-127.0.0.1 wwis-dubc1-vip110.adobe.com
-127.0.0.1 wwis-dubc1-vip111.adobe.com
-127.0.0.1 wwis-dubc1-vip112.adobe.com
-127.0.0.1 wwis-dubc1-vip113.adobe.com
-127.0.0.1 wwis-dubc1-vip114.adobe.com
-127.0.0.1 wwis-dubc1-vip115.adobe.com
-127.0.0.1 wwis-dubc1-vip116.adobe.com
-127.0.0.1 wwis-dubc1-vip117.adobe.com
-127.0.0.1 wwis-dubc1-vip118.adobe.com
-127.0.0.1 wwis-dubc1-vip119.adobe.com
-127.0.0.1 wwis-dubc1-vip120.adobe.com
-127.0.0.1 wwis-dubc1-vip121.adobe.com
-127.0.0.1 wwis-dubc1-vip122.adobe.com
-127.0.0.1 wwis-dubc1-vip123.adobe.com
-127.0.0.1 wwis-dubc1-vip124.adobe.com
-127.0.0.1 wwis-dubc1-vip125.adobe.com
-127.0.0.1 wwis-dubc1-vip30.adobe.com
-127.0.0.1 wwis-dubc1-vip31.adobe.com
-127.0.0.1 wwis-dubc1-vip32.adobe.com
-127.0.0.1 wwis-dubc1-vip33.adobe.com
-127.0.0.1 wwis-dubc1-vip34.adobe.com
-127.0.0.1 wwis-dubc1-vip35.adobe.com
-127.0.0.1 wwis-dubc1-vip36.adobe.com
-127.0.0.1 wwis-dubc1-vip37.adobe.com
-127.0.0.1 wwis-dubc1-vip38.adobe.com
-127.0.0.1 wwis-dubc1-vip39.adobe.com
-127.0.0.1 wwis-dubc1-vip40.adobe.com
-127.0.0.1 wwis-dubc1-vip41.adobe.com
-127.0.0.1 wwis-dubc1-vip42.adobe.com
-127.0.0.1 wwis-dubc1-vip43.adobe.com
-127.0.0.1 wwis-dubc1-vip44.adobe.com
-127.0.0.1 wwis-dubc1-vip45.adobe.com
-127.0.0.1 wwis-dubc1-vip46.adobe.com
-127.0.0.1 wwis-dubc1-vip47.adobe.com
-127.0.0.1 wwis-dubc1-vip48.adobe.com
-127.0.0.1 wwis-dubc1-vip49.adobe.com
-127.0.0.1 wwis-dubc1-vip50.adobe.com
-127.0.0.1 wwis-dubc1-vip51.adobe.com
-127.0.0.1 wwis-dubc1-vip52.adobe.com
-127.0.0.1 wwis-dubc1-vip53.adobe.com
-127.0.0.1 wwis-dubc1-vip54.adobe.com
-127.0.0.1 wwis-dubc1-vip55.adobe.com
-127.0.0.1 wwis-dubc1-vip56.adobe.com
-127.0.0.1 wwis-dubc1-vip57.adobe.com
-127.0.0.1 wwis-dubc1-vip58.adobe.com
-127.0.0.1 wwis-dubc1-vip59.adobe.com
-127.0.0.1 wwis-dubc1-vip60.adobe.de
-127.0.0.1 wwis-dubc1-vip61.adobe.com
-127.0.0.1 wwis-dubc1-vip62.adobe.com
-127.0.0.1 wwis-dubc1-vip63.adobe.com
-127.0.0.1 wwis-dubc1-vip64.adobe.com
-127.0.0.1 wwis-dubc1-vip65.adobe.com
-127.0.0.1 wwis-dubc1-vip66.adobe.com
-127.0.0.1 wwis-dubc1-vip67.adobe.com
-127.0.0.1 wwis-dubc1-vip68.adobe.com
-127.0.0.1 wwis-dubc1-vip69.adobe.com
-127.0.0.1 wwis-dubc1-vip70.adobe.com
-127.0.0.1 wwis-dubc1-vip71.adobe.com
-127.0.0.1 wwis-dubc1-vip72.adobe.com
-127.0.0.1 wwis-dubc1-vip73.adobe.com
-127.0.0.1 wwis-dubc1-vip74.adobe.com
-127.0.0.1 wwis-dubc1-vip75.adobe.com
-127.0.0.1 wwis-dubc1-vip76.adobe.com
-127.0.0.1 wwis-dubc1-vip77.adobe.com
-127.0.0.1 wwis-dubc1-vip78.adobe.com
-127.0.0.1 wwis-dubc1-vip79.adobe.com
-127.0.0.1 wwis-dubc1-vip80.adobe.com
-127.0.0.1 wwis-dubc1-vip81.adobe.com
-127.0.0.1 wwis-dubc1-vip82.adobe.com
-127.0.0.1 wwis-dubc1-vip83.adobe.com
-127.0.0.1 wwis-dubc1-vip84.adobe.com
-127.0.0.1 wwis-dubc1-vip85.adobe.com
-127.0.0.1 wwis-dubc1-vip86.adobe.com
-127.0.0.1 wwis-dubc1-vip87.adobe.com
-127.0.0.1 wwis-dubc1-vip88.adobe.com
-127.0.0.1 wwis-dubc1-vip89.adobe.com
-127.0.0.1 wwis-dubc1-vip90.adobe.com
-127.0.0.1 wwis-dubc1-vip91.adobe.com
-127.0.0.1 wwis-dubc1-vip92.adobe.com
-127.0.0.1 wwis-dubc1-vip93.adobe.com
-127.0.0.1 wwis-dubc1-vip94.adobe.com
-127.0.0.1 wwis-dubc1-vip95.adobe.com
-127.0.0.1 wwis-dubc1-vip96.adobe.com
-127.0.0.1 wwis-dubc1-vip97.adobe.com
-127.0.0.1 wwis-dubc1-vip98.adobe.com
-127.0.0.1 wwis-dubc1-vip99.adobe.com
 127.0.0.1 ic.adobe.io
-127.0.0.1 cc-api-data.adobe.io
 127.0.0.1 cc-api-data-stage.adobe.io
 127.0.0.1 notify.adobe.io
-127.0.0.1 prod.adobegenuine.com
 127.0.0.1 gocart-web-prod-ue1-alb-1461435473.us-east-1.elb.amazonaws.com
 127.0.0.1 assets.adobedtm.com
 127.0.0.1 adobe-dns-01.adobe.com
@@ -3950,8 +3865,6 @@ function Adj-Hosts {
 127.0.0.1 stls.adobe.com-cn.edgesuite.net
 127.0.0.1 stls.adobe.com-cn.edgesuite.net.globalredir.akadns.net
 127.0.0.1 use-stls.adobe.com.edgesuite.net
-#</block-adobe>
-
 127.0.0.1 209-34-83-73.ood.opsource.net
 127.0.0.1 tss-geotrust-crl.thawte.com
 127.0.0.1 crl.verisign.net
@@ -3959,10 +3872,11 @@ function Adj-Hosts {
 127.0.0.1 ood.opsource.net
 127.0.0.1 bam.nr-data.net
 127.0.0.1 workflow-ui-prod.licensingstack.com
-127.0.0.1 https://prod2-live-chat.sprinklr.com
 127.0.0.1 activation.cyberlink.com
 127.0.0.1 secure.asap-utilities.com
 127.0.0.1 server2.asap-utilities.com
+127.0.0.1 ic.adobe.io
+127.0.0.1 cc-api-data.adobe.io
 "@
 	Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Force -EA SilentlyContinue | Out-Null
 }
