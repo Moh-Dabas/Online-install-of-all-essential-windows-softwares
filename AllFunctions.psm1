@@ -1000,7 +1000,7 @@ function Ins-Choco {
 		Write-Host "Choco is already installed"
 	} else {
 		iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-		Start-Sleep 1
+		Start-Sleep -Seconds 1
 		Relaunch
 	}
 	# Set choco features
@@ -1410,7 +1410,7 @@ function Install-UsingBITS {
 			# Install the package
 			$installResult = Add-AppxPackage -Path $installerPath -ForceApplicationShutdown -ForceUpdateFromAnyVersion
 			Write-Host "Microsoft.DesktopAppInstaller installed successfully." -ForegroundColor Green
-			Start-Sleep 1
+			Start-Sleep -Seconds 1
 			Relaunch
 			return $true
 		} else {
@@ -2528,7 +2528,7 @@ function Ins-AcrobatPro {
 	(New-Object -ComObject WScript.Network).SetDefaultPrinter('Adobe PDF')
 	Invoke-AcrobatFix
 	Fix-AdobeAcrobatProPdfThumbnails
-	Start-Sleep 5
+	Start-Sleep -Seconds 5
 	Refresh-Desktop
 }
 
@@ -2574,12 +2574,15 @@ function Ins-Foxit {
 	Write-Host "🔧 Configuring Foxit as default PDF thumbnail provider..."
 
 	# Apply thumbnail handler
-	AddRegEntry "HKCR\.pdf\ShellEx\{ e357fccd-a995-4576-b01f-234630154e96 }" "(default)" " { 1B0F3B9D-3A01-453F-BD45-0A9438F97BDA }" 'String'
+	AddRegEntry 'HKCR:\.pdf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}' "(default)" "{1B0F3B9D-3A01-453F-BD45-0A9438F97BDA}" 'String'
 	# Apply preview handler
-	AddRegEntry "HKCR\.pdf\ShellEx\ { 8895b1c6-b41f-4c1c-a562-0d564250836f }" "(default)" " { 1B0F3B9D-3A01-453F-BD45-0A9438F97BDA }" 'String'
-
-	# Step 3: Restart Explorer to apply changes
+	AddRegEntry 'HKCR:\.pdf\ShellEx\{8895b1c6-b41f-4c1c-a562-0d564250836f}' "(default)" "{1B0F3B9D-3A01-453F-BD45-0A9438F97BDA}" 'String'
+	
+	# Step 3: Clear Thumbnails & Restart Explorer to apply changes
+	Fix-AdobeAcrobatProPdfThumbnails
 	Restart-ExplorerSilently
+	Start-Sleep -Seconds 5
+	Refresh-Desktop
 
 	Write-Host "✅ Foxit PDF Reader installed and set as default thumbnail preview handler."
 }
