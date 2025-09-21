@@ -71,9 +71,11 @@ Adj-Hosts #Adjust Hosts file
 #Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions
 Ins-Office24PP #Start Install Office 2024 Pro Plus & remove old versions
 Ins-ExtraFonts #Install Extra Fonts
+Create-RLMCopyShortcut
 Update-MSStoreApps
 Fix-MSWindows #Fix Windows
 Clean-up
+
 
 
 

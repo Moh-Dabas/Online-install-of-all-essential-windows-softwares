@@ -21,14 +21,14 @@ function Relaunch {
 function AddRegEntry {
 	param
 	(
-	[Parameter(Mandatory = $true, Position = 0)]
-	[string]$Path,
-	[Parameter(Mandatory = $true, Position = 1)]
-	[string]$Name,
-	[Parameter(Mandatory = $true, Position = 2)]
-	[string]$Value,
-	[Parameter(Mandatory = $false, Position = 3)]
-	[string]$Type = 'DWord'
+		[Parameter(Mandatory = $true, Position = 0)]
+		[string]$Path,
+		[Parameter(Mandatory = $true, Position = 1)]
+		[string]$Name,
+		[Parameter(Mandatory = $true, Position = 2)]
+		[string]$Value,
+		[Parameter(Mandatory = $false, Position = 3)]
+		[string]$Type = 'DWord'
 	)
 	try {
 		if (Get-ItemProperty -Path $Path -Name $Name -EA SilentlyContinue) {
@@ -54,8 +54,8 @@ function AddRegEntry {
 
 function Remove-AppxApp {
 	param (
-	[Parameter(Mandatory = $true)]
-	[string]$AppName
+		[Parameter(Mandatory = $true)]
+		[string]$AppName
 	)
 
 	Write-Host "Checking for AppxPackage matching '$AppName'..." -ForegroundColor Yellow
@@ -109,8 +109,8 @@ function Remove-AppxApp {
 function Repeatiwr {
 	param
 	(
-	[Parameter(Mandatory = $true, Position = 0)]
-	[string]$uri
+		[Parameter(Mandatory = $true, Position = 0)]
+		[string]$uri
 	)
 	for ($i = 1; $i -le 20; $i++) {
 		try {
@@ -130,8 +130,8 @@ function Repeatiwr {
 function AdminTakeownership {
 	param
 	(
-	[Parameter(Mandatory = $true, Position = 0)]
-	[string]$Path
+		[Parameter(Mandatory = $true, Position = 0)]
+		[string]$Path
 	)
 	if (Test-Path -Path $Path -PathType Leaf -EA SilentlyContinue) {
 		takeown /a /f $Path
@@ -191,10 +191,10 @@ function Get-WiFiAdapters {
 	# Get active Wi-Fi adapters
 	$wifiAdapters = Get-NetAdapter | Where-Object {
 		$_.Status -eq 'Up' -and (
-		$_.InterfaceDescription -like "*Wi-Fi*" -or
-		$_.Name -like "*Wi-Fi*" -or
-		$_.InterfaceDescription -like "*Wireless*" -or
-		$_.Name -like "*WLAN*"
+			$_.InterfaceDescription -like "*Wi-Fi*" -or
+			$_.Name -like "*Wi-Fi*" -or
+			$_.InterfaceDescription -like "*Wireless*" -or
+			$_.Name -like "*WLAN*"
 		)
 	}
 
@@ -230,8 +230,8 @@ function Restart-WiFiAdapters {
 
 
 	param(
-	[int]$Timeout = 60,
-	[switch]$Parallel
+		[int]$Timeout = 60,
+		[switch]$Parallel
 	)
 
 	# Get Wi-Fi adapters
@@ -475,8 +475,7 @@ public class WlanApi
 		$result = [WlanApi]::WlanEnumInterfaces($client, [IntPtr]::Zero, [ref]$ifListPtr)
 		if ($result -ne 0) { throw "WlanEnumInterfaces failed: $result" }
 
-		$ifList = [System.Runtime.InteropServices.Marshal]::PtrToStructure(
-		$ifListPtr, [type][WlanApi+WLAN_INTERFACE_INFO_LIST])
+		$ifList = [System.Runtime.InteropServices.Marshal]::PtrToStructure($ifListPtr, [type][WlanApi+WLAN_INTERFACE_INFO_LIST])
 		$base = $ifListPtr.ToInt64() + 8
 
 		$sizeInterface = [System.Runtime.InteropServices.Marshal]::SizeOf([type][WlanApi+WLAN_INTERFACE_INFO])
@@ -503,8 +502,7 @@ public class WlanApi
 		$result = [WlanApi]::WlanGetAvailableNetworkList($client, $foundGuid, 0, [IntPtr]::Zero, [ref]$netPtr)
 		if ($result -ne 0) { throw "WlanGetAvailableNetworkList failed: $result" }
 
-		$list = [System.Runtime.InteropServices.Marshal]::PtrToStructure(
-		$netPtr, [type][WlanApi+WLAN_AVAILABLE_NETWORK_LIST])
+		$list = [System.Runtime.InteropServices.Marshal]::PtrToStructure($netPtr, [type][WlanApi+WLAN_AVAILABLE_NETWORK_LIST])
 		$base = $netPtr.ToInt64() + 8
 		$sizeAvail = [System.Runtime.InteropServices.Marshal]::SizeOf([type][WlanApi+WLAN_AVAILABLE_NETWORK])
 
@@ -533,8 +531,8 @@ public class WlanApi
 function Restart-WlanService {
 
 	param(
-	[int]$Timeout = 60,
-	[int]$PostStartDelay = 5
+		[int]$Timeout = 60,
+		[int]$PostStartDelay = 5
 	)
 
 	try {
@@ -545,9 +543,7 @@ function Restart-WlanService {
 		$service = Get-Service -Name wlansvc
 		$startTime = Get-Date
 		while ($service.Status -ne 'Running') {
-			if (((Get-Date) - $startTime).TotalSeconds -gt $Timeout) {
-				throw "Timed out waiting for wlansvc to start after $Timeout seconds"
-			}
+			if (((Get-Date) - $startTime).TotalSeconds -gt $Timeout) { throw "Timed out waiting for wlansvc to start after $Timeout seconds" }
 
 			Write-Host "Waiting for wlansvc to start... (Current: $($service.Status))"
 			Start-Sleep -Seconds 1
@@ -691,8 +687,8 @@ function WifiPriority {
 
 function Invoke-W32TimeResync {
 	param(
-	[int]$MaxRetries = 10,
-	[int]$DelaySeconds = 1
+		[int]$MaxRetries = 10,
+		[int]$DelaySeconds = 1
 	)
 
 	# Ensure required registry settings
@@ -758,8 +754,8 @@ function Set-Hibernate {
 	# Control Hibernate Default = 'Off' ,'Boot' ,'Full'
 	param
 	(
-	[Parameter(Mandatory = $false, Position = 0)]
-	[string]$Status = 'Off'
+		[Parameter(Mandatory = $false, Position = 0)]
+		[string]$Status = 'Off'
 	)
 	if ($Status -eq 'Full') {
 		# Enable hibernate full
@@ -1031,7 +1027,7 @@ function Ins-Scoop-git {
 
 function Test-MicrosoftFileUrl {
 	param(
-	[string]$Url
+		[string]$Url
 	)
 
 	try {
@@ -1139,8 +1135,8 @@ function Install-UpdateVCLibs {
 function Install-UpdateMicrosoftUIXaml {
 
 	param(
-	[Parameter(Mandatory = $false)]
-	[switch]$Force
+		[Parameter(Mandatory = $false)]
+		[switch]$Force
 	)
 
 	# Get the latest version of Microsoft.UI.Xaml using REST API
@@ -1471,10 +1467,10 @@ function Ins-arSALang {
 
 	function WCap {
 		param(
-		[Parameter(Mandatory = $true, Position = 1)]
-		[string]$Cap,
-		[Parameter(Mandatory = $true, Position = 2)]
-		[string]$Lang
+			[Parameter(Mandatory = $true, Position = 1)]
+			[string]$Cap,
+			[Parameter(Mandatory = $true, Position = 2)]
+			[string]$Lang
 		)
 		$Installed = (Get-WindowsCapability -Online -Name Language.$Cap~~~$Lang~0.0.1.0 -EA SilentlyContinue).State
 		if ($Installed -ne "Installed") {
@@ -1706,12 +1702,12 @@ function Ins-Chrome {
 
 function Set-ChromePopupSettings {
 	param(
-	[Parameter(Mandatory = $false)]
-	[ValidateSet("Allow", "Block", "Default", "ShowGUI")]
-	[string]$Action = "ShowGUI",
+		[Parameter(Mandatory = $false)]
+		[ValidateSet("Allow", "Block", "Default", "ShowGUI")]
+		[string]$Action = "ShowGUI",
 
-	[Parameter(Mandatory = $false)]
-	[switch]$Force
+		[Parameter(Mandatory = $false)]
+		[switch]$Force
 	)
 
 	# Function to get Chrome profiles
@@ -1793,14 +1789,14 @@ function Set-ChromePopupSettings {
 					} else {
 						# Update popup settings
 						$popupExceptions = @(
-						@{
-							origin  = "https://*"
-							setting = $settingValue
-						},
-						@{
-							origin  = "http://*"
-							setting = $settingValue
-						}
+							@{
+								origin  = "https://*"
+								setting = $settingValue
+							},
+							@{
+								origin  = "http://*"
+								setting = $settingValue
+							}
 						)
 						$json.profile.content_settings.exceptions.popups = $popupExceptions
 					}
@@ -1994,11 +1990,11 @@ function Ins-AcrobatRdr {
 
 function Convert-GoogleDriveUrl {
 	param(
-	[Parameter(Mandatory = $true)]
-	[string]$Url,
+		[Parameter(Mandatory = $true)]
+		[string]$Url,
 
-	[Parameter(Mandatory = $true)]
-	[string]$Key
+		[Parameter(Mandatory = $true)]
+		[string]$Key
 	)
 
 	# Define regex pattern to extract the file ID from various Google Drive URL formats
@@ -2051,12 +2047,12 @@ function Unins-Acrobat {
 function Fix-AdobeAcrobatProPdfThumbnails {
 
 	param (
-	[int]$DiskCleanupSageSetNumber = 65535
+		[int]$DiskCleanupSageSetNumber = 65535
 	)
 
 	function Clear-ThumbnailCacheWithDiskCleanup {
 		param (
-		[int]$SageSetNumber
+			[int]$SageSetNumber
 		)
 		Write-Host "Deleting thumbnail cache files..." -ForegroundColor Yellow
 		try {
@@ -2109,9 +2105,9 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 
 	# Clear all icon cache files
 	$cachePaths = @(
-	"$env:LOCALAPPDATA\IconCache.db",
-	"$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*",
-	"$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*"
+		"$env:LOCALAPPDATA\IconCache.db",
+		"$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache_*",
+		"$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*"
 	)
 
 	foreach ($path in $cachePaths) {
@@ -2120,8 +2116,8 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 
 	# Reset thumbnail related registry settings
 	$regPaths = @(
-	"HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons",
-	"HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\ThumbnailCache"
+		"HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons",
+		"HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\ThumbnailCache"
 	)
 
 	foreach ($regPath in $regPaths) {
@@ -2146,10 +2142,10 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 	Write-Host "Re-registering Adobe PDF thumbnail handler DLLs for Acrobat Pro..." -ForegroundColor Yellow
 
 	$dllPaths = @(
-	"C:\Program Files (x86)\Adobe\Acrobat DC\Acrobat\AdobeThumbnail.dll",
-	"C:\Program Files\Adobe\Acrobat DC\Acrobat\AdobeThumbnail.dll",
-	"C:\Program Files (x86)\Adobe\Acrobat DC\Acrobat\pdfprevhndlr.dll",
-	"C:\Program Files\Adobe\Acrobat DC\Acrobat\pdfprevhndlr.dll"
+		"C:\Program Files (x86)\Adobe\Acrobat DC\Acrobat\AdobeThumbnail.dll",
+		"C:\Program Files\Adobe\Acrobat DC\Acrobat\AdobeThumbnail.dll",
+		"C:\Program Files (x86)\Adobe\Acrobat DC\Acrobat\pdfprevhndlr.dll",
+		"C:\Program Files\Adobe\Acrobat DC\Acrobat\pdfprevhndlr.dll"
 	)
 
 	foreach ($dll in $dllPaths) {
@@ -2174,8 +2170,8 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 
 	function Get-AcrobatProPath {
 		$paths = @(
-		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Acrobat.exe",
-		"HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\Acrobat.exe"
+			"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Acrobat.exe",
+			"HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\Acrobat.exe"
 		)
 		foreach ($p in $paths) {
 			try {
@@ -2281,109 +2277,109 @@ function Invoke-AcrobatFix {
 	# Define all registry changes needed for Acrobat optimization
 	# These settings disable activation checks, improve UI, and configure preferences
 	$registryChanges = @(
-	# Activation and licensing enforcement settings
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "IsAMTEnforced"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "IsAMTEnforced"; Type = "DWord"; Value = 1 },
+		# Activation and licensing enforcement settings
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "IsAMTEnforced"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "IsAMTEnforced"; Type = "DWord"; Value = 1 },
 
-	# User interface and notification preferences
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bappFirstLaunchForNotifications"; Type = "DWord"; Value = 0 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "iFTEVersion"; Type = "DWord"; Value = 10 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "iLastCardShown"; Type = "DWord"; Value = 0 },
+		# User interface and notification preferences
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bappFirstLaunchForNotifications"; Type = "DWord"; Value = 0 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "iFTEVersion"; Type = "DWord"; Value = 10 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "iLastCardShown"; Type = "DWord"; Value = 0 },
 
-	# ARM (Adobe Application Manager) settings
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\ARMUser"; Name = "bDeclined"; Type = "DWord"; Value = 1 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iAVARMNoAutoUpdateWarning"; Type = "DWord"; Value = 1 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iAutoAcceptEDCPrivacyNotification"; Type = "DWord"; Value = 1 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iDisableCEFRepairDialog"; Type = "DWord"; Value = 1 },
+		# ARM (Adobe Application Manager) settings
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\ARMUser"; Name = "bDeclined"; Type = "DWord"; Value = 1 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iAVARMNoAutoUpdateWarning"; Type = "DWord"; Value = 1 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iAutoAcceptEDCPrivacyNotification"; Type = "DWord"; Value = 1 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iDisableCEFRepairDialog"; Type = "DWord"; Value = 1 },
 
-	# Entitlement and activation status
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bActivated"; Type = "DWord"; Value = 1 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bIsAcroTrayEnabledAsService"; Type = "DWord"; Value = 0 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bActivated"; Type = "DWord"; Value = 1 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bSCAAcrCrashReporterEnabled"; Type = "DWord"; Value = 0 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bNewUserForModernization"; Type = "DWord"; Value = 0 },
+		# Entitlement and activation status
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bActivated"; Type = "DWord"; Value = 1 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bIsAcroTrayEnabledAsService"; Type = "DWord"; Value = 0 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bActivated"; Type = "DWord"; Value = 1 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bSCAAcrCrashReporterEnabled"; Type = "DWord"; Value = 0 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bNewUserForModernization"; Type = "DWord"; Value = 0 },
 
-	# First-time experience (FTE) settings
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "bFTEHomeOrViewerTourDialogueLaunched"; Type = "DWord"; Value = 1 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\HomeWelcome"; Name = "bIsAcrobatUpdated"; Type = "DWord"; Value = 1 },
+		# First-time experience (FTE) settings
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "bFTEHomeOrViewerTourDialogueLaunched"; Type = "DWord"; Value = 1 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\HomeWelcome"; Name = "bIsAcrobatUpdated"; Type = "DWord"; Value = 1 },
 
-	# Additional activation disable settings
-	@{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "Disabled"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "DisabledActivation"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\1.0\ARM"; Name = "DisablePromptForUpgrade"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\1.0\ARM"; Name = "iCheck"; Type = "DWord"; Value = 0 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "Disabled"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "DisabledActivation"; Type = "DWord"; Value = 1 },
+		# Additional activation disable settings
+		@{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "Disabled"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "DisabledActivation"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\1.0\ARM"; Name = "DisablePromptForUpgrade"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\1.0\ARM"; Name = "iCheck"; Type = "DWord"; Value = 0 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "Disabled"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "DisabledActivation"; Type = "DWord"; Value = 1 },
 
-	# Group Policy-like settings for enterprise control
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bAcroSuppressUpsell"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bPurchaseAcro"; Type = "DWord"; Value = 0 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bSuppressSignOut"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleBillingIssue"; Type = "DWord"; Value = 0 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleFTE"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleShareFeedback"; Type = "DWord"; Value = 0 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bUpdater"; Type = "DWord"; Value = 0 },
+		# Group Policy-like settings for enterprise control
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bAcroSuppressUpsell"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bPurchaseAcro"; Type = "DWord"; Value = 0 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bSuppressSignOut"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleBillingIssue"; Type = "DWord"; Value = 0 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleFTE"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleShareFeedback"; Type = "DWord"; Value = 0 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bUpdater"; Type = "DWord"; Value = 0 },
 
-	# In-product messaging settings
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cIPM"; Name = "bDontShowMsgWhenViewingDoc"; Type = "DWord"; Value = 0 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cIPM"; Name = "bShowMsgAtLaunch"; Type = "DWord"; Value = 0 },
+		# In-product messaging settings
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cIPM"; Name = "bDontShowMsgWhenViewingDoc"; Type = "DWord"; Value = 0 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cIPM"; Name = "bShowMsgAtLaunch"; Type = "DWord"; Value = 0 },
 
-	# Services and notification settings
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bEnableBellButton"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bToggleNotificationToasts"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bToggleNotifications"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bTogglePrefsSync"; Type = "DWord"; Value = 1 },
-	@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bUpdater"; Type = "DWord"; Value = 0 },
+		# Services and notification settings
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bEnableBellButton"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bToggleNotificationToasts"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bToggleNotifications"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bTogglePrefsSync"; Type = "DWord"; Value = 1 },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bUpdater"; Type = "DWord"; Value = 0 },
 
-	# Process blocking via Image File Execution Options (redirects to ctfmon)
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ADNotificationManager.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGCInvokerUtility.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGMService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGSService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AcroServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Crash Processor.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Genuine Launcher.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeCollabSync.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeGCClient.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\SingleClientServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\agshelper.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-	@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\armsvc.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		# Process blocking via Image File Execution Options (redirects to ctfmon)
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ADNotificationManager.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGCInvokerUtility.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGMService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGSService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AcroServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Crash Processor.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Genuine Launcher.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeCollabSync.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeGCClient.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\SingleClientServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\agshelper.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\armsvc.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
 
-	# Arabic language and RTL support
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bComplexScript"; Type = "DWord"; Value = 1 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bHindiDigit"; Type = "DWord"; Value = 0 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bLigature"; Type = "DWord"; Value = 1 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "iIntlSelectFont"; Type = "DWord"; Value = 0 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "iParaDir"; Type = "DWord"; Value = 2 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bDigitsUI"; Type = "DWord"; Value = 1 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bRTLUI"; Type = "DWord"; Value = 1 },
+		# Arabic language and RTL support
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bComplexScript"; Type = "DWord"; Value = 1 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bHindiDigit"; Type = "DWord"; Value = 0 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bLigature"; Type = "DWord"; Value = 1 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "iIntlSelectFont"; Type = "DWord"; Value = 0 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "iParaDir"; Type = "DWord"; Value = 2 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bDigitsUI"; Type = "DWord"; Value = 1 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bRTLUI"; Type = "DWord"; Value = 1 },
 
-	# UI optimization and customization
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bEnableAV2"; Type = "DWord"; Value = 0 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bOpenCommentAppAutomatically"; Type = "DWord"; Value = 0 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bCommentAppLaunchNotSetByIPM"; Type = "DWord"; Value = 1 },
+		# UI optimization and customization
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bEnableAV2"; Type = "DWord"; Value = 0 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bOpenCommentAppAutomatically"; Type = "DWord"; Value = 0 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bCommentAppLaunchNotSetByIPM"; Type = "DWord"; Value = 1 },
 
-	# Toolbar favorites customization
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a0"; Type = "String"; Value = "PagesApp" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a1"; Type = "String"; Value = "EditPDFApp" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a2"; Type = "String"; Value = "ExportPDFApp" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a3"; Type = "String"; Value = "OptimizePDFApp" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a4"; Type = "String"; Value = "CombineApp" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a5"; Type = "String"; Value = "PaperToPDFApp" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a6"; Type = "String"; Value = "CreatePDFApp" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a7"; Type = "String"; Value = "PrintProductionApp" },
+		# Toolbar favorites customization
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a0"; Type = "String"; Value = "PagesApp" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a1"; Type = "String"; Value = "EditPDFApp" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a2"; Type = "String"; Value = "ExportPDFApp" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a3"; Type = "String"; Value = "OptimizePDFApp" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a4"; Type = "String"; Value = "CombineApp" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a5"; Type = "String"; Value = "PaperToPDFApp" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a6"; Type = "String"; Value = "CreatePDFApp" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a7"; Type = "String"; Value = "PrintProductionApp" },
 
-	# View and display preferences
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\RememberedViews"; Name = "iRememberView"; Type = "DWord"; Value = 2 },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FullScreen"; Name = "bForceSinglePageFitPage"; Type = "DWord"; Value = 1 },
+		# View and display preferences
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\RememberedViews"; Name = "iRememberView"; Type = "DWord"; Value = 2 },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FullScreen"; Name = "bForceSinglePageFitPage"; Type = "DWord"; Value = 1 },
 
-	# Print settings
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bPrintSaveToner"; Type = "DWord"; Value = 0 },
+		# Print settings
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bPrintSaveToner"; Type = "DWord"; Value = 0 },
 
-	# Service startup configuration (4 = Disabled)
-	@{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AGMService"; Name = "Start"; Type = "DWord"; Value = 4 },
-	@{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AGSService"; Name = "Start"; Type = "DWord"; Value = 4 },
-	@{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AdobeARMservice"; Name = "Start"; Type = "DWord"; Value = 4 }
+		# Service startup configuration (4 = Disabled)
+		@{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AGMService"; Name = "Start"; Type = "DWord"; Value = 4 },
+		@{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AGSService"; Name = "Start"; Type = "DWord"; Value = 4 },
+		@{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AdobeARMservice"; Name = "Start"; Type = "DWord"; Value = 4 }
 	)
 
 	# Apply all registry changes
@@ -2391,38 +2387,34 @@ function Invoke-AcrobatFix {
 		try {
 			if (-not (Test-Path $item.Path)) { New-Item -Path $item.Path -Force | Out-Null }
 			AddRegEntry -Path $item.Path -Name $item.Name -Value $item.Value -Type $item.Type -Force
-		} catch {} # Silently continue on errors to ensure uninterrupted execution
+		} catch { Write-Warning "Error!" } # Silently continue on errors to ensure uninterrupted execution
 	}
 
 	# Delete registry values related to trial mode and licensing
 	$registryDeletes = @(
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bInTrialMode" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bInTrialMode" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "iDayPassUserState" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "iLicenseDaysRemaining" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "uDayPassExpiryTime" },
-	@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bShowTrialNag" }
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bInTrialMode" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bInTrialMode" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "iDayPassUserState" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "iLicenseDaysRemaining" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "uDayPassExpiryTime" },
+		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bShowTrialNag" }
 	)
 
 	foreach ($item in $registryDeletes) {
 		try {
 			Remove-ItemProperty -Path $item.Path -Name $item.Name -Force -EA SilentlyContinue
-		} catch {
-			# Silently continue if property doesn't exist
-		}
+		} catch { Write-Warning "Error!" } # Silently continue if property doesn't exist
 	}
 
 	# Delete entire registry keys
 	$registryKeyDeletes = @(
-	"HKLM:\SOFTWARE\Adobe\Adobe Genuine Service"
+		"HKLM:\SOFTWARE\Adobe\Adobe Genuine Service"
 	)
 
 	foreach ($key in $registryKeyDeletes) {
 		try {
 			Remove-Item -Path $key -Recurse -Force -EA SilentlyContinue
-		} catch {
-			# Silently continue if key doesn't exist
-		}
+		} catch { Write-Warning "Error!" } # Silently continue if key doesn't exist
 	}
 	#endregion
 
@@ -2435,9 +2427,7 @@ function Invoke-AcrobatFix {
 	foreach ($process in $processes) {
 		try {
 			Get-Process -Name $process -EA SilentlyContinue | Stop-Process -Force
-		} catch {
-			# Silently continue if process isn't running
-		}
+		} catch { Write-Warning "Error!" } # Silently continue if process isn't running
 	}
 	#endregion
 
@@ -2454,9 +2444,7 @@ function Invoke-AcrobatFix {
 
 			# Disable the service from starting automatically
 			Set-Service -Name $service -StartupType Disabled -EA SilentlyContinue
-		} catch {
-			# Silently continue if service doesn't exist or can't be modified
-		}
+		} catch { Write-Warning "Error!" } # Silently continue if service doesn't exist or can't be modified
 	}
 	#endregion
 
@@ -2464,33 +2452,28 @@ function Invoke-AcrobatFix {
 	Write-Host "Removing scheduled tasks..."
 
 	# Get all Adobe/Acrobat related tasks
-	$adobeTasks = Get-ScheduledTask | Where-Object {
-		$_.TaskName -match 'Adobe' -or $_.TaskName -match 'Acrobat'
-	}
+	$adobeTasks = Get-ScheduledTask | Where-Object { $_.TaskName -match 'Adobe' -or $_.TaskName -match 'Acrobat' }
 
 	# Disable and remove all found tasks
 	foreach ($task in $adobeTasks) {
 		try {
 			# Disable the task first
 			Disable-ScheduledTask -TaskName $task.TaskName -EA SilentlyContinue
-
 			# Then completely remove it
 			Unregister-ScheduledTask -TaskName $task.TaskName -Confirm:$false -EA SilentlyContinue
-		} catch {
-			# Silently continue if task cannot be modified or removed
-		}
+		} catch { Write-Warning "Error!" } # Silently continue if task cannot be modified or removed
 	}
 	#endregion
 
-	#region File Cleanup
+	# region File Cleanup
 	Write-Host "Cleaning up files and directories..."
 
 	# List of Adobe directories to remove
 	$paths = @(
-	"${env:COMMONPROGRAMFILES(X86)}\Adobe\OOBE\PDApp\IPC",
-	"${env:COMMONPROGRAMFILES}\Adobe\OOBE\PDApp\IPC",
-	"${env:COMMONPROGRAMFILES(X86)}\Adobe\AdobeGCClient",
-	"${env:SYSTEMDRIVE\Public\Documents\AdobeGCData"
+		"${env:COMMONPROGRAMFILES(X86)}\Adobe\OOBE\PDApp\IPC",
+		"${env:COMMONPROGRAMFILES}\Adobe\OOBE\PDApp\IPC",
+		"${env:COMMONPROGRAMFILES(X86)}\Adobe\AdobeGCClient",
+		"${env:SYSTEMDRIVE}\Public\Documents\AdobeGCData"
 	)
 
 	foreach ($path in $paths) {
@@ -2498,9 +2481,7 @@ function Invoke-AcrobatFix {
 			if (Test-Path $path) {
 				Remove-Item -Path $path -Recurse -Force -EA SilentlyContinue
 			}
-		} catch {
-			# Silently continue if directory doesn't exist or can't be removed
-		}
+		} catch { Write-Warning "Error!" }
 	}
 	#endregion
 
@@ -2509,18 +2490,14 @@ function Invoke-AcrobatFix {
 
 	# Remove task files from the system tasks directory
 	try {
-		Get-ChildItem -Path "$env:WINDIR\SYSTEM32\TASKS" | Where-Object {
-			($_.Name -match 'Adobe') -or ($_.Name -match 'Acrobat')
-		} | Remove-Item -Recurse -Force -EA SilentlyContinue
-	} catch {
-		# Silently continue on errors
-	}
+		Get-ChildItem -Path "$env:WINDIR\SYSTEM32\TASKS" | Where-Object { ($_.Name -match 'Adobe') -or ($_.Name -match 'Acrobat') } | Remove-Item -Recurse -Force -EA SilentlyContinue
+	} catch { Write-Warning "Error!" } # Silently continue on errors
 
 	# Clean Adobe entries from Run registry keys (both HKLM and HKCU)
 	$runPaths = @(
-	"HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
-	"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
-	"HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"
+		"HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+		"HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"
 	)
 
 	foreach ($runPath in $runPaths) {
@@ -2528,13 +2505,9 @@ function Invoke-AcrobatFix {
 			# Check if the path exists before trying to access it
 			if (Test-Path $runPath) {
 				$properties = Get-ItemProperty -Path $runPath -EA SilentlyContinue
-				if ($properties) {
-					$properties.PSObject.Properties | Where-Object { $_.Name -match 'Adobe' -or $_.Name -match 'Acrobat' } | ForEach-Object {
-						Remove-ItemProperty -Path $runPath -Name $_.Name -Force -EA SilentlyContinue
-					}
-				}
+				if ($properties) { $properties.PSObject.Properties | Where-Object { $_.Name -match 'Adobe' -or $_.Name -match 'Acrobat' } | ForEach-Object { Remove-ItemProperty -Path $runPath -Name $_.Name -Force -EA SilentlyContinue } }
 			}
-		} catch {} # Silently continue if registry operations fail
+		} catch { Write-Warning "Error!" } # Silently continue if registry operations fail
 	}
 	#endregion
 
@@ -2599,12 +2572,12 @@ function Ins-Foxit {
 
 	# Step 2: Set Foxit as the default thumbnail & preview handler for PDFs
 	Write-Host "🔧 Configuring Foxit as default PDF thumbnail provider..."
-	
+
 	# Apply thumbnail handler
-	AddRegEntry "HKCR\.pdf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" "(default)" "{1B0F3B9D-3A01-453F-BD45-0A9438F97BDA}" 'String'
+	AddRegEntry "HKCR\.pdf\ShellEx\{ e357fccd-a995-4576-b01f-234630154e96 }" "(default)" " { 1B0F3B9D-3A01-453F-BD45-0A9438F97BDA }" 'String'
 	# Apply preview handler
-	AddRegEntry "HKCR\.pdf\ShellEx\{8895b1c6-b41f-4c1c-a562-0d564250836f}" "(default)" "{1B0F3B9D-3A01-453F-BD45-0A9438F97BDA}" 'String'
-	
+	AddRegEntry "HKCR\.pdf\ShellEx\ { 8895b1c6-b41f-4c1c-a562-0d564250836f }" "(default)" " { 1B0F3B9D-3A01-453F-BD45-0A9438F97BDA }" 'String'
+
 	# Step 3: Restart Explorer to apply changes
 	Restart-ExplorerSilently
 
@@ -2691,8 +2664,8 @@ function Unins-MSTeams {
 function Update-WinGetPackages {
 	[CmdletBinding()]
 	param(
-	[string[]]$NamePatterns = @(),
-	[string[]]$IdPatterns = @()
+		[string[]]$NamePatterns = @(),
+		[string[]]$IdPatterns = @()
 	)
 
 	Ins-wingetClientModule
@@ -3689,8 +3662,8 @@ function Registry-Tweaks {
 function ShrinkC-MakeNew {
 	param
 	(
-	[Parameter(Mandatory = $true, Position = 0)]
-	[string]$DriveLetter
+		[Parameter(Mandatory = $true, Position = 0)]
+		[string]$DriveLetter
 	)
 	if (Get-Volume -DriveLetter $DriveLetter -EA SilentlyContinue) { Write-Warning "Partition $DriveLetter already exist"; return }
 	$CSizeMax = (Get-PartitionSupportedSize -DriveLetter C).SizeMax
@@ -3917,8 +3890,8 @@ function Uninstall-MicrosoftOffice {
 
 	# Define registry paths to search for Office installations
 	$uninstallPaths = @(
-	"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
-	"HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
+		"HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
 	)
 
 	# Find all Microsoft Office installations
@@ -4293,8 +4266,8 @@ function New-OfficeShortcuts {
 	# Function to read install path from registry for a given app
 	function Get-OfficeAppPath($appName) {
 		$regPaths = @(
-		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$appName.exe",
-		"HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\$appName.exe"
+			"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$appName.exe",
+			"HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\$appName.exe"
 		)
 		foreach ($reg in $regPaths) {
 			try {
@@ -4316,8 +4289,8 @@ function New-OfficeShortcuts {
 	$programFiles32 = ${env:ProgramFiles(x86)}
 
 	$commonPaths = @(
-	(Join-Path $programFiles64 "Microsoft Office\root\Office16"),
-	(Join-Path $programFiles32 "Microsoft Office\root\Office16")
+		(Join-Path $programFiles64 "Microsoft Office\root\Office16"),
+		(Join-Path $programFiles32 "Microsoft Office\root\Office16")
 	)
 
 	# Fallback for Word
@@ -4412,19 +4385,54 @@ function Ins-Office24PP {
 	New-OfficeShortcuts
 }
 
+function Create-RLMCopyShortcut {
+	# 1. Paths
+	$vbsPath = Join-Path $env:SystemRoot "System32\CopyRLM.vbs"
+	$desktop = [Environment]::GetFolderPath("Desktop")
+	$shortcutPath = Join-Path $desktop "Copy RLM.lnk"
+	$iconPath = Join-Path $env:SystemRoot "System32\imageres.dll"
+
+	# 2. Create the VBScript
+	$vbsContent =
+	@"
+Set objShell = CreateObject("Wscript.Shell")
+' Run PowerShell silently to copy RLM to clipboard
+objShell.Run "powershell.exe -NoProfile -Command Set-Clipboard ([char]0x200F)", 0, False
+"@
+	# 3. Save VBS (requires admin if writing to System32)
+	try {
+		Set-Content -Path $vbsPath -Value $vbsContent -Force -Encoding ASCII
+		Write-Host "✅ VBScript created at $vbsPath"
+	} catch {
+		Write-Warning "Cannot write to System32. Run PowerShell as Admin."
+		return
+	}
+
+	# 4. Create Desktop Shortcut
+	$WshShell = New-Object -ComObject WScript.Shell
+	$Shortcut = $WshShell.CreateShortcut($shortcutPath)
+	$Shortcut.TargetPath = "wscript.exe"
+	$Shortcut.Arguments = "`"$vbsPath`""
+	$Shortcut.IconLocation = "$iconPath,242"  # clipboard icon index in imageres.dll
+	$Shortcut.Save()
+
+	Write-Host "✅ Shortcut created on Desktop: $shortcutPath"
+	Write-Host "Double-click the shortcut or assign a hotkey to copy RLM to clipboard silently."
+}
+
 function Pin-to-taskbar {
 	param
 	(
-	[Parameter(Mandatory = $false, Position = 0)]
-	[string]$IDorPath,
-	[Parameter(Mandatory = $false, Position = 1)]
-	[string]$PinType,
-	[Parameter(Mandatory = $false, Position = 2)]
-	[switch]$SearchID = $false,
-	[Parameter(Mandatory = $false, Position = 3)]
-	[switch]$Replace = $false,
-	[Parameter(Mandatory = $false, Position = 4)]
-	[switch]$ClearAll = $false
+		[Parameter(Mandatory = $false, Position = 0)]
+		[string]$IDorPath,
+		[Parameter(Mandatory = $false, Position = 1)]
+		[string]$PinType,
+		[Parameter(Mandatory = $false, Position = 2)]
+		[switch]$SearchID = $false,
+		[Parameter(Mandatory = $false, Position = 3)]
+		[switch]$Replace = $false,
+		[Parameter(Mandatory = $false, Position = 4)]
+		[switch]$ClearAll = $false
 	)
 	if (($ClearAll -eq $false) -and (($IDorPath -eq "") -or ($PinType -eq ""))) { Write-Host -f red 'You must provide IDorPath and PinType unless you use -ClearAll'; return }
 	# For $IDorPath provide the appID or desktopID or part of it & set search or provide the path
@@ -4647,13 +4655,13 @@ function Clear-PrintQueue {
 
 	# Kill related processes (ignore errors if they don't exist)
 	$processes = @(
-	"splwow64",
-	"PrintQueueActionCenter",
-	"printfilterpipelinesvc",
-	"smartscreen",
-	"printui",
-	"spoolsv",
-	"explorer"
+		"splwow64",
+		"PrintQueueActionCenter",
+		"printfilterpipelinesvc",
+		"smartscreen",
+		"printui",
+		"spoolsv",
+		"explorer"
 	)
 
 	foreach ($p in $processes) {
@@ -4688,8 +4696,8 @@ function Clear-PrintQueue {
 # - Return an object with [UIA WindowElement, handle, title, Class Name, Control Type & Automation Id] of the current Foreground Window
 # ==================================================================================
 function Get-ForegroundWindow {
-	Add-Type -TypeDefinition 
-@"
+	Add-Type -TypeDefinition
+		@"
     using System;
     using System.Runtime.InteropServices;
     public class Win32 {
@@ -4733,7 +4741,7 @@ function Get-ForegroundWindow {
 	# Get UI Automation element and ControlType
 	try {
 		$WindowElement = [System.Windows.Automation.AutomationElement]::FromHandle($hWnd)
-		$ControlType = $WindowElement.Current.ControlType.ProgrammaticName.Replace("ControlType.", "")
+		$ctrlControlType = $WindowElement.Current.ControlType.ProgrammaticName.Replace("ControlType.", "")
 		$AutomationId = $WindowElement.Current.AutomationId
 	} catch { Write-Warning "⚠️ Failed to get all the window properties" }
 
@@ -4743,7 +4751,7 @@ function Get-ForegroundWindow {
 		Handle        = $hWnd
 		Title         = $title
 		ClassName     = $className
-		ControlType   = $ControlType
+		ControlType   = $ctrlControlType
 		AutomationId  = $AutomationId
 	}
 }
@@ -4755,33 +4763,37 @@ function Get-ForegroundWindow {
 # ==================================================================================
 function Invoke-UIControl {
 	param(
-	[string]$uri,                					# Opens the App. Optional, e.g. ms-settings:printers OR ms-windows-store://downloadsandupdates OR windowsdefender://threatsettings
+		[string]$uri,                					# Opens the App. Optional, e.g. ms-settings:printers OR ms-windows-store://downloadsandupdates OR windowsdefender://threatsettings
 
-	# Window properties
-	[string]$winName,                 				# Window Name
-	[string]$winClass,           					# Window Class
-	[string]$winControlType,  						# Window ControlType
-	[string]$winAutomationId,    					# Window AutomationId
+		# Window properties
+		[string]$winName,                 				# Window Name
+		[string]$winClass,           					# Window Class
+		[string]$winControlType,  						# Window ControlType
+		[string]$winAutomationId,    					# Window AutomationId
 
-	# Control properties
-	[string]$controlAutomationId,					# Control AutomationId
-	[string]$controlClass,							# Control Class
-	[string]$ControlType,							# Control ControlType
-	[string]$controlName,							# Control Name
+		# Control properties
+		[string]$controlAutomationId,					# Control AutomationId
+		[string]$controlClass,							# Control Class
+		[string]$ctrlControlType,						# Control ControlType
+		[string]$controlName,							# Control Name
+		[string]$controlFrameworkId,					# Control Framework Id
+		[string]$extraControlProperty,					# Property name for the an extra control property to use
+		[string]$extraControlValue,						# Property value for the extra control property provided in extraControlProperty
+		[switch]$noWindow,								# Search for the control in all windows
 
-	# Dynamic wait
-	[int]$Delay = 2000,				  				# Delay after finding the window for initialization (Milliseconds)
-	[int]$Timeout = 10000,			  				# How long to keep searching for the window (Milliseconds)
+		# Dynamic wait
+		[int]$Delay = 2000,				  				# Delay after finding the window for initialization (Milliseconds)
+		[int]$Timeout = 10000,			  				# How long to keep searching for the window (Milliseconds)
 
-	# Decide the job you want to do (Default single Ctrl Click)
-	[switch]$ListWindows,							# Returns a list of all Open windows found and thier properties
-	[switch]$ListControls,			  				# Returns a list of all controls found on the target window and thier properties
-	[switch]$CheckWindow,			  				# Returns $true/$false if Window exists
-	[switch]$CheckControl,            				# Returns $true/$false if control exists
-	[switch]$MultiCtrl,								# Press all Buttons that match
-	[switch]$NoWarn,								# Supress warning if the control to be clicked isn't found
-	[ValidateSet("On", "Off", "Toggle")]
-	[string]$SwitchToggle							# For Toggle Switchs change state to On, Off or Toggle it
+		# Decide the job you want to do (Default single Ctrl Click)
+		[switch]$ListWindows,							# Returns a list of all Open windows found and thier properties
+		[switch]$ListControls,			  				# Returns a list of all controls found on the target window and thier properties
+		[switch]$CheckWindow,			  				# Returns $true/$false if Window exists
+		[switch]$CheckControl,            				# Returns $true/$false if control exists
+		[switch]$MultiCtrl,								# Press all Buttons that match
+		[switch]$NoWarn,								# Supress warning if the control to be clicked isn't found
+		[ValidateSet("On", "Off", "Toggle")]
+		[string]$SwitchToggle							# For Toggle Switchs change state to On, Off or Toggle it
 	)
 
 	Add-Type -AssemblyName UIAutomationClient
@@ -4798,6 +4810,7 @@ function Invoke-UIControl {
 	# ----------------------------------------------------------------
 	# Section 2: List Windows: Shows a list of all Open windows found and thier properties
 	# ----------------------------------------------------------------
+	# root: Windows Desktop
 	$root = [System.Windows.Automation.AutomationElement]::RootElement
 	if ($ListWindows) {
 		$out = @()
@@ -4823,7 +4836,7 @@ function Invoke-UIControl {
 	# Use Foreground Window If no conditions sent
 	if (-not $winName -and -not $winClass -and -not $winControlType -and -not $winAutomationId) { $UseForegroundWindow = $true }
 
-	if ($UseForegroundWindow) {
+	if ($UseForegroundWindow -and -not $noWindow) {
 		while ($elapsed -lt $Timeout -and $null -eq $appWin) {
 			$appWin = (Get-ForegroundWindow).WindowElement
 			if (-not $appWin) { Start-Sleep -Milliseconds 200; $elapsed += 200 } else { break }
@@ -4831,7 +4844,7 @@ function Invoke-UIControl {
 	}
 
 	# Window find by conditions If requested
-	if (-not $UseForegroundWindow) {
+	if (-not $UseForegroundWindow -and -not $noWindow) {
 		$WinConditions = @()
 		if ($winName) { $WinConditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::NameProperty, $winName) }
 		if ($winClass) { $WinConditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::ClassNameProperty, $winClass) }
@@ -4847,6 +4860,8 @@ function Invoke-UIControl {
 			if (-not $appWin) { Start-Sleep -Milliseconds 200; $elapsed += 200 } else { break }
 		}
 	}
+
+	if ($noWindow) { $appWin = $root }
 
 	if (-not $appWin) {
 		Write-Warning "⚠️ Window not found: Name='$winName' Class='$winClass' Id='$winAutomationId' Type='$winControlType'"
@@ -4881,7 +4896,9 @@ function Invoke-UIControl {
 	if ($controlName) { $ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::NameProperty, $controlName) }
 	if ($controlAutomationId) { $ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::AutomationIdProperty, $controlAutomationId) }
 	if ($controlClass) { $ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::ClassNameProperty, $controlClass) }
-	if ($ControlType) { $ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::$ControlType) }
+	if ($ctrlControlType) { $ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::$ctrlControlType) }
+	if ($controlFrameworkId) { $ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::FrameworkIdProperty, $controlFrameworkId) }
+	if ($extraControlProperty) { $ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::$extraControlProperty, $extraControlValue) }
 
 	if ($ctrlconditions.Count -gt 1) {
 		$ctrlCondition = New-Object System.Windows.Automation.AndCondition($ctrlconditions)
@@ -4895,7 +4912,7 @@ function Invoke-UIControl {
 
 	if (-not $control -and -not $controls) {
 		if ($CheckControl) { return $false } # Make sure warning are displayed for Invoke not for Check
-		if (-not $NoWarn) { Write-Warning "⚠️ Control not found: Name= $controlName  AutomationId= $controlAutomationId  Class= $controlClass  Type= $ControlType " }
+		if (-not $NoWarn) { Write-Warning "⚠️ Control not found: Name= $controlName  AutomationId= $controlAutomationId  Class= $controlClass  Type= $ctrlControlType " }
 		return $false
 	} elseif ($CheckControl) { return $true }
 
@@ -4913,21 +4930,21 @@ function Invoke-UIControl {
 				"Off" { if ($onState) { $togglePattern.Toggle() } else { Write-Host "✅ Already OFF" } }
 				"Toggle" { $togglePattern.Toggle() }
 			}
-			Write-Host "✅ Toggled Switch $SwitchToggle : AutomationId= $controlAutomationId  Name= $controlName  Class= $controlClass  Type= $ControlType "
+			Write-Host "✅ Toggled Switch $SwitchToggle : AutomationId= $controlAutomationId  Name= $controlName  Class= $controlClass  Type= $ctrlControlType "
 			return $true
 		} elseif ($MultiCtrl) {
 			# Multi Ctrls
 			foreach ($control in $controls) {
 				$invokePattern = $control.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
 				$invokePattern.Invoke()
-				Write-Host "✅ Invoked control: AutomationId= $controlAutomationId  Name= $controlName  Class= $controlClass  Type= $ControlType "
+				Write-Host "✅ Invoked control: AutomationId= $controlAutomationId  Name= $controlName  Class= $controlClass  Type= $ctrlControlType "
 			}
 			return $true
 		} else {
 			# Single Ctrl
 			$invokePattern = $control.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
 			$invokePattern.Invoke()
-			Write-Host "✅ Invoked control: AutomationId= $controlAutomationId  Name= $controlName  Class= $controlClass  Type= $ControlType "
+			Write-Host "✅ Invoked control: AutomationId= $controlAutomationId  Name= $controlName  Class= $controlClass  Type= $ctrlControlType "
 			return $true
 		}
 	} catch {
@@ -4985,7 +5002,7 @@ function Disable-DefenderRealtimeProtection {
 	-winControlType $winControlType `
 	-controlName "Close Windows Security" `
 	-controlAutomationId "Close" `
-	-ControlType "Button"
+	-ctrlControlType "Button"
 	return
 }
 
@@ -5012,7 +5029,7 @@ function Update-MSStoreApps {
 	-winControlType $winControlType `
 	-controlName "Check for updates" `
 	-controlAutomationId "CheckForUpdatesButton" `
-	-ControlType "Button"
+	-ctrlControlType "Button"
 
 	if (-not $checkBtnClicked) {
 		Write-Warning "Trying to use Foreground Window"
@@ -5020,7 +5037,7 @@ function Update-MSStoreApps {
 		-uri $uri `
 		-controlName "Check for updates" `
 		-controlAutomationId "CheckForUpdatesButton" `
-		-ControlType "Button"
+		-ctrlControlType "Button"
 	}
 
 	if (-not $checkBtnClicked) {
@@ -5039,7 +5056,7 @@ function Update-MSStoreApps {
 	-winControlType $winControlType `
 	-controlAutomationId "Ring" `
 	-controlClass "Microsoft.UI.Xaml.Controls.ProgressRing" `
-	-ControlType "ProgressBar" `
+	-ctrlControlType "ProgressBar" `
 	-controlName "Busy" `
 	-CheckControl `
 	-Delay 0
@@ -5057,7 +5074,7 @@ function Update-MSStoreApps {
 		-winControlType $winControlType `
 		-controlAutomationId "ProgressRing" `
 		-controlClass "Microsoft.UI.Xaml.Controls.ProgressRing" `
-		-ControlType "ProgressBar" `
+		-ctrlControlType "ProgressBar" `
 		-controlName "Busy" `
 		-CheckControl `
 		-Delay 0
@@ -5067,7 +5084,7 @@ function Update-MSStoreApps {
 		-winControlType $winControlType `
 		-controlAutomationId "BackgroundProgressRing" `
 		-controlClass "Microsoft.UI.Xaml.Controls.ProgressRing" `
-		-ControlType "ProgressBar" `
+		-ctrlControlType "ProgressBar" `
 		-CheckControl `
 		-Delay 0
 		if ($progress -or $progressBackground) { $updatesHappened = $true }
@@ -5077,7 +5094,7 @@ function Update-MSStoreApps {
 		-winClass $winClass `
 		-winControlType $winControlType `
 		-controlName "Update all" `
-		-ControlType "Hyperlink" `
+		-ctrlControlType "Hyperlink" `
 		-controlClass "Hyperlink" `
 		-NoWarn `
 		-Delay 0
@@ -5088,7 +5105,7 @@ function Update-MSStoreApps {
 		-winControlType $winControlType `
 		-controlName "Update" `
 		-controlAutomationId "ActionButton" `
-		-ControlType "Button" `
+		-ctrlControlType "Button" `
 		-NoWarn `
 		-Delay 0
 		if ($updateAll) { break }
@@ -5105,7 +5122,7 @@ function Update-MSStoreApps {
 		-winControlType $winControlType `
 		-controlAutomationId "ProgressRing" `
 		-controlClass "Microsoft.UI.Xaml.Controls.ProgressRing" `
-		-ControlType "ProgressBar" `
+		-ctrlControlType "ProgressBar" `
 		-controlName "Busy" `
 		-CheckControl `
 		-Delay 0
@@ -5115,7 +5132,7 @@ function Update-MSStoreApps {
 		-winControlType $winControlType `
 		-controlAutomationId "BackgroundProgressRing" `
 		-controlClass "Microsoft.UI.Xaml.Controls.ProgressRing" `
-		-ControlType "ProgressBar" `
+		-ctrlControlType "ProgressBar" `
 		-CheckControl `
 		-Delay 0
 		if ($progress -or $progressBackground) { $updatesHappened = $true }
@@ -5157,6 +5174,10 @@ function Update-MSStoreApps {
 	-winControlType $winControlType `
 	-controlName "Close Microsoft Store" `
 	-controlAutomationId "Close" `
-	-ControlType "Button"
+	-ctrlControlType "Button"
 	return
 }
+
+
+
+
