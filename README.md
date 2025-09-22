@@ -1,5 +1,5 @@
-# Online-install-of-all-essential-windows-softwares
-This will install all essential windows softwares online.
+# Online-install-of-all-essential-windows-programms
+This will install all essential windows programms online.
 
 How to use:
 
