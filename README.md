@@ -2,14 +2,6 @@
 This will install all essential windows softwares online.
 How to use:
 
-Go to releases and download then run or
+Simply go to releases and download "OnlineInstallAll.cmd" then run it and enjoy,
 
-  1- Press "Code" then "Download ZIP" to download the files
-  
-  2- Extract it
-  
-  3- Run "Install All - Git-Online.bat" file
-
-  Note: "Install All - Git-Online.bat" file doesn't need any other file to run it downloads everything online.
-
-  If you want you can modify the code then run "Install All.bat" instead.
+or if you want you can modify the code then run "PSS.ps1".
