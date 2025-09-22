@@ -52,8 +52,7 @@ function Add-RegEntry {
 	}
 }
 
-function Remove-Reg
-
+function Remove-Reg {
 
 }
 
@@ -735,6 +734,10 @@ function InitializeCommands {
 	Write-Host -f C "`r`n======================================================================================================================"
 	Write-Host -f C "***************************** Initializing *****************************"
 	Write-Host -f C "======================================================================================================================`r`n"
+	Get-Module PSReadLine -ListAvailable | ForEach-Object { Uninstall-Module -Name PSReadLine -RequiredVersion $_.Version -Force }
+	Write-Host "PSReadLine module removed.`r`nInstalling latest version..."
+	Install-Module -Name PSReadLine -Force -AllowClobber -Scope AllUsers
+	Import-Module PSReadLine
 	#UAC
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableLUA' '1' 'DWord'
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ValidateAdminCodeSignatures' '0' 'DWord'
@@ -2586,7 +2589,7 @@ function Ins-Foxit {
 	Add-RegEntry 'HKCR:\.pdf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}' "(default)" "{1B0F3B9D-3A01-453F-BD45-0A9438F97BDA}" 'String'
 	# Apply preview handler
 	Add-RegEntry 'HKCR:\.pdf\ShellEx\{8895b1c6-b41f-4c1c-a562-0d564250836f}' "(default)" "{1B0F3B9D-3A01-453F-BD45-0A9438F97BDA}" 'String'
-	
+
 	# Step 3: Clear Thumbnails & Restart Explorer to apply changes
 	Fix-AdobeAcrobatProPdfThumbnails
 	Restart-ExplorerSilently
@@ -4485,7 +4488,7 @@ function Ins-Office21PP {
 	configurationFile21PP
 	Deploy-Office
 	# ActivateOfficeKMS
-	Activate-Office
+	ActOffice
 	Config-Office
 	New-OfficeShortcuts
 }
@@ -4499,7 +4502,7 @@ function Ins-Office24PP {
 	configurationFile24PP
 	Deploy-Office
 	# ActivateOfficeKMS
-	Activate-Office
+	ActOffice
 	Config-Office
 	New-OfficeShortcuts
 }
@@ -5296,6 +5299,7 @@ function Update-MSStoreApps {
 	-ctrlControlType "Button"
 	return
 }
+
 
 
 
