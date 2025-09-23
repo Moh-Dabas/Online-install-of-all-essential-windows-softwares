@@ -53,7 +53,7 @@ function Add-RegEntry {
 }
 
 function Remove-Reg {
-
+	#To be done
 }
 
 function Remove-AppxApp {
@@ -139,10 +139,10 @@ function AdminTakeownership {
 	)
 	if (Test-Path -Path $Path -PathType Leaf -EA SilentlyContinue) {
 		takeown /a /f $Path
-		icacls $Path /t /c /grant "administrators:F"
+		icacls $Path /t /c /grant "*S-1-5-32-544:F"
 	} elseif (Test-Path -Path $Path -PathType Container -EA SilentlyContinue) {
 		takeown /a /r /d y /f $Path
-		icacls $Path /t /c /grant "administrators:F"
+		icacls $Path /t /c /grant "*S-1-5-32-544:F"
 	} else { Write-Host -f red "Path is wrong or not supported" }
 }
 
@@ -744,6 +744,8 @@ function InitializeCommands {
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ConsentPromptBehaviorAdmin' '0' 'DWord'
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ConsentPromptBehaviorUser' '0' 'DWord'
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'PromptOnSecureDesktop' '0' 'DWord'
+	# IFEO Block Smart Screen
+	Set-EmptyIFEO -TargetExe 'smartscreen.exe'
 	#Tls all
 	[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
 	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12, [Net.SecurityProtocolType]::Ssl3
@@ -2340,7 +2342,7 @@ function Invoke-AcrobatFix {
 		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bTogglePrefsSync"; Type = "DWord"; Value = 1 },
 		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bUpdater"; Type = "DWord"; Value = 0 },
 
-		# Process blocking via Image File Execution Options (redirects to ctfmon)
+		# Process blocking via Image File Execution Options X64 (redirects to ctfmon)
 		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ADNotificationManager.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
 		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGCInvokerUtility.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
 		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGMService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
@@ -2353,6 +2355,19 @@ function Invoke-AcrobatFix {
 		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\SingleClientServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
 		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\agshelper.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
 		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\armsvc.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		# Process blocking via Image File Execution Options X32 (redirects to ctfmon)
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ADNotificationManager.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGCInvokerUtility.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGMService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGSService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AcroServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Crash Processor.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Genuine Launcher.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeCollabSync.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeGCClient.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\SingleClientServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\agshelper.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\armsvc.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
 
 		# Arabic language and RTL support
 		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bComplexScript"; Type = "DWord"; Value = 1 },
@@ -2528,9 +2543,9 @@ function Ins-AcrobatPro {
 	#Set-MpPreference -DisableRealtimeMonitoring $false
 	Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
 	Disable-DefenderRealtimeProtection
-	# Acrobat 2024 https://drive.google.com/file/d/1mm0LVwZG01tBYw4NFFYx1HcNcFfF9Yc_/view
-	# Acrobat 2025 https://drive.google.com/file/d/1PWwHbku1382-HxtN1BoFwzaiD12YWGmG/view
-	$DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/1PWwHbku1382-HxtN1BoFwzaiD12YWGmG/view" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
+	# Acrobat 2024 https://drive.google.com/file/d/1_x124HGYr-vahQui0GbIyC7AuNgWpFjd/view
+	# Acrobat 2025 https://drive.google.com/file/d/1lrd81PjUjzdgVwx-FiXvB0fhTFDd5tPb/view
+	$DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/1lrd81PjUjzdgVwx-FiXvB0fhTFDd5tPb/view" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
 	if ($DDURL) { Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -EA SilentlyContinue | Out-Null }
 	Start-Job -Name AcrobatPro { if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue | Out-Null } } | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name, State
 	# Apply thumbnail handler
@@ -2769,8 +2784,6 @@ function Ins-DirectX {
 	scoop install games/dxwrapper
 	scoop update dxwrapper
 	Start-Job -Name DX-Extra { winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements }
-	# Run on command prompt
-	#cmd /c "winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements 2>nul"
 	# Run on Windows Terminal
 	#wt winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements
 	#Start-Process 'wt.exe' -Verb RunAs -WindowStyle Minimized -ArgumentList '-p "Windows PowerShell"','winget install -e --id Microsoft.DirectX --silent --accept-source-agreements --accept-package-agreements'
@@ -3031,7 +3044,9 @@ function Registry-Tweaks {
 	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\AppHost' 'PreventOverride' '0' 'DWord'
 	# Allow user to bypass SmartScreen warnings (0=allow override).
 
-	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\smartscreen.exe' 'Debugger' 'ctfmon' 'String'
+	# Replaced by the function Set-EmptyIFEO
+	# Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\smartscreen.exe' 'Debugger' 'ctfmon' 'String'
+	# Add-RegEntry 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\smartscreen.exe' 'Debugger' 'ctfmon' 'String'
 	# IFEO "Debugger" redirection effectively disables smartscreen.exe (advanced/forceful).
 
 	# ===============================
@@ -3713,6 +3728,50 @@ function D-ScanFolder {
 		$s = (New-Object -COM WScript.Shell).CreateShortcut("$env:PUBLIC\Desktop\Scans.lnk"); $s.TargetPath = "D:\Scans\"; $s.Save()
 	}
 	Remove-SmbShare -Name "Users" -Confirm:$False -Force -EA SilentlyContinue | Out-Null
+}
+
+function Set-EmptyIFEO {
+    param(
+        [Parameter(Mandatory=$true)][string]$TargetExe,
+        [string]$DebuggerName = "EmptyIFEO.exe"
+    )
+
+    $sys32 = "$env:SystemRoot\System32"
+    $exePath = Join-Path $sys32 $DebuggerName
+
+    # --- Minimal Win32 GUI EXE bytes (~1.5 KB) ---
+    $exeBytes = [byte[]](
+        0x4D,0x5A,0x90,0x00,0x03,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0xFF,0xFF,0x00,0x00,
+        0xB8,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0xE0,0x00,0x00,0x00,0x0F,0x01,0x0F,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x60,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0xB8,0x01,0x00,0x00,0x00,0xC3,0x00,0x00
+        # Total: ~1.5 KB minimal GUI stub
+    )
+
+    # --- Write EXE to System32 ---
+    try {
+        [IO.File]::WriteAllBytes($exePath, $exeBytes)
+        Write-Host "[OK] Wrote minimal empty EXE to $exePath"
+    } catch {
+        Write-Error "Failed to write EXE: $_"
+        return
+    }
+
+    # --- IFEO registry paths (64-bit and 32-bit) ---
+    $keys = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$TargetExe",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$TargetExe"
+    )
+
+    foreach ($key in $keys) {
+        if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+        New-ItemProperty -Path $key -Name 'Debugger' -Value $exePath -PropertyType String -Force | Out-Null
+        Write-Host "[OK] Set Debugger for $key -> $exePath"
+    }
+
+    Write-Host "`nDone! IFEO Debugger is set for $TargetExe (32-bit and 64-bit)."
 }
 
 function Adj-Hosts {
