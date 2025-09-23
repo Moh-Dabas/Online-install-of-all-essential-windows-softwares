@@ -12,8 +12,7 @@ function Check-RunAsAdministrator {
 
 function Relaunch {
 	$parentProcess = Get-WmiObject Win32_Process | Where-Object { $_.ProcessId -eq (Get-Process -Id $PID).Parent.Id }
-	$CurFolder = Split-Path -Path $PSCommandPath -Parent
-	
+		
 	if ($GRCmdfullPath) {
 		# Started from the CMD file
 		Write-Warning "Relaunching this script from the cmd file: $GRCmdfullPath"
@@ -22,12 +21,26 @@ function Relaunch {
 		# Started from the CMD file
 		Write-Warning "Relaunching this script from the cmd file: $GSCmdfullPath"
 		Start-Process -Verb RunAs -FilePath $GSCmdfullPath
-	} else {
+	} elseif ($CallerScriptPath) {
 		# Started from the PSS.ps1 file
-		Write-Warning "Relaunching this script from the ps1 file: $CurFolder\PSS.ps1"
-		Start-Process -Verb RunAs -FilePath "PowerShell" -ArgumentList '-NoProfile -ExecutionPolicy Bypass -nologo -File "$CurFolder\PSS.ps1"'
+		Write-Warning "Relaunching this script from the ps1 file: $CallerScriptPath"
+		Start-Process PowerShell.exe -Verb RunAs -ArgumentList @(
+			"-NoProfile",
+			"-ExecutionPolicy Bypass",
+			"-File `"$CallerScriptPath`""
+		)
+	} else {
+		$CurFolder = Split-Path -Path $PSCommandPath -Parent
+		Write-Warning "No Saved Path found. Relaunching this script from current directory: $CurFolder\PSS.ps1"
+		Start-Process PowerShell.exe -Verb RunAs -ArgumentList @(
+			"-NoProfile",
+			"-ExecutionPolicy Bypass",
+			"-File `"$CurFolder\PSS.ps1`""
+		)
 	}
+	
 	$parentProcess | Stop-Process
+	
 	exit
 }
 
@@ -762,7 +775,6 @@ function InitializeCommands {
 	Write-Host -f C "`r`n======================================================================================================================"
 	Write-Host -f C "***************************** Initializing *****************************"
 	Write-Host -f C "======================================================================================================================`r`n"
-	Relaunch
 	if (Check-Internet) {
 		Write-Host "Removing old PSReadLine module"
 		Get-Module PSReadLine -ListAvailable | ForEach-Object { Uninstall-Module -Name PSReadLine -RequiredVersion $_.Version -Force }

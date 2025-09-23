@@ -2,17 +2,20 @@
 
 # Get Caller CMD
 param($RecievedCmdfullPath)
-$Global:GRCmdfullPath = $RecievedCmdfullPath
+$global:GRCmdfullPath = $RecievedCmdfullPath
 $SetCmdfullPath = $env:CALLER_SCRIPT
-$Global:GSCmdfullPath = $SetCmdfullPath
+$global:GSCmdfullPath = $SetCmdfullPath
 Write-Host "Starting CMD full path we recieved from the CMD: $GRCmdfullPath"
 Write-Host "Starting CMD full path which was set by the CMD: $GSCmdfullPath"
 
+# Save the path for the ps1
+$global:CallerScriptPath = $MyInvocation.MyCommand.Path
+
 # Powershell variables
-$Global:ErrorActionPreference = 'SilentlyContinue'
-$Global:progressPreference = 'SilentlyContinue'
-$Global:ConfirmPreference = 'None'
-$Global:Force = $true
+$global:ErrorActionPreference = 'SilentlyContinue'
+$global:progressPreference = 'SilentlyContinue'
+$global:ConfirmPreference = 'None'
+$global:Force = $true
 
 # Try Importing AllFunctions.psm1
 $ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
