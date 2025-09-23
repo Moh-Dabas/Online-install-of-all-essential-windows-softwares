@@ -2038,7 +2038,7 @@ function Unins-Acrobat {
 		try {
 			# Use the MSIExec command to uninstall the product
 			Write-Host -f C "`r`n *** Uninstalling $DisplayName *** `r`n"
-			Start-Process -FilePath "msiexec.exe" -ArgumentList "/x $ProductCode /qb-! /norestart" -Wait -PassThru
+			Start-Process -Verb RunAs -FilePath "msiexec.exe" -ArgumentList "/x $ProductCode /qb-! /norestart" -Wait -PassThru
 		} catch { Write-Warning "Failed to uninstall $DisplayName with product code $ProductCode. Error: $_" }
 	}
 	# Uninstall Using winget
@@ -2048,8 +2048,9 @@ function Unins-Acrobat {
 	Write-Host -f C "`r`n *** Removing All Acrobat left overs *** `r`n"
 	$DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/16etkp4rCcon2NyGGh0oYSocHhB_054cm" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
 	if ($DDURL) { Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcroCleaner.exe"  -EA SilentlyContinue | Out-Null }
-	Start-Job -Name CleanerAcrobatPro { if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent", "/product=0", "/cleanlevel=1" -EA SilentlyContinue | Out-Null } } | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name, State
-	Start-Job -Name CleanerAcrobatPro { if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent", "/product=1", "/cleanlevel=1" -EA SilentlyContinue | Out-Null } } | Wait-Job -Timeout 200 | Format-Table -Wrap -AutoSize -Property Name, State
+	if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent", "/product=0", "/cleanlevel=1" -EA SilentlyContinue | Out-Null }
+	if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent", "/product=1", "/cleanlevel=1" -EA SilentlyContinue | Out-Null }
+	return
 }
 
 function Fix-AdobeAcrobatProPdfThumbnails {
@@ -2498,7 +2499,7 @@ function Invoke-AcrobatFix {
 
 	# Remove task files from the system tasks directory
 	try {
-		Get-ChildItem -Path "$env:WINDIR\SYSTEM32\TASKS" | Where-Object { ($_.Name -match 'Adobe') -or ($_.Name -match 'Acrobat') } | Remove-Item -Recurse -Force -EA SilentlyContinue
+		Get-ChildItem -Path "$env:SystemRoot\SYSTEM32\TASKS" | Where-Object { ($_.Name -match 'Adobe') -or ($_.Name -match 'Acrobat') } | Remove-Item -Recurse -Force -EA SilentlyContinue
 	} catch { Write-Warning "Error!" } # Silently continue on errors
 
 	# Clean Adobe entries from Run registry keys (both HKLM and HKCU)
@@ -2527,7 +2528,9 @@ function Ins-AcrobatPro {
 	#Set-MpPreference -DisableRealtimeMonitoring $false
 	Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
 	Disable-DefenderRealtimeProtection
-	$DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/1fddBDj9OPYgY8IlGevA8sJCB1_mRXZFS" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
+	# Acrobat 2024 https://drive.google.com/file/d/1mm0LVwZG01tBYw4NFFYx1HcNcFfF9Yc_/view
+	# Acrobat 2025 https://drive.google.com/file/d/1PWwHbku1382-HxtN1BoFwzaiD12YWGmG/view
+	$DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/1PWwHbku1382-HxtN1BoFwzaiD12YWGmG/view" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
 	if ($DDURL) { Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -EA SilentlyContinue | Out-Null }
 	Start-Job -Name AcrobatPro { if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue | Out-Null } } | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name, State
 	# Apply thumbnail handler
@@ -2889,8 +2892,8 @@ function Fix-Share {
 	# Make sure required protocols are enabled in the adapter (they should be by default)
 	Start-Job -Name NetAdapter1 { Get-NetAdapter | foreach { Enable-NetAdapterBinding -Name $_.Name -DisplayName "File and Printer Sharing for Microsoft Networks" -EA SilentlyContinue | Out-Null } }
 	Start-Job -Name NetAdapter2 { Get-NetAdapter | foreach { Enable-NetAdapterBinding -Name $_.Name -DisplayName "Client for Microsoft Networks" -EA SilentlyContinue | Out-Null } }
-	Remove-Item "$env:windir\System32\GroupPolicyUsers" -Recurse -Force -EA SilentlyContinue | Out-Null
-	Remove-Item "$env:windir\System32\GroupPolicy" -Recurse -Force -EA SilentlyContinue | Out-Null
+	Remove-Item "$env:SystemRoot\System32\GroupPolicyUsers" -Recurse -Force -EA SilentlyContinue | Out-Null
+	Remove-Item "$env:SystemRoot\System32\GroupPolicy" -Recurse -Force -EA SilentlyContinue | Out-Null
 	gpupdate /force
 	# Get-ComputerInfo -Property CsWorkgroup | Select-Object -ExpandProperty CsWorkgroup
 	Add-Computer -WorkgroupName "WORKGROUP" -EA SilentlyContinue | Out-Null
@@ -3717,7 +3720,7 @@ function Adj-Hosts {
 	Write-Host -f C "***************************** Adjusting Hosts file *****************************"
 	Write-Host -f C "======================================================================================================================`r`n"
 	Write-Host -f C "`r`n Taking ownership of hosts file"
-	AdminTakeownership -Path "$env:WinDir\System32\drivers\etc\hosts"
+	AdminTakeownership -Path "$env:SystemRoot\System32\drivers\etc\hosts"
 	$HostsFile =
 	@"
 #<localhost>
@@ -3972,7 +3975,7 @@ function Adj-Hosts {
 127.0.0.1 secure.asap-utilities.com
 127.0.0.1 server2.asap-utilities.com
 "@
-	Set-Content -Path "$env:WinDir\System32\drivers\etc\hosts" -Value $HostsFile -Force -EA SilentlyContinue | Out-Null
+	Set-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value $HostsFile -Force -EA SilentlyContinue | Out-Null
 }
 
 function uninsSara-Office {
@@ -4813,6 +4816,82 @@ function Clear-PrintQueue {
 	Write-Output "Done. Print queue has been fully cleared."
 }
 
+function Uninstall-Programs {
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$partName,
+		[Parameter(Mandatory = $false)]
+		[string]$AddParam,
+		[Parameter(Mandatory = $false)]
+		[switch]$MSIExec
+	)
+
+	# Define registry paths to search for the Program installations
+	$uninstallPaths = @(
+		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
+		"HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+	)
+
+	# Find all installations of the program
+	try {
+		$Programs = Get-ItemProperty $uninstallPaths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*$partName*" }
+	} catch { Write-Warning "Error reaging registry" }
+	if (-not $Programs) {
+		Write-Host "No installations found for program with name $Name."
+		return $false
+	}
+
+	# Uninstall all installations of the program
+	if ($MSIExec) {
+		# Uninstall using MSIExec command
+		foreach ($program in $Programs) {
+			$ProductCode = $program.PSChildName
+			$DisplayName = $program.DisplayName
+			try {
+				# Use the MSIExec command to uninstall the product
+				Write-Host -f C "`r`n *** Uninstalling $DisplayName *** `r`n"
+				$parameters = "/x $ProductCode /qb-! /norestart"
+				# Add received parameters
+				if ($AddParam) { $parameters += $AddParam }
+				Start-Process -Verb RunAs -FilePath "msiexec.exe" -ArgumentList $parameters -Wait -PassThru
+				Write-Host -f Green "Successfully uninstalled: $($program.DisplayName)"
+			} catch { Write-Warning "Failed to uninstall $DisplayName with product code $ProductCode. Error: $($_.Exception.Message)" }
+		}
+	} else {
+		foreach ($program in $Programs) {
+			$QuietUninstallString = $program.QuietUninstallString
+			$UninstallString = $program.UninstallString
+			if ($QuietUninstallString) {
+				# Uninstall using QuietUninstallString
+				try {
+					# Extract the executable path and parameters
+					$executablePath = $QuietUninstallString.Split('"')[1]
+					$parameters = $QuietUninstallString.Substring($executablePath.Length + 2) | Select-Object -First 1
+					# Add received parameters
+					if ($AddParam) { $parameters += $AddParam }
+					Write-Host "Running: $executablePath $parameters"
+					Start-Process -Verb RunAs -FilePath $executablePath -ArgumentList $parameters -Wait -PassThru
+					Write-Host -f Green "Successfully uninstalled: $($program.DisplayName)"
+				} catch { Write-Host -f Red "Failed to uninstall: $($program.DisplayName) - $($_.Exception.Message)" }
+			} elseif ($UninstallString) {
+				# Uninstall using UninstallString
+				try {
+					# Extract the executable path and parameters
+					$executablePath = $UninstallString.Split('"')[1]
+					$parameters = $UninstallString.Substring($executablePath.Length + 2) | Select-Object -First 1
+					# Add received parameters
+					if ($AddParam) { $parameters += $AddParam }
+					Write-Host "Running: $executablePath $parameters"
+					Start-Process -Verb RunAs -FilePath $executablePath -ArgumentList $parameters -PassThru
+					Write-Host -f Green "Successfully uninstalled: $($program.DisplayName)"
+				} catch { Write-Host -f Red "Failed to uninstall: $($program.DisplayName) - $($_.Exception.Message)" }
+			}
+		}
+	}
+
+	return $true
+}
+
 # ==================================================================================
 # Function: Get-ForegroundWindow
 # - Return an object with [UIA WindowElement, handle, title, Class Name, Control Type & Automation Id] of the current Foreground Window
@@ -5299,6 +5378,7 @@ function Update-MSStoreApps {
 	-ctrlControlType "Button"
 	return
 }
+
 
 
 
