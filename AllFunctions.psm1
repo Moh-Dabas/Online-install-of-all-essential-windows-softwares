@@ -686,16 +686,18 @@ function WifiPriority {
 	if (-not $fiveGhzProfiles) {
 		Write-Output "No matching saved 5GHz profiles found."
 		return
-	} else { Write-Output "Found this 5GHz networks that has profiles: `r`n $fiveGhzProfiles" }
-
-	if ($currentProfile) {
+	} elseif ($currentProfile) {
 		$fiveGhzProfiles = $fiveGhzProfiles | Where-Object { $_ -ne $currentProfile }
+		$fiveGhzProfiles
 		$priority = 2
-	} else { $priority = 1 }
+	} else {
+		$fiveGhzProfiles
+		$priority = 1
+	}
 
 	foreach ($fiveGhzProfile in $fiveGhzProfiles) {
-		netsh wlan set profileorder name="fiveGhzProfile" interface="$currentInterface" priority=$priority
-		netsh wlan set profileparameter name="fiveGhzProfile" connectionmode=auto
+		netsh wlan set profileorder name="$fiveGhzProfile" interface="$currentInterface" priority=$priority
+		netsh wlan set profileparameter name="$fiveGhzProfile" connectionmode=auto
 		$priority++
 	}
 
@@ -760,6 +762,7 @@ function InitializeCommands {
 	Write-Host -f C "`r`n======================================================================================================================"
 	Write-Host -f C "***************************** Initializing *****************************"
 	Write-Host -f C "======================================================================================================================`r`n"
+	Relaunch
 	if (Check-Internet) {
 		Write-Host "Removing old PSReadLine module"
 		Get-Module PSReadLine -ListAvailable | ForEach-Object { Uninstall-Module -Name PSReadLine -RequiredVersion $_.Version -Force }
