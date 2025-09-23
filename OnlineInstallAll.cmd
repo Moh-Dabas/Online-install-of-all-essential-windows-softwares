@@ -99,7 +99,8 @@ echo  Successfully downloaded >> "%LOG%"
 :: --- Run the main script ---
 echo Running Script ...
 echo Running %PS1%... >> "%LOG%"
-powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%PS1%"
+set "CALLER_SCRIPT=%~f0"
+powershell -NoProfile -ExecutionPolicy Bypass -nologo -File "%PS1%" "%CALLER_SCRIPT%"
 if not "%errorlevel%"=="0" (
     echo  ERROR: %PS1% execution failed. >> "%LOG%"
     goto :exit

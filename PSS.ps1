@@ -1,5 +1,13 @@
 ﻿# Main commands
 
+# Get Caller CMD
+param($RecievedCmdfullPath)
+$Global:GRCmdfullPath = $RecievedCmdfullPath
+$SetCmdfullPath = $env:CALLER_SCRIPT
+$Global:GSCmdfullPath = $SetCmdfullPath
+Write-Host "Starting CMD full path we recieved from the CMD: $GRCmdfullPath"
+Write-Host "Starting CMD full path which was set by the CMD: $GSCmdfullPath"
+
 # Powershell variables
 $Global:ErrorActionPreference = 'SilentlyContinue'
 $Global:progressPreference = 'SilentlyContinue'

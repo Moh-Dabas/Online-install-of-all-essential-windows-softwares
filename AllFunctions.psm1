@@ -11,10 +11,23 @@ function Check-RunAsAdministrator {
 }
 
 function Relaunch {
+	$parentProcess = Get-WmiObject Win32_Process | Where-Object { $_.ProcessId -eq (Get-Process -Id $PID).Parent.Id }
 	$CurFolder = Split-Path -Path $PSCommandPath -Parent
-	$runningCMD = Get-Process | where -Property ProcessName -EQ "cmd"
-	PowerShell -NoProfile -ExecutionPolicy Bypass -nologo -File "$CurFolder\PSS.ps1" -Verb RunAs
-	$runningCMD | Stop-Process
+	
+	if ($GRCmdfullPath) {
+		# Started from the CMD file
+		Write-Warning "Relaunching this script from the cmd file: $GRCmdfullPath"
+		Start-Process -Verb RunAs -FilePath $GRCmdfullPath
+	} elseif ($GSCmdfullPath) {
+		# Started from the CMD file
+		Write-Warning "Relaunching this script from the cmd file: $GSCmdfullPath"
+		Start-Process -Verb RunAs -FilePath $GSCmdfullPath
+	} else {
+		# Started from the PSS.ps1 file
+		Write-Warning "Relaunching this script from the ps1 file: $CurFolder\PSS.ps1"
+		Start-Process -Verb RunAs -FilePath "PowerShell" -ArgumentList '-NoProfile -ExecutionPolicy Bypass -nologo -File "$CurFolder\PSS.ps1"'
+	}
+	$parentProcess | Stop-Process
 	exit
 }
 
@@ -630,7 +643,7 @@ function WifiPriority {
 		$currentProfile = $WiFiprofiles | Where-Object { $_ -eq $currentSSID }
 		if ($currentProfile) {
 			Write-Host "Setting $currentProfile priority to 1"
-			netsh wlan set profileorder name="$currentProfile" interface="$interfaceAlias" priority= 1
+			netsh wlan set profileorder name="$currentProfile" interface="$currentInterface" priority=1
 			netsh wlan set profileparameter name="$currentProfile" connectionmode=auto
 		} else { Write-Output "Failed to get the Current Network saved profile."; return }
 	}
@@ -681,7 +694,7 @@ function WifiPriority {
 	} else { $priority = 1 }
 
 	foreach ($fiveGhzProfile in $fiveGhzProfiles) {
-		netsh wlan set profileorder name="fiveGhzProfile" interface="$interfaceAlias" priority=$priority
+		netsh wlan set profileorder name="fiveGhzProfile" interface="$currentInterface" priority=$priority
 		netsh wlan set profileparameter name="fiveGhzProfile" connectionmode=auto
 		$priority++
 	}
