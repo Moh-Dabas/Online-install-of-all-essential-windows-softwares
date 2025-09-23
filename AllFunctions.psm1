@@ -560,6 +560,7 @@ public class WlanApi
 			}
 		}
 		[WlanApi]::WlanFreeMemory($netPtr)
+		
 		return $out
 	} finally { [WlanApi]::WlanCloseHandle($client, [IntPtr]::Zero) | Out-Null }
 }
@@ -666,9 +667,9 @@ function WifiPriority {
 	Restart-WlanService -Timeout 60 -PostStartDelay 5
 
 	$SSIDs = Invoke-WiFiScan
-	$SSIDs = $SSIDs | Sort-Object Signal -Descending | Format-Table -Property SSID, Signal, Secure, Profile -AutoSize -Wrap
+	$SSIDs = $SSIDs | Sort-Object Signal -Descending | Format-Table -Property SSID, Signal, Profile -AutoSize -Wrap
 	$SSIDs += ([Environment]::NewLine)
-	Write-Host $SSIDs
+	$SSIDs
 
 	$scanResults = netsh wlan show networks mode=bssid
 	$ssidCount = ($scanResults | Select-String -Pattern '^SSID\s+\d+\s*:').Count
@@ -701,12 +702,8 @@ function WifiPriority {
 		return
 	} elseif ($currentProfile) {
 		$fiveGhzProfiles = $fiveGhzProfiles | Where-Object { $_ -ne $currentProfile }
-		$fiveGhzProfiles
 		$priority = 2
-	} else {
-		$fiveGhzProfiles
-		$priority = 1
-	}
+	} else {$priority = 1}
 
 	foreach ($fiveGhzProfile in $fiveGhzProfiles) {
 		netsh wlan set profileorder name="$fiveGhzProfile" interface="$currentInterface" priority=$priority
@@ -726,7 +723,9 @@ function WifiPriority {
 	}
 	Write-Host "---------------------------------------------"
 	Write-Host "Wireless profiles are prioritized successfully `n" -ForegroundColor Green
-
+	
+	$TopProfile = $profileNames |  Select-Object -First 1
+	netsh wlan connect name=$TopProfile
 	Check-Internet
 }
 
