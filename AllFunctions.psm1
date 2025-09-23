@@ -351,6 +351,7 @@ function Restart-WiFiAdapters {
 }
 
 function Fix-InternetConnection {
+	Write-Host -f C "`r`n*** Trying to fix Internet connection ***`r`n"
 	ipconfig /release
 	ipconfig /flushdns
 	Clear-DnsClientCache
@@ -359,6 +360,13 @@ function Fix-InternetConnection {
 	netsh winsock reset
 	arp -d *
 	netsh interface ip delete arpcache
+	#Tls all
+	Write-Host -f C "`r`n*** Fixing Tls ***`r`n"
+	[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12, [Net.SecurityProtocolType]::Ssl3
+	Write-Host -f C "`r`n*** Disabling proxies ***`r`n"
+	set HTTP_PROXY=
+	set HTTPS_PROXY=
 }
 
 function Invoke-WiFiScan {
@@ -526,8 +534,6 @@ public class WlanApi
 			}
 		}
 		[WlanApi]::WlanFreeMemory($netPtr)
-		$out = $out | Sort-Object Signal -Descending | Format-Table -Property SSID, Signal, Secure, Profile -AutoSize -Wrap
-		$out += ([Environment]::NewLine)
 		return $out
 	} finally { [WlanApi]::WlanCloseHandle($client, [IntPtr]::Zero) | Out-Null }
 }
@@ -597,7 +603,6 @@ function Set-WiFiAutoConnect {
 }
 
 function WifiPriority {
-	Fix-InternetConnection
 
 	# Get all Saved Wi-Fi profiles
 	$WiFiprofiles = (netsh wlan show profiles) | Where-Object { $_ -match "All User Profile" } | ForEach-Object { $_.Split(":")[1].Trim() }
@@ -633,7 +638,10 @@ function WifiPriority {
 	Restart-WiFiAdapters -Timeout 60 -Parallel:$true
 	Restart-WlanService -Timeout 60 -PostStartDelay 5
 
-	Invoke-WiFiScan
+	$SSIDs = Invoke-WiFiScan
+	$SSIDs = $SSIDs | Sort-Object Signal -Descending | Format-Table -Property SSID, Signal, Secure, Profile -AutoSize -Wrap
+	$SSIDs += ([Environment]::NewLine)
+	Write-Host $SSIDs
 
 	$scanResults = netsh wlan show networks mode=bssid
 	$ssidCount = ($scanResults | Select-String -Pattern '^SSID\s+\d+\s*:').Count
@@ -664,7 +672,8 @@ function WifiPriority {
 	if (-not $fiveGhzProfiles) {
 		Write-Output "No matching saved 5GHz profiles found."
 		return
-	}
+	} else { Write-Output "Found this 5GHz networks that has profiles" + $fiveGhzProfiles }
+
 
 	if ($currentProfile) { $priority = 2 } else { $priority = 1 }
 	foreach ($fiveGhzProfile in $fiveGhzProfiles) {
@@ -738,6 +747,7 @@ function InitializeCommands {
 	Write-Host "PSReadLine module removed.`r`nInstalling latest version..."
 	Install-Module -Name PSReadLine -Force -AllowClobber -Scope AllUsers
 	Import-Module PSReadLine
+	Disable-DefenderRealtimeProtection
 	#UAC
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableLUA' '1' 'DWord'
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ValidateAdminCodeSignatures' '0' 'DWord'
@@ -746,18 +756,12 @@ function InitializeCommands {
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'PromptOnSecureDesktop' '0' 'DWord'
 	# IFEO Block Smart Screen
 	Set-EmptyIFEO -TargetExe 'smartscreen.exe'
-	#Tls all
-	[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls, [Net.SecurityProtocolType]::Tls11, [Net.SecurityProtocolType]::Tls12, [Net.SecurityProtocolType]::Ssl3
-	New-Item -Path "$env:TEMP\IA" -ItemType Directory -EA SilentlyContinue | Out-Null
-	Write-Host -f C "`r`n*** Disabling proxies ***`r`n"
-	set HTTP_PROXY=
-	set HTTPS_PROXY=
-	Disable-DefenderRealtimeProtection
+	Fix-InternetConnection
+	WifiPriority
 	Invoke-W32TimeResync
 	Add-RegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\BITS' 'Start' '2' 'DWord'
 	Start-Job -Name BITS { Start-Service -Name 'BITS' -EA SilentlyContinue | Out-Null } # Service needed for fast download
-	WifiPriority
+	New-Item -Path "$env:TEMP\IA" -ItemType Directory -EA SilentlyContinue | Out-Null
 }
 
 function Set-Hibernate {
@@ -5214,72 +5218,72 @@ function Invoke-UIControl {
 }
 
 function Test-WindowsDefenderStatus {
-    param(
-        [switch]$DebugView
-    )
+	param(
+		[switch]$DebugView
+	)
 
-    $avProducts = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntivirusProduct -ErrorAction SilentlyContinue
-    
-    $isDefenderEnabled = $false
-    $otherAVEnabled    = $false
-    $defenderFound     = $false
-    $debugOutput       = @()
+	$avProducts = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntivirusProduct -ErrorAction SilentlyContinue
 
-    foreach ($product in $avProducts) {
-        $state = $product.productState
+	$isDefenderEnabled = $false
+	$otherAVEnabled = $false
+	$defenderFound = $false
+	$debugOutput = @()
 
-        # Decode productState
-        $byte1 = ($state -band 0xFF0000) -shr 16
-        $byte2 = ($state -band 0x00FF00) -shr 8   # Product status
-        $byte3 = ($state -band 0x0000FF)          # Signature status
+	foreach ($product in $avProducts) {
+		$state = $product.productState
 
-        # Product enabled if byte2 = 0x10, 0x11, 0x12 (On states)
-        $isEnabled = ($byte2 -in 0x10,0x11,0x12)
+		# Decode productState
+		$byte1 = ($state -band 0xFF0000) -shr 16
+		$byte2 = ($state -band 0x00FF00) -shr 8   # Product status
+		$byte3 = ($state -band 0x0000FF)          # Signature status
 
-        # Identify Defender strictly
-        $isDefender = ($product.displayName -match "^(Windows Defender|Microsoft Defender)")
+		# Product enabled if byte2 = 0x10, 0x11, 0x12 (On states)
+		$isEnabled = ($byte2 -in 0x10, 0x11, 0x12)
 
-        if ($isDefender) {
-            $defenderFound     = $true
-            $isDefenderEnabled = $isEnabled
-        } elseif ($isEnabled) {
-            $otherAVEnabled = $true
-        }
+		# Identify Defender strictly
+		$isDefender = ($product.displayName -match "^(Windows Defender|Microsoft Defender)")
 
-        if ($DebugView) {
-            $debugOutput += [PSCustomObject]@{
-                DisplayName    = $product.displayName
-                ProductState   = $state
-                Byte1          = ('0x{0:X2}' -f $byte1)
-                Byte2          = ('0x{0:X2}' -f $byte2)
-                Byte3          = ('0x{0:X2}' -f $byte3)
-                IsEnabled      = $isEnabled
-                IsDefender     = $isDefender
-            }
-        }
-    }
+		if ($isDefender) {
+			$defenderFound = $true
+			$isDefenderEnabled = $isEnabled
+		} elseif ($isEnabled) {
+			$otherAVEnabled = $true
+		}
 
-    # Defender is primary if found and no other AV is enabled
-    $isDefenderPrimary = ($defenderFound -and -not $otherAVEnabled)
+		if ($DebugView) {
+			$debugOutput += [PSCustomObject]@{
+				DisplayName  = $product.displayName
+				ProductState = $state
+				Byte1        = ('0x{0:X2}' -f $byte1)
+				Byte2        = ('0x{0:X2}' -f $byte2)
+				Byte3        = ('0x{0:X2}' -f $byte3)
+				IsEnabled    = $isEnabled
+				IsDefender   = $isDefender
+			}
+		}
+	}
 
-    # Service check (safety net)
-    $defenderService = Get-Service -Name WinDefend -ErrorAction SilentlyContinue
-    $isRunning = ($defenderService -and $defenderService.Status -eq 'Running')
-    if ($isRunning) { $isDefenderEnabled = $true }
+	# Defender is primary if found and no other AV is enabled
+	$isDefenderPrimary = ($defenderFound -and -not $otherAVEnabled)
 
-    $result = [PSCustomObject]@{
-        IsEnabled     = $isDefenderEnabled
-        IsPrimary     = $isDefenderPrimary
-        OtherAVActive = $otherAVEnabled
-    }
+	# Service check (safety net)
+	$defenderService = Get-Service -Name WinDefend -ErrorAction SilentlyContinue
+	$isRunning = ($defenderService -and $defenderService.Status -eq 'Running')
+	if ($isRunning) { $isDefenderEnabled = $true }
 
-    if ($DebugView) {
-        Write-Output "=== Antivirus Debug Info ==="
-        $debugOutput | Format-Table -AutoSize
-        Write-Output "`n=== Result ==="
-    }
+	$result = [PSCustomObject]@{
+		IsEnabled     = $isDefenderEnabled
+		IsPrimary     = $isDefenderPrimary
+		OtherAVActive = $otherAVEnabled
+	}
 
-    return $result
+	if ($DebugView) {
+		Write-Output "=== Antivirus Debug Info ==="
+		$debugOutput | Format-Table -AutoSize
+		Write-Output "`n=== Result ==="
+	}
+
+	return $result
 }
 
 # ==================================================================================
@@ -5290,13 +5294,14 @@ function Disable-DefenderRealtimeProtection {
 	# ----------------------------------------------------------------
 	# Step 1: Try to Switch off Real-time protection toggle
 	# ----------------------------------------------------------------
-	
+
 	$defenderStatus = Test-WindowsDefenderStatus
 	if ($defenderStatus.IsEnabled -or $defenderStatus.IsPrimary) {
 		Write-Host "`r`n *** 🔴 Turning Off Windows Defender Real-Time Protection *** `r`n" -ForegroundColor Cyan
 	} elseif ($defenderStatus.OtherAVActive) {
 		Write-Host "`r`n *** Kindly turn off your antivirus to avoid false positives *** `r`n" -ForegroundColor Cyan
-	} else {return}
+		return
+	} else { return }
 
 	$uri = "windowsdefender://threatsettings"
 	$winName = "Windows Security"
@@ -5513,6 +5518,7 @@ function Update-MSStoreApps {
 	-ctrlControlType "Button"
 	return
 }
+
 
 
 
