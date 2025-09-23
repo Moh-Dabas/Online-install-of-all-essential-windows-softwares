@@ -629,8 +629,9 @@ function WifiPriority {
 		Write-Output "Already connected to 5GHz network: $currentSSID"
 		$currentProfile = $WiFiprofiles | Where-Object { $_ -eq $currentSSID }
 		if ($currentProfile) {
-			netsh wlan set profileorder name="$currentProfile" interface="$interfaceAlias" priority= 1 | Out-Null
-			netsh wlan set profileparameter name="$currentProfile" connectionmode=auto | Out-Null
+			Write-Host "Setting $currentProfile priority to 1"
+			netsh wlan set profileorder name="$currentProfile" interface="$interfaceAlias" priority= 1
+			netsh wlan set profileparameter name="$currentProfile" connectionmode=auto
 		} else { Write-Output "Failed to get the Current Network saved profile."; return }
 	}
 
@@ -672,13 +673,16 @@ function WifiPriority {
 	if (-not $fiveGhzProfiles) {
 		Write-Output "No matching saved 5GHz profiles found."
 		return
-	} else { Write-Output "Found this 5GHz networks that has profiles" + $fiveGhzProfiles }
+	} else { Write-Output "Found this 5GHz networks that has profiles: `r`n $fiveGhzProfiles" }
 
-
-	if ($currentProfile) { $priority = 2 } else { $priority = 1 }
+	if ($currentProfile) {
+		$fiveGhzProfiles = $fiveGhzProfiles | Where-Object { $_ -ne $currentProfile }
+		$priority = 2
+	} else { $priority = 1 }
+	
 	foreach ($fiveGhzProfile in $fiveGhzProfiles) {
-		netsh wlan set profileorder name="fiveGhzProfile" interface="$interfaceAlias" priority=$priority | Out-Null
-		netsh wlan set profileparameter name="fiveGhzProfile" connectionmode=auto | Out-Null
+		netsh wlan set profileorder name="fiveGhzProfile" interface="$interfaceAlias" priority=$priority
+		netsh wlan set profileparameter name="fiveGhzProfile" connectionmode=auto
 		$priority++
 	}
 
