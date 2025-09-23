@@ -2497,7 +2497,7 @@ function Invoke-AcrobatFix {
 		"${env:COMMONPROGRAMFILES(X86)}\Adobe\OOBE\PDApp\IPC",
 		"${env:COMMONPROGRAMFILES}\Adobe\OOBE\PDApp\IPC",
 		"${env:COMMONPROGRAMFILES(X86)}\Adobe\AdobeGCClient",
-		"${env:SYSTEMDRIVE}\Public\Documents\AdobeGCData"
+		"${env:SYSTEMDRIVE}\Users\Public\Documents\AdobeGCData"
 	)
 
 	foreach ($path in $paths) {
@@ -3731,47 +3731,47 @@ function D-ScanFolder {
 }
 
 function Set-EmptyIFEO {
-    param(
-        [Parameter(Mandatory=$true)][string]$TargetExe,
-        [string]$DebuggerName = "EmptyIFEO.exe"
-    )
+	param(
+		[Parameter(Mandatory = $true)][string]$TargetExe,
+		[string]$DebuggerName = "EmptyIFEO.exe"
+	)
 
-    $sys32 = "$env:SystemRoot\System32"
-    $exePath = Join-Path $sys32 $DebuggerName
+	$sys32 = "$env:SystemRoot\System32"
+	$exePath = Join-Path $sys32 $DebuggerName
 
-    # --- Minimal Win32 GUI EXE bytes (~1.5 KB) ---
-    $exeBytes = [byte[]](
-        0x4D,0x5A,0x90,0x00,0x03,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0xFF,0xFF,0x00,0x00,
-        0xB8,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-        0xE0,0x00,0x00,0x00,0x0F,0x01,0x0F,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-        0x60,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-        0xB8,0x01,0x00,0x00,0x00,0xC3,0x00,0x00
-        # Total: ~1.5 KB minimal GUI stub
-    )
+	# --- Minimal Win32 GUI EXE bytes (~1.5 KB) ---
+	$exeBytes = [byte[]](
+		0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+		0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0xE0, 0x00, 0x00, 0x00, 0x0F, 0x01, 0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0xB8, 0x01, 0x00, 0x00, 0x00, 0xC3, 0x00, 0x00
+		# Total: ~1.5 KB minimal GUI stub
+	)
 
-    # --- Write EXE to System32 ---
-    try {
-        [IO.File]::WriteAllBytes($exePath, $exeBytes)
-        Write-Host "[OK] Wrote minimal empty EXE to $exePath"
-    } catch {
-        Write-Error "Failed to write EXE: $_"
-        return
-    }
+	# --- Write EXE to System32 ---
+	try {
+		[IO.File]::WriteAllBytes($exePath, $exeBytes)
+		Write-Host "[OK] Wrote minimal empty EXE to $exePath"
+	} catch {
+		Write-Error "Failed to write EXE: $_"
+		return
+	}
 
-    # --- IFEO registry paths (64-bit and 32-bit) ---
-    $keys = @(
-        "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$TargetExe",
-        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$TargetExe"
-    )
+	# --- IFEO registry paths (64-bit and 32-bit) ---
+	$keys = @(
+		"HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$TargetExe",
+		"HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\$TargetExe"
+	)
 
-    foreach ($key in $keys) {
-        if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
-        New-ItemProperty -Path $key -Name 'Debugger' -Value $exePath -PropertyType String -Force | Out-Null
-        Write-Host "[OK] Set Debugger for $key -> $exePath"
-    }
+	foreach ($key in $keys) {
+		if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
+		New-ItemProperty -Path $key -Name 'Debugger' -Value $exePath -PropertyType String -Force | Out-Null
+		Write-Host "[OK] Set Debugger for $key -> $exePath"
+	}
 
-    Write-Host "`nDone! IFEO Debugger is set for $TargetExe (32-bit and 64-bit)."
+	Write-Host "`nDone! IFEO Debugger is set for $TargetExe (32-bit and 64-bit)."
 }
 
 function Adj-Hosts {
@@ -5213,6 +5213,75 @@ function Invoke-UIControl {
 	}
 }
 
+function Test-WindowsDefenderStatus {
+    param(
+        [switch]$DebugView
+    )
+
+    $avProducts = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntivirusProduct -ErrorAction SilentlyContinue
+    
+    $isDefenderEnabled = $false
+    $otherAVEnabled    = $false
+    $defenderFound     = $false
+    $debugOutput       = @()
+
+    foreach ($product in $avProducts) {
+        $state = $product.productState
+
+        # Decode productState
+        $byte1 = ($state -band 0xFF0000) -shr 16
+        $byte2 = ($state -band 0x00FF00) -shr 8   # Product status
+        $byte3 = ($state -band 0x0000FF)          # Signature status
+
+        # Product enabled if byte2 = 0x10, 0x11, 0x12 (On states)
+        $isEnabled = ($byte2 -in 0x10,0x11,0x12)
+
+        # Identify Defender strictly
+        $isDefender = ($product.displayName -match "^(Windows Defender|Microsoft Defender)")
+
+        if ($isDefender) {
+            $defenderFound     = $true
+            $isDefenderEnabled = $isEnabled
+        } elseif ($isEnabled) {
+            $otherAVEnabled = $true
+        }
+
+        if ($DebugView) {
+            $debugOutput += [PSCustomObject]@{
+                DisplayName    = $product.displayName
+                ProductState   = $state
+                Byte1          = ('0x{0:X2}' -f $byte1)
+                Byte2          = ('0x{0:X2}' -f $byte2)
+                Byte3          = ('0x{0:X2}' -f $byte3)
+                IsEnabled      = $isEnabled
+                IsDefender     = $isDefender
+            }
+        }
+    }
+
+    # Defender is primary if found and no other AV is enabled
+    $isDefenderPrimary = ($defenderFound -and -not $otherAVEnabled)
+
+    # Service check (safety net)
+    $defenderService = Get-Service -Name WinDefend -ErrorAction SilentlyContinue
+    $isRunning = ($defenderService -and $defenderService.Status -eq 'Running')
+    if ($isRunning) { $isDefenderEnabled = $true }
+
+    $result = [PSCustomObject]@{
+        IsEnabled     = $isDefenderEnabled
+        IsPrimary     = $isDefenderPrimary
+        OtherAVActive = $otherAVEnabled
+    }
+
+    if ($DebugView) {
+        Write-Output "=== Antivirus Debug Info ==="
+        $debugOutput | Format-Table -AutoSize
+        Write-Output "`n=== Result ==="
+    }
+
+    return $result
+}
+
 # ==================================================================================
 # Function: Disable-DefenderRealtimeProtection
 # - Trunoff Windows Desfender Realtime Protection using UI Automation
@@ -5221,7 +5290,14 @@ function Disable-DefenderRealtimeProtection {
 	# ----------------------------------------------------------------
 	# Step 1: Try to Switch off Real-time protection toggle
 	# ----------------------------------------------------------------
-	Write-Host "`r`n *** 🔴 Turning Windows Defender Real-Time Protection *** `r`n" -f Cyan
+	
+	$defenderStatus = Test-WindowsDefenderStatus
+	if ($defenderStatus.IsEnabled -or $defenderStatus.IsPrimary) {
+		Write-Host "`r`n *** 🔴 Turning Off Windows Defender Real-Time Protection *** `r`n" -ForegroundColor Cyan
+	} elseif ($defenderStatus.OtherAVActive) {
+		Write-Host "`r`n *** Kindly turn off your antivirus to avoid false positives *** `r`n" -ForegroundColor Cyan
+	} else {return}
+
 	$uri = "windowsdefender://threatsettings"
 	$winName = "Windows Security"
 	$winClass = "ApplicationFrameWindow"
@@ -5437,6 +5513,7 @@ function Update-MSStoreApps {
 	-ctrlControlType "Button"
 	return
 }
+
 
 
 
