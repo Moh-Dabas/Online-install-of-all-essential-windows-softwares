@@ -13,7 +13,7 @@ function Check-RunAsAdministrator {
 function Relaunch {
 	$CurFolder = Split-Path -Path $PSCommandPath -Parent
 	$runningCMD = Get-Process | where -Property ProcessName -EQ "cmd"
-	Start-Process "$CurFolder\Install All.bat" -Verb RunAs
+	PowerShell -NoProfile -ExecutionPolicy Bypass -nologo -File "$CurFolder\PSS.ps1" -Verb RunAs
 	$runningCMD | Stop-Process
 	exit
 }
@@ -679,7 +679,7 @@ function WifiPriority {
 		$fiveGhzProfiles = $fiveGhzProfiles | Where-Object { $_ -ne $currentProfile }
 		$priority = 2
 	} else { $priority = 1 }
-	
+
 	foreach ($fiveGhzProfile in $fiveGhzProfiles) {
 		netsh wlan set profileorder name="fiveGhzProfile" interface="$interfaceAlias" priority=$priority
 		netsh wlan set profileparameter name="fiveGhzProfile" connectionmode=auto
@@ -747,9 +747,12 @@ function InitializeCommands {
 	Write-Host -f C "`r`n======================================================================================================================"
 	Write-Host -f C "***************************** Initializing *****************************"
 	Write-Host -f C "======================================================================================================================`r`n"
-	Get-Module PSReadLine -ListAvailable | ForEach-Object { Uninstall-Module -Name PSReadLine -RequiredVersion $_.Version -Force }
-	Write-Host "PSReadLine module removed.`r`nInstalling latest version..."
-	Install-Module -Name PSReadLine -Force -AllowClobber -Scope AllUsers
+	if (Check-Internet) {
+		Write-Host "Removing old PSReadLine module"
+		Get-Module PSReadLine -ListAvailable | ForEach-Object { Uninstall-Module -Name PSReadLine -RequiredVersion $_.Version -Force }
+		Write-Host "Installing latest version of PSReadLine..."
+		Install-Module -Name PSReadLine -Force -AllowClobber -Scope AllUsers
+	}
 	Import-Module PSReadLine
 	Disable-DefenderRealtimeProtection
 	#UAC
@@ -4741,8 +4744,8 @@ function Fix-MSWindows {
 	Write-Host -f C "***************************** Fixing Windows *****************************"
 	Write-Host -f C "======================================================================================================================`r`n"
 	sfc /scannow
-	DISM /Online /Cleanup-Image /RestoreHealth
-	#Start-Job -Name ReApps {Get-AppXPackage | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
+	# DISM /Online /Cleanup-Image /RestoreHealth
+	# Start-Job -Name ReApps {Get-AppXPackage | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}} | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name,State
 }
 
 function Clean-up {
@@ -5303,7 +5306,7 @@ function Disable-DefenderRealtimeProtection {
 	if ($defenderStatus.IsEnabled -or $defenderStatus.IsPrimary) {
 		Write-Host "`r`n *** 🔴 Turning Off Windows Defender Real-Time Protection *** `r`n" -ForegroundColor Cyan
 	} elseif ($defenderStatus.OtherAVActive) {
-		Write-Host "`r`n *** Kindly turn off your antivirus to avoid false positives *** `r`n" -ForegroundColor Cyan
+		Write-Warning "`r`n *** Kindly turn off your antivirus to avoid false positives *** `r`n"
 		return
 	} else { return }
 
@@ -5522,6 +5525,7 @@ function Update-MSStoreApps {
 	-ctrlControlType "Button"
 	return
 }
+
 
 
 
