@@ -4627,7 +4627,7 @@ function Create-RLMCopyShortcut {
 	@"
 Set objShell = CreateObject("Wscript.Shell")
 ' Run PowerShell silently to copy RLM to clipboard
-objShell.Run "powershell.exe -NoProfile -Command Set-Clipboard ([char]0x200F)", 0, False
+objShell.Run "powershell.exe -NoProfile -Command Set-Clipboard ([char]0x200F);exit", 0, False
 "@
 	# 3. Save VBS (requires admin if writing to System32)
 	try {
