@@ -12,7 +12,7 @@ function Check-RunAsAdministrator {
 
 function Relaunch {
 	$parentProcess = Get-WmiObject Win32_Process | Where-Object { $_.ProcessId -eq (Get-Process -Id $PID).Parent.Id }
-		
+
 	if ($GRCmdfullPath) {
 		# Started from the CMD file
 		Write-Warning "Relaunching this script from the cmd file: $GRCmdfullPath"
@@ -38,9 +38,9 @@ function Relaunch {
 			"-File `"$CurFolder\PSS.ps1`""
 		)
 	}
-	
+
 	$parentProcess | Stop-Process
-	
+
 	exit
 }
 
@@ -560,7 +560,7 @@ public class WlanApi
 			}
 		}
 		[WlanApi]::WlanFreeMemory($netPtr)
-		
+
 		return $out
 	} finally { [WlanApi]::WlanCloseHandle($client, [IntPtr]::Zero) | Out-Null }
 }
@@ -703,7 +703,7 @@ function WifiPriority {
 	} elseif ($currentProfile) {
 		$fiveGhzProfiles = $fiveGhzProfiles | Where-Object { $_ -ne $currentProfile }
 		$priority = 2
-	} else {$priority = 1}
+	} else { $priority = 1 }
 
 	foreach ($fiveGhzProfile in $fiveGhzProfiles) {
 		netsh wlan set profileorder name="$fiveGhzProfile" interface="$currentInterface" priority=$priority
@@ -723,7 +723,7 @@ function WifiPriority {
 	}
 	Write-Host "---------------------------------------------"
 	Write-Host "Wireless profiles are prioritized successfully `n" -ForegroundColor Green
-	
+
 	$TopProfile = $profileNames |  Select-Object -First 1
 	netsh wlan connect name=$TopProfile
 	Check-Internet
@@ -4166,7 +4166,7 @@ function ActOffice {
 	$Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs"; $Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
 	if (Test-Path -Path $Officeospp64 -EA SilentlyContinue) { $officeospp = $Officeospp64 } elseif (Test-Path -Path $Officeospp32 -EA SilentlyContinue) { $officeospp = $Officeospp32 } else { Write-Host -f C "Office16 ospp.vbs not found"; return }
 	$LicenseStatus = cscript $officeospp /dstatus | Where-Object { ($_ -like "*LICENSE STATUS:*") -and ($_ -like "*LICENSED*") }
-	if ($LicenseStatus) {Write-Host -f Green "Successfully activated Office.`r`nFull activation details below`r`n"} else {Write-Host -f Green "Office Activation Failed"}
+	if ($LicenseStatus) { Write-Host -f Green "Successfully activated Office.`r`nFull activation details below`r`n" } else { Write-Host -f Green "Office Activation Failed" }
 	cscript $officeospp /dstatus
 	return
 }
