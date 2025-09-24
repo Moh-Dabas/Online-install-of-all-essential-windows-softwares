@@ -4158,10 +4158,16 @@ function ActOffice {
 	$Url = "https://git.activated.win/massgrave/Microsoft-Activation-Scripts/raw/branch/master/MAS/All-In-One-Version-KL/MAS_AIO.cmd"
 	$Path = "$env:ALLUSERSPROFILE\ACT.cmd"
 	Start-BitsTransfer -Source $Url -Destination $Path
-	Start-Process -FilePath $Path -ArgumentList '/K-Office', '/K-NoRenewalTask', '/S' -Verb RunAs -Wait
-	Start-Process -FilePath $Path -ArgumentList '/Z-Office', '/S' -Verb RunAs -Wait
+	Start-Sleep -Seconds 1
+	Start-Process -FilePath $Path -ArgumentList '/K-Office', '/K-NoRenewalTask' -Verb RunAs -Wait
+	Start-Sleep -Seconds 1
+	Start-Process -FilePath $Path -ArgumentList '/Z-Office' -Verb RunAs -Wait
 	Remove-Item $Path -Force
-	Write-Host -f Green "Successfully activated Office"
+	$Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs"; $Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
+	if (Test-Path -Path $Officeospp64 -EA SilentlyContinue) { $officeospp = $Officeospp64 } elseif (Test-Path -Path $Officeospp32 -EA SilentlyContinue) { $officeospp = $Officeospp32 } else { Write-Host -f C "Office16 ospp.vbs not found"; return }
+	$LicenseStatus = cscript $officeospp /dstatus | Where-Object { ($_ -like "*LICENSE STATUS:*") -and ($_ -like "*LICENSED*") }
+	if ($LicenseStatus) {Write-Host -f Green "Successfully activated Office.`r`nFull activation details below`r`n"} else {Write-Host -f Green "Office Activation Failed"}
+	cscript $officeospp /dstatus
 	return
 }
 
@@ -4386,6 +4392,7 @@ function Deploy-Office {
 	Write-Host -f C "`r`n *** Installing Office ... *** `r`n"
 	if (Test-Path -Path "$env:TEMP\IA\office\setup.exe" -EA SilentlyContinue) {
 		Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure", "$env:TEMP\IA\office\configuration.xml" -EA SilentlyContinue | Out-Null
+		Start-Sleep -Seconds 2
 	} else { Write-Host -f C "`r`n Failed to download & extract Office Deployment Tool" }
 }
 
@@ -4589,9 +4596,9 @@ function Ins-Office21PP {
 	configurationFile21PP
 	Deploy-Office
 	# ActivateOfficeKMS
-	ActOffice
 	Config-Office
 	New-OfficeShortcuts
+	ActOffice
 }
 
 function Ins-Office24PP {
@@ -4603,9 +4610,9 @@ function Ins-Office24PP {
 	configurationFile24PP
 	Deploy-Office
 	# ActivateOfficeKMS
-	ActOffice
 	Config-Office
 	New-OfficeShortcuts
+	ActOffice
 }
 
 function Create-RLMCopyShortcut {
