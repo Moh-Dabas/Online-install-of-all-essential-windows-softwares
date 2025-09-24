@@ -3620,7 +3620,8 @@ function Registry-Tweaks {
 	Add-RegEntry 'HKLM:\SYSTEM\CurrentControlSet\Services\NlaSvc\Parameters\Internet' 'EnableActiveProbing' '0' 'DWord'
 	# Disable active Internet connectivity probing (NCSI). May affect captive portal detection.
 
-	Add-RegEntry 'HKU:\.DEFAULT\Control Panel\Keyboard' 'InitialKeyboardIndicators' '2147483650' 'String'
+	Add-RegEntry 'HKCU:\Control Panel\Keyboard' 'InitialKeyboardIndicators' '2' 'String'
+	Add-RegEntry 'HKU:\.DEFAULT\Control Panel\Keyboard' 'InitialKeyboardIndicators' '2' 'String'
 	# NumLock state at logon for default profile (2147483650 = NumLock ON for all users).
 
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\TextInput' 'EnableTouchKeyboardAutoInvokeInDesktopMode' '0' 'DWord'
@@ -5375,7 +5376,6 @@ function Disable-DefenderRealtimeProtection {
 	-winName $winName `
 	-winClass $winClass `
 	-winControlType $winControlType `
-	-controlName "Close Windows Security" `
 	-controlAutomationId "Close" `
 	-ctrlControlType "Button"
 	return
@@ -5402,17 +5402,20 @@ function Update-MSStoreApps {
 	-winName $winName `
 	-winClass $winClass `
 	-winControlType $winControlType `
-	-controlName "Check for updates" `
 	-controlAutomationId "CheckForUpdatesButton" `
-	-ctrlControlType "Button"
+	-ctrlControlType "Button" `
+	-controlClass "Button" `
+	-controlFrameworkId "XAML"
+
 
 	if (-not $checkBtnClicked) {
 		Write-Warning "Trying to use Foreground Window"
 		$checkBtnClicked = Invoke-UIControl `
 		-uri $uri `
-		-controlName "Check for updates" `
 		-controlAutomationId "CheckForUpdatesButton" `
-		-ctrlControlType "Button"
+		-ctrlControlType "Button" `
+		-controlClass "Button" `
+		-controlFrameworkId "XAML"
 	}
 
 	if (-not $checkBtnClicked) {
@@ -5542,22 +5545,13 @@ function Update-MSStoreApps {
 	# ----------------------------------------------------------------
 	# Step 6: Close Window
 	# ----------------------------------------------------------------
+	# -controlName "Close Microsoft Store" affected by Language
 	Write-Host "Closing MS Store window."
 	$CloseWindow = Invoke-UIControl `
 	-winName $winName `
 	-winClass $winClass `
 	-winControlType $winControlType `
-	-controlName "Close Microsoft Store" `
 	-controlAutomationId "Close" `
 	-ctrlControlType "Button"
 	return
 }
-
-
-
-
-
-
-
-
-
