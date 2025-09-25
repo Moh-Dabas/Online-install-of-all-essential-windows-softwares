@@ -25,6 +25,7 @@ try {
 
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 InitializeCommands
+Set-Personalization
 Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
 Registry-Tweaks #Applye Registry Tweaks
 DeepTweaks

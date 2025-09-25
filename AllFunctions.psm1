@@ -54,14 +54,16 @@ function Add-RegEntry {
 		[Parameter(Mandatory = $true, Position = 2)]
 		[string]$Value,
 		[Parameter(Mandatory = $false, Position = 3)]
-		[string]$Type = 'DWord'
+		[string]$Type = 'DWord',
+		[Parameter(Mandatory = $false, Position = 4)]
+		[switch]$Force = $true
 	)
 	try {
 		if (Get-ItemProperty -Path $Path -Name $Name -EA SilentlyContinue) {
-			Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -Force -EA SilentlyContinue | Out-Null
+			Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -Force:$Force -EA SilentlyContinue | Out-Null
 		} else {
-			if (!(Test-Path $Path -EA SilentlyContinue)) { New-Item $Path -Force -EA SilentlyContinue | Out-Null }
-			New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force -EA SilentlyContinue | Out-Null
+			if (!(Test-Path $Path -EA SilentlyContinue)) { New-Item $Path -Force:$Force -EA SilentlyContinue | Out-Null }
+			New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force:$Force -EA SilentlyContinue | Out-Null
 		}
 	} catch {
 		try {
@@ -72,8 +74,9 @@ function Add-RegEntry {
 				DWord { $typeCMD = "REG_DWORD" }; Qword { $typeCMD = "REG_QWORD" }; Binary { $typeCMD = "REG_BINARY" };
 				String { $typeCMD = "REG_SZ" }; ExpandString { $typeCMD = "REG_EXPAND_SZ" }; MultiString { $typeCMD = "REG_MULTI_SZ" }
 			}
-			if ($typeCMD -ne $null) { Reg Add $Path /v $Name /t $typeCMD /d $Value /f | Out-Null }
-			else { Write-Host -f red "Unsupported type" }
+			if ($typeCMD -ne $null) {
+				if ($Force) {Reg Add $Path /v $Name /t $typeCMD /d $Value /f | Out-Null} else {Reg Add $Path /v $Name /t $typeCMD /d $Value | Out-Null}
+			} else { Write-Host -f red "Unsupported type" }
 		} catch { Write-Host -f red "Might need takeown or runing as system or trusted installer `n Error: " + $Error }
 	}
 }
@@ -4995,6 +4998,108 @@ function Uninstall-Programs {
 	}
 
 	return $true
+}
+
+function Set-Personalization {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$AccentColor = "126 115 95",   # "R G B" or "#RRGGBB" or "RRGGBB"
+
+        [switch]$LightMode,                    # optional: enable light mode if set
+        [switch]$NoRestart                     # optional: don't restart Explorer/ShellExperienceHost
+    )
+
+    # --- parse input ---
+    if ($AccentColor -match '^#?[0-9A-Fa-f]{6}$') {
+        $hex = $AccentColor.TrimStart('#')
+        $r = [int][Convert]::ToInt32($hex.Substring(0,2),16)
+        $g = [int][Convert]::ToInt32($hex.Substring(2,2),16)
+        $b = [int][Convert]::ToInt32($hex.Substring(4,2),16)
+    } elseif ($AccentColor -match '^\s*\d{1,3}\s+\d{1,3}\s+\d{1,3}\s*$') {
+        $parts = ($AccentColor -split '\s+')
+        $r = [int]$parts[0]; $g = [int]$parts[1]; $b = [int]$parts[2]
+    } else {
+        throw "AccentColor must be 'R G B' or '#RRGGBB' / 'RRGGBB'"
+    }
+
+    foreach ($v in @($r,$g,$b)) { if ($v -lt 0 -or $v -gt 255) { throw "RGB values must be 0..255" } }
+
+    # --- Build DWORDs ---
+    # DWM expects ABGR → swap R <-> B
+    $dword_DWM = [BitConverter]::ToUInt32(@([byte]$b,[byte]$g,[byte]$r,0xFF),0)
+    # Explorer expects ARGB → normal RGB
+    $dword_Explorer = [BitConverter]::ToUInt32(@([byte]$r,[byte]$g,[byte]$b,0xFF),0)
+
+    # --- Personalization: dark/light mode ---
+    $personalizePath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+    $lightValue = if ($LightMode) { 1 } else { 0 }
+    Set-ItemProperty -Path $personalizePath -Name "AppsUseLightTheme" -Value $lightValue -Type DWord -Force
+    Set-ItemProperty -Path $personalizePath -Name "SystemUsesLightTheme" -Value $lightValue -Type DWord -Force
+    Set-ItemProperty -Path $personalizePath -Name "ColorPrevalence" -Value 1 -Type DWord -Force
+
+    # --- DWM keys (ABGR) ---
+    $dwmPath = "HKCU:\SOFTWARE\Microsoft\Windows\DWM"
+    New-Item -Path $dwmPath -Force | Out-Null
+    Set-ItemProperty -Path $dwmPath -Name "AccentColor" -Value $dword_DWM -Type DWord -Force
+    Set-ItemProperty -Path $dwmPath -Name "ColorizationColor" -Value $dword_DWM -Type DWord -Force
+    Set-ItemProperty -Path $dwmPath -Name "ColorizationAfterglow" -Value $dword_DWM -Type DWord -Force
+    Set-ItemProperty -Path $dwmPath -Name "AccentColorInactive" -Value $dword_DWM -Type DWord -Force
+    Set-ItemProperty -Path $dwmPath -Name "EnableWindowColorization" -Value 1 -Type DWord -Force
+    Set-ItemProperty -Path $dwmPath -Name "ColorizationColorBalance" -Value 60 -Type DWord -Force
+
+    # --- Explorer keys (ARGB) ---
+    $accentPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Accent"
+    New-Item -Path $accentPath -Force | Out-Null
+    Set-ItemProperty -Path $accentPath -Name "AccentColor" -Value $dword_Explorer -Type DWord -Force
+    Set-ItemProperty -Path $accentPath -Name "AccentColorMenu" -Value $dword_Explorer -Type DWord -Force
+    Set-ItemProperty -Path $accentPath -Name "StartColorMenu" -Value $dword_Explorer -Type DWord -Force
+    Set-ItemProperty -Path $accentPath -Name "AccentColorInactive" -Value $dword_Explorer -Type DWord -Force
+
+    # --- AccentPalette (8 ARGB DWORDs) ---
+    $paletteList = New-Object System.Collections.Generic.List[byte]
+    for ($i=0; $i -lt 8; $i++) {
+        $bytes = [BitConverter]::GetBytes([UInt32]$dword_Explorer)
+        $paletteList.AddRange($bytes)
+    }
+    $paletteBytes = $paletteList.ToArray()
+    New-ItemProperty -Path $accentPath -Name "AccentPalette" -Value ([byte[]]$paletteBytes) -PropertyType Binary -Force | Out-Null
+
+    # --- Control Panel legacy string ---
+    $cpPath = "HKCU:\Control Panel\Desktop\Colors"
+    New-Item -Path $cpPath -Force | Out-Null
+    $cpColors = "{0} {1} {2} 0 0 0 0 0 0" -f $r, $g, $b
+    Set-ItemProperty -Path $cpPath -Name "AccentColorMenu" -Value $cpColors -Type String -Force
+
+    # --- Broadcast ImmersiveColorSet ---
+    Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class User32 {
+    [DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+    public static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam,
+        uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+}
+"@
+
+    $HWND_BROADCAST = [intptr]0xffff
+    $WM_SETTINGCHANGE = 0x1A
+    [UIntPtr]$result = [UIntPtr]::Zero
+    try {
+        [void][User32]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, "ImmersiveColorSet", 2, 5000, [ref]$result)
+    } catch {Write-Warning "Error! $_"}
+
+    # --- Restart Explorer / Shell hosts unless NoRestart ---
+    if (-not $NoRestart) {
+        Restart-ExplorerSilently
+    }
+
+    Write-Host "✓ Personalization applied" -ForegroundColor Green
+    Write-Host ("RGB (as seen in Settings): {0} {1} {2}" -f $r,$g,$b) -ForegroundColor Cyan
+    Write-Host ("DWM ABGR DWORD: 0x{0:X8}" -f $dword_DWM) -ForegroundColor Cyan
+    Write-Host ("Explorer ARGB DWORD: 0x{0:X8}" -f $dword_Explorer) -ForegroundColor Cyan
+    if ($NoRestart) { Write-Host "Note: Explorer/Shell restart skipped" -ForegroundColor Yellow }
 }
 
 # ==================================================================================
