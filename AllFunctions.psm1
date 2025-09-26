@@ -2616,7 +2616,7 @@ function Ins-AcrobatPro {
 	# Acrobat 2024 https://drive.google.com/file/d/10R43n4peqwLJJBIoR8PxMOIcRbrlvDNb/view
 	# Acrobat 2025 https://drive.google.com/file/d/1dvAq0k6JRtSOOXiR4hhkfva_OuxSzYbf/view
 	$DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/1dvAq0k6JRtSOOXiR4hhkfva_OuxSzYbf/view" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
-	if ($DDURL) { Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -EA SilentlyContinue | Out-Null }
+	if ($DDURL) { Write-Host "Downloading...";Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -EA SilentlyContinue | Out-Null }
 	Start-Job -Name AcrobatPro { if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue | Out-Null } } | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name, State
 	# Thumbnail image handler (IThumbnailProvider)
 	Add-RegEntry 'HKCR:\.pdf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}' "(default)" "{F9DB5320-233E-11D1-9F84-707F02C10627}" 'String'
