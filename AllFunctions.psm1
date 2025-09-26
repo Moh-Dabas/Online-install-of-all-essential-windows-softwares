@@ -165,27 +165,123 @@ function Remove-RegEntry {
 	}
 }
 
+function Invoke-ReliableHttpClient {
+    param (
+        [string]$Uri,
+        [int]$MaxRetries = 5,
+        [int]$TimeoutSec = 15
+    )
 
+    Add-Type -AssemblyName System.Net.Http
 
-function Repeatiwr {
-	param
-	(
-		[Parameter(Mandatory = $true, Position = 0)]
-		[string]$uri
-	)
-	for ($i = 1; $i -le 20; $i++) {
-		try {
-			$Response = Invoke-WebRequest -UseBasicParsing -Uri $uri
-			# This will only execute if the Invoke-WebRequest is successful.
-			$StatusCode = $Response.StatusCode
-		} catch {
-			# Write-Host -f C "StatusCode:" $_.Exception.Response.StatusCode.value__
-			# Write-Host -f C "StatusDescription:" $_.Exception.Response.StatusDescription
-			$StatusCode = $_.Exception.Response.StatusCode.value__
-		}
-		if ($StatusCode -eq "200") { break }
-	}
-	return $Response
+    $Handler = New-Object System.Net.Http.HttpClientHandler
+    $Client  = New-Object System.Net.Http.HttpClient($Handler)
+    $Client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
+
+    for ($i = 1; $i -le $MaxRetries; $i++) {
+        try {
+            $Response = $Client.GetAsync($Uri).Result
+            if ($Response.IsSuccessStatusCode) {
+                $Html = $Response.Content.ReadAsStringAsync().Result
+
+                # --- Try to load HtmlAgilityPack ---
+                $HAPLoaded = $false
+                try {
+                    if (-not ("HtmlAgilityPack.HtmlDocument" -as [type])) {
+                        try {
+                            # Try NuGet install (if available)
+                            Install-Package -Name HtmlAgilityPack -Force -Scope CurrentUser -ProviderName NuGet -ErrorAction Stop | Out-Null
+                        } catch {
+                            Write-Verbose "HtmlAgilityPack NuGet install failed: $($_.Exception.Message)"
+                        }
+
+                        # Try loading from local NuGet cache
+                        $DllPath = Get-ChildItem -Path "$env:USERPROFILE\.nuget\packages\htmlagilitypack\" -Recurse -Filter "HtmlAgilityPack.dll" -ErrorAction SilentlyContinue |
+                                   Sort-Object LastWriteTime -Descending |
+                                   Select-Object -First 1 -ExpandProperty FullName
+
+                        if ($DllPath) {
+                            Add-Type -Path $DllPath
+                        }
+                    }
+
+                    if ("HtmlAgilityPack.HtmlDocument" -as [type]) {
+                        $Doc = New-Object HtmlAgilityPack.HtmlDocument
+                        $Doc.LoadHtml($Html)
+                        $Links = foreach ($node in $Doc.DocumentNode.SelectNodes("//a[@href]")) {
+                            [PSCustomObject]@{
+                                href      = $node.GetAttributeValue("href", "")
+                                innerText = $node.InnerText.Trim()
+                            }
+                        }
+                        $HAPLoaded = $true
+                    }
+                } catch {
+                    Write-Verbose "HtmlAgilityPack load failed, will fallback to regex"
+                }
+
+                # --- Fallback: regex link extraction ---
+                if (-not $HAPLoaded) {
+                    $Links = [regex]::Matches($Html, '<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>') |
+                        ForEach-Object {
+                            [PSCustomObject]@{
+                                href      = $_.Groups[1].Value
+                                innerText = ($_.Groups[2].Value -replace '\s+', ' ').Trim()
+                            }
+                        }
+                }
+
+                return [PSCustomObject]@{
+                    Content = $Html
+                    Links   = $Links
+                }
+            }
+        } catch {
+            Write-Verbose "Attempt $i failed: $($_.Exception.Message)"
+        }
+
+        if ($i -lt $MaxRetries) {
+            Start-Sleep -Seconds ([Math]::Pow(2, $i)) # exponential backoff
+        }
+    }
+
+    throw "Failed to get $Uri after $MaxRetries attempts."
+}
+
+function Invoke-ReliableWebRequest {
+    param (
+        [Parameter(Mandatory)]
+        [string]$Uri,
+
+        [int]$MaxRetries = 10,
+
+        [int]$InitialDelaySeconds = 1
+    )
+
+    $Delay = $InitialDelaySeconds
+    for ($i = 1; $i -le $MaxRetries; $i++) {
+        try {
+            $Response = Invoke-WebRequest -Uri $Uri -UseBasicParsing -ErrorAction Stop
+            if ($Response.StatusCode -eq 200) {
+                return $Response
+            }
+        } catch {
+            if ($_.Exception.Response) {
+                $StatusCode = $_.Exception.Response.StatusCode.value__
+                $Description = $_.Exception.Response.StatusDescription
+                Write-Verbose "Attempt $i failed: [$StatusCode] $Description"
+            } else {
+                Write-Verbose "Attempt $i failed: $($_.Exception.Message)"
+            }
+        }
+
+        if ($i -lt $MaxRetries) {
+            Start-Sleep -Seconds $Delay
+            $Delay *= 2  # exponential backoff
+        }
+    }
+
+    throw "Failed to get $Uri after $MaxRetries attempts."
 }
 
 function AdminTakeownership {
@@ -1104,28 +1200,37 @@ function Ins-Scoop-git {
 }
 
 function Test-MicrosoftFileUrl {
-	param(
-		[string]$Url
-	)
+    param(
+        [string]$Url,
+        [int]$TimeoutSec = 15
+    )
 
-	try {
-		$request = [System.Net.HttpWebRequest]::Create($Url)
-		$request.Method = "HEAD"
-		$request.AllowAutoRedirect = $true   # follow all redirects
-		$response = $request.GetResponse()
+    Add-Type -AssemblyName System.Net.Http
 
-		$status = $response.StatusCode
-		$finalUrl = $response.ResponseUri.AbsoluteUri
-		$response.Close()
+    $Handler = New-Object System.Net.Http.HttpClientHandler
+    $Handler.AllowAutoRedirect = $true   # follow redirects
 
-		if ($status -eq 200 -and $finalUrl.StartsWith("https://download.microsoft.com")) {
-			return $true
-		} else {
-			return $false
-		}
-	} catch {
-		return $false
-	}
+    $Client = New-Object System.Net.Http.HttpClient($Handler)
+    $Client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
+
+    try {
+        # Use GET but only read headers (no full download)
+        $Response = $Client.GetAsync($Url, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
+
+        $FinalUrl = $Response.RequestMessage.RequestUri.AbsoluteUri
+        $Status   = [int]$Response.StatusCode
+
+        if ($Status -eq 200 -and $FinalUrl.StartsWith("https://download.microsoft.com")) {
+            return $true
+        } else {
+            return $false
+        }
+    } catch {
+        return $false
+    } finally {
+        $Client.Dispose()
+        $Handler.Dispose()
+    }
 }
 
 function Install-UpdateVCLibs {
@@ -4167,14 +4272,15 @@ function Adj-Hosts {
 
 function uninsSara-Office {
 	Write-Host -f C "`r`n *** Removing currently installed MS office products using SaraCmd *** `r`n"
-	# Run SaraCMD non-interactive Script
+	# Run SaraCMD
 	New-Item -Path "$env:TEMP\IA\office" -ItemType Directory -EA SilentlyContinue | Out-Null
-	Invoke-WebRequest -Uri "https://aka.ms/SaRAEnterpriseHelper" -OutFile "$env:TEMP\IA\office\ExecuteSaraCmd.zip"
-	Expand-Archive -LiteralPath "$env:TEMP\IA\office\ExecuteSaraCmd.zip" -DestinationPath "$env:TEMP\IA\office" -Force -EA SilentlyContinue | Out-Null
-	$SNIfile = "$env:TEMP\IA\office\ExecuteSaraCmd.ps1"
-	$find = '$SaraScenarioArgument = ""'; $replace = '$SaraScenarioArgument = "-S OfficeScrubScenario -Script -AcceptEula -OfficeVersion All"'
-	(Get-Content $SNIfile).replace($find, $replace) | Set-Content -Path $SNIfile -Force -EA SilentlyContinue | Out-Null
-	& "$SNIfile"
+	Start-BitsTransfer -Source "https://aka.ms/SaRA_EnterpriseVersionFiles" -Destination "$env:TEMP\IA\office\SaraCmd.zip"
+	Expand-Archive -LiteralPath "$env:TEMP\IA\office\SaraCmd.zip" -DestinationPath "$env:TEMP\IA\office" -Force -EA SilentlyContinue | Out-Null
+	$SARAFile = "$env:TEMP\IA\office\DONE\SaRACmd.exe"
+	$SaraScenarioArgument = "-S OfficeScrubScenario -Script -AcceptEula -OfficeVersion All"
+	Start-Process $SARAFile -ArgumentList $SaraScenarioArgument -Verb RunAs -Wait
+	# $ResetOfficeActivation = "-S ResetOfficeActivation -Script -AcceptEula -CloseOffice"
+	# Start-Process $SARAFile -ArgumentList $ResetOfficeActivation -Verb RunAs -Wait
 }
 
 function Stop-OfficeProcess {
@@ -4204,9 +4310,10 @@ function Uninstall-MicrosoftOffice {
 		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
 		"HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
 	)
-
+		
 	# Find all Microsoft Office installations
 	$officePrograms = Get-ItemProperty $uninstallPaths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*Microsoft Office*" }
+	
 	if (-not $officePrograms) {
 		Write-Host "No Microsoft Office installations found."
 		return
@@ -4479,11 +4586,14 @@ function Config-Office {
 function Deploy-Office {
 	Write-Host -f C "`r`n *** Downloading & extracting Office Deployment Tool *** `r`n"
 	for ($i = 1; $i -le 10; $i++) {
-		$webpage = Repeatiwr -uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
-		$FileLink = $webpage.Links | Where-Object href -Like '*officedeploymenttool*exe' | select -Last 1 -expand href
+		$webpage = Invoke-ReliableWebRequest -uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
+		$FileLink = $webpage.Links | Where-Object href -Like '*officedeploymenttool*exe' | Select-Object -Last 1 -ExpandProperty href
+		if ($Filelink -ne $null) { break }
+		$webpage = Invoke-ReliableHttpClient -Uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
+		$FileLink = $webpage.Links | Where-Object href -Like '*officedeploymenttool*exe' | Select-Object -Last 1 -ExpandProperty href
 		if ($Filelink -ne $null) { break }
 	}
-	if ($Filelink -ne $null) { Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe" }
+	if ($Filelink -ne $null) { Start-BitsTransfer -Source $FileLink -Destination "$env:TEMP\IA\office\officedeploymenttool.exe" }
 	if (Test-Path -Path "$env:TEMP\IA\office\officedeploymenttool.exe" -EA SilentlyContinue) { Start-Process -Wait -FilePath "$env:TEMP\IA\office\officedeploymenttool.exe" -ArgumentList "/extract:$env:TEMP\IA\office", "/quiet", "/passive", "/norestart" -EA SilentlyContinue | Out-Null }
 	Write-Host -f C "`r`n *** Installing Office ... *** `r`n"
 	if (Test-Path -Path "$env:TEMP\IA\office\setup.exe" -EA SilentlyContinue) {
