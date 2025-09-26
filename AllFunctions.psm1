@@ -2595,8 +2595,8 @@ function Invoke-ShellAssocChanged {
         awareness of file type/handler changes without requiring logout/reboot.
     #>
 
-	Add-Type 
-@"
+	Add-Type
+	@"
     using System;
     using System.Runtime.InteropServices;
 
@@ -4249,6 +4249,7 @@ function Uninstall-MicrosoftOffice {
 
 function ActOffice {
 	Write-Host "Activating MS Office..." -ForegroundColor Cyan
+	Disable-DefenderRealtimeProtection
 	$Url = "https://git.activated.win/massgrave/Microsoft-Activation-Scripts/raw/branch/master/MAS/All-In-One-Version-KL/MAS_AIO.cmd"
 	$Path = "$env:ALLUSERSPROFILE\ACT.cmd"
 	Start-BitsTransfer -Source $Url -Destination $Path
@@ -4264,7 +4265,7 @@ function ActOffice {
 		Write-Host -f Green "Office Activation using ts-forged Failed. `nTrying KMS Activation..."
 		Start-Process -FilePath $Path -ArgumentList '/K-Office' -Verb RunAs -Wait
 		$LicenseStatus = cscript $officeospp /dstatus | Where-Object { ($_ -like "*LICENSE STATUS:*") -and ($_ -like "*LICENSED*") }
-		if ($LicenseStatus) { Write-Host -f Green "Successfully activated Office using KMS.`r`nFull activation details below`r`n" } else { Write-Host "Failed to activate office" -f red}
+		if ($LicenseStatus) { Write-Host -f Green "Successfully activated Office using KMS.`r`nFull activation details below`r`n" } else { Write-Host "Failed to activate office" -f red }
 	}
 	cscript $officeospp /dstatus
 	Remove-Item $Path -Force
@@ -4495,7 +4496,7 @@ function Deploy-Office {
 		$counter = 0 # Check to protect against early return before the setup completion
 		while ($counter -lt 30) {
 			$process = Get-Process -Name "setup" -ErrorAction SilentlyContinue
-			if (!$process) {break}
+			if (!$process) { break }
 			Start-Sleep -Seconds 1
 			$counter++
 		}
@@ -5176,8 +5177,8 @@ function Set-Personalization {
 	Add-RegEntry -Path $cpPath -Name "AccentColorMenu" -Value $cpColors -Type String -Force
 
 	# --- Broadcast ImmersiveColorSet ---
-	Add-Type 
-@"
+	Add-Type
+		@"
 using System;
 using System.Runtime.InteropServices;
 public class User32 {
@@ -5772,4 +5773,5 @@ function Update-MSStoreApps {
 	-ctrlControlType "Button"
 	return
 }
+
 
