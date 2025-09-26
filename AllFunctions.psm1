@@ -45,99 +45,127 @@ function Relaunch {
 }
 
 function Add-RegEntry {
-	param
-	(
-		[Parameter(Mandatory = $true, Position = 0)]
+	[CmdletBinding(DefaultParameterSetName = "Path")]
+	param (
+		[Parameter(Mandatory = $true, Position = 0, ParameterSetName = "Path")]
 		[string]$Path,
+
+		[Parameter(Mandatory = $true, Position = 0, ParameterSetName = "Literal")]
+		[string]$LiteralPath,
+
 		[Parameter(Mandatory = $true, Position = 1)]
 		[string]$Name,
+
 		[Parameter(Mandatory = $true, Position = 2)]
-		[string]$Value,
+		[object]$Value,
+
 		[Parameter(Mandatory = $false, Position = 3)]
-		[string]$Type = 'DWord',
-		[Parameter(Mandatory = $false, Position = 4)]
+		[Alias("PropertyType")]
+		[ValidateSet("DWord", "Qword", "Binary", "String", "ExpandString", "MultiString")]
+		[string]$Type,
+
+		[Parameter(Mandatory = $false)]
 		[switch]$Force = $true
 	)
+
+	# Auto-detect type if not provided
+	if (-not $PSBoundParameters.ContainsKey('Type')) {
+		switch ($Value.GetType().Name) {
+			"Int32" { $Type = "DWord" }
+			"Int64" { $Type = "Qword" }
+			"Byte[]" { $Type = "Binary" }
+			"String[]" { $Type = "MultiString" }
+			"String" { $Type = "String" }
+			default { $Type = "String" }  # fallback
+		}
+	}
+
 	try {
-		if (Get-ItemProperty -Path $Path -Name $Name -EA SilentlyContinue) {
-			Set-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -Force:$Force -EA SilentlyContinue | Out-Null
+		$TargetPath = if ($PSCmdlet.ParameterSetName -eq "Literal") { $LiteralPath } else { $Path }
+
+		if (Get-ItemProperty -Path $TargetPath -Name $Name -EA SilentlyContinue) {
+			Set-ItemProperty -LiteralPath $TargetPath -Name $Name -Value $Value -Force:$Force -EA SilentlyContinue | Out-Null
 		} else {
-			if (!(Test-Path $Path -EA SilentlyContinue)) { New-Item $Path -Force:$Force -EA SilentlyContinue | Out-Null }
-			New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $Type -Force:$Force -EA SilentlyContinue | Out-Null
+			if (!(Test-Path $TargetPath -EA SilentlyContinue)) {
+				New-Item $TargetPath -Force:$Force -EA SilentlyContinue | Out-Null
+			}
+			New-ItemProperty -LiteralPath $TargetPath -Name $Name -Value $Value -PropertyType $Type -Force:$Force -EA SilentlyContinue | Out-Null
 		}
 	} catch {
 		try {
-			# Second Method
-			Write-Host "PowerShell Method Failed trying CMD method ..." -ForegroundColor Red
-			$Path = $Path.replace(':', '')
+			Write-Host "PowerShell Method Failed, trying CMD method ..." -ForegroundColor Red
+			$RegPath = $TargetPath.Replace(":", "")
+
 			switch ($Type) {
-				DWord { $typeCMD = "REG_DWORD" }; Qword { $typeCMD = "REG_QWORD" }; Binary { $typeCMD = "REG_BINARY" };
-				String { $typeCMD = "REG_SZ" }; ExpandString { $typeCMD = "REG_EXPAND_SZ" }; MultiString { $typeCMD = "REG_MULTI_SZ" }
+				DWord { $typeCMD = "REG_DWORD" }
+				Qword { $typeCMD = "REG_QWORD" }
+				Binary { $typeCMD = "REG_BINARY" }
+				String { $typeCMD = "REG_SZ" }
+				ExpandString { $typeCMD = "REG_EXPAND_SZ" }
+				MultiString { $typeCMD = "REG_MULTI_SZ" }
 			}
-			if ($typeCMD -ne $null) {
-				if ($Force) {Reg Add $Path /v $Name /t $typeCMD /d $Value /f | Out-Null} else {Reg Add $Path /v $Name /t $typeCMD /d $Value | Out-Null}
-			} else { Write-Host -f red "Unsupported type" }
-		} catch { Write-Host -f red "Might need takeown or runing as system or trusted installer `n Error: " + $Error }
+
+			if ($Type -eq "Binary" -and $Value -is [byte[]]) {
+				$Value = ($Value | ForEach-Object { $_.ToString("X2") }) -join ""
+			}
+
+			if ($Type -eq "MultiString" -and $Value -is [array]) {
+				$Value = ($Value -join "\0") + "\0\0"
+			}
+
+			if ($Force) {
+				REG ADD $RegPath /v $Name /t $typeCMD /d $Value /f | Out-Null
+			} else {
+				REG ADD $RegPath /v $Name /t $typeCMD /d $Value | Out-Null
+			}
+		} catch {
+			Write-Host -ForegroundColor Red "Might need takeown or running as SYSTEM or TrustedInstaller`nError: $Error"
+		}
 	}
 }
 
-function Remove-Reg {
-	#To be done
-}
-
-function Remove-AppxApp {
+function Remove-RegEntry {
+	[CmdletBinding(DefaultParameterSetName = "Path")]
 	param (
-		[Parameter(Mandatory = $true)]
-		[string]$AppName
+		# Parameter sets
+		[Parameter(Mandatory = $true, Position = 0, ParameterSetName = "Path")]
+		[string]$Path,
+
+		[Parameter(Mandatory = $true, Position = 0, ParameterSetName = "Literal")]
+		[string]$LiteralPath,
+
+		# Common parameters
+		[Parameter(Mandatory = $true, Position = 1)]
+		[string]$Name,
+
+		[Parameter(Mandatory = $false)]
+		[switch]$Force = $true
 	)
 
-	Write-Host "Checking for AppxPackage matching '$AppName'..." -ForegroundColor Yellow
+	try {
+		# Select correct path
+		$TargetPath = if ($PSCmdlet.ParameterSetName -eq "Literal") { $LiteralPath } else { $Path }
 
-	$matchedPackages = Get-AppxPackage -AllUsers | Where-Object { $_.Name -like "*$AppName*" }
+		# PowerShell deletion
+		Remove-ItemProperty -LiteralPath $TargetPath -Name $Name -Force:$Force -EA SilentlyContinue | Out-Null
+	} catch {
+		try {
+			# Fallback to reg.exe
+			Write-Host "PowerShell Method Failed, trying CMD method ..." -ForegroundColor Red
+			$RegPath = $TargetPath.Replace(":", "")
 
-	if (-not $matchedPackages) {
-		Write-Warning "No installed AppxPackage found matching '*$AppName*'. Nothing to remove."
-		return
-	}
-
-	Write-Host "Removing AppxPackage for Current User..." -ForegroundColor Yellow
-
-	$matchedPackages | ForEach-Object {
-		$pkgFullName = $_.PackageFullName
-		Write-Host "Removing package: $pkgFullName" -ForegroundColor Cyan
-
-		Remove-AppxPackage -Package $pkgFullName -EA SilentlyContinue
-
-		# Wait until the package is fully removed with timeout
-		$maxWaitSeconds = 60
-		$waited = 0
-
-		while ($waited -lt $maxWaitSeconds) {
-			$exists = Get-AppxPackage -AllUsers | Where-Object { $_.PackageFullName -eq $pkgFullName }
-			if (-not $exists) { break }
-			Start-Sleep -Seconds 1
-			$waited++
-		}
-
-		# Final check to confirm removal
-		$finalCheck = Get-AppxPackage | Where-Object { $_.PackageFullName -eq $pkgFullName }
-
-		if ("" -ne $finalCheck) {
-			Write-Warning "Package $pkgFullName still exists after timeout"
-		} else {
-			Write-Host "Package $pkgFullName removed successfully" -ForegroundColor Green
+			if ($Force) {
+				REG DELETE $RegPath /v $Name /f
+			} else {
+				REG DELETE $RegPath /v $Name
+			}
+		} catch {
+			Write-Host -ForegroundColor Red "Might need takeown or running as SYSTEM or TrustedInstaller`nError: $Error"
 		}
 	}
-
-	Write-Host "Removing AppxProvisionedPackage (from system image for new users)..." -ForegroundColor Yellow
-
-	Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like "*$AppName*" } | ForEach-Object {
-		Write-Host "Removing provisioned package: $($_.PackageName)" -ForegroundColor Cyan
-		Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -EA SilentlyContinue
-	}
-
-	Write-Host "Operation completed." -ForegroundColor Green
 }
+
+
 
 function Repeatiwr {
 	param
@@ -2121,7 +2149,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 		try {
 			$cleanupKeyPath = Join-Path $regSagesetPath $thumbnailsKey
 			if (Test-Path $cleanupKeyPath) {
-				New-ItemProperty -Path $cleanupKeyPath -Name "StateFlags$SageSetNumber" -Value 2 -PropertyType DWord -Force | Out-Null
+				Add-RegEntry -Path $cleanupKeyPath -Name "StateFlags$SageSetNumber" -Value 2 -PropertyType DWord -Force | Out-Null
 				Write-Host "Configured Disk Cleanup to clean 'Thumbnail Cache' for sageset number $SageSetNumber."
 			} else {
 				Write-Warning ("Thumbnail Cache key not found in registry: " + $cleanupKeyPath)
@@ -2182,13 +2210,9 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 
 	# 2. Enable thumbnails in Folder Options via registry
 	Write-Host "Enabling thumbnails in Folder Options via registry..." -ForegroundColor Yellow
-	try {
-		$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
-		Add-RegEntry -Path $regPath -Name "IconsOnly" -Value 0
-		Write-Host "Thumbnails enabled in Folder Options."
-	} catch {
-		Write-Warning ("Failed to set Folder Options registry key: " + $_)
-	}
+	$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+	Add-RegEntry -Path $regPath -Name "IconsOnly" -Value 0
+	Write-Host "Thumbnails enabled in Folder Options."
 
 	# 3. Re-register Adobe PDF Thumbnail Handler DLLs
 	Write-Host "Re-registering Adobe PDF thumbnail handler DLLs for Acrobat Pro..." -ForegroundColor Yellow
@@ -2328,148 +2352,130 @@ function Invoke-AcrobatFix {
 
 	# Define all registry changes needed for Acrobat optimization
 	# These settings disable activation checks, improve UI, and configure preferences
-	$registryChanges = @(
-		# Activation and licensing enforcement settings
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "IsAMTEnforced"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "IsAMTEnforced"; Type = "DWord"; Value = 1 },
+	# Activation and licensing enforcement settings
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation" -Name "IsAMTEnforced" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation" -Name "IsAMTEnforced" -Type "DWord" -Value 1
 
-		# User interface and notification preferences
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bappFirstLaunchForNotifications"; Type = "DWord"; Value = 0 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "iFTEVersion"; Type = "DWord"; Value = 10 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "iLastCardShown"; Type = "DWord"; Value = 0 },
+	# User interface and notification preferences
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bappFirstLaunchForNotifications" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog" -Name "iFTEVersion" -Type "DWord" -Value 10
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog" -Name "iLastCardShown" -Type "DWord" -Value 0
 
-		# ARM (Adobe Application Manager) settings
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\ARMUser"; Name = "bDeclined"; Type = "DWord"; Value = 1 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iAVARMNoAutoUpdateWarning"; Type = "DWord"; Value = 1 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iAutoAcceptEDCPrivacyNotification"; Type = "DWord"; Value = 1 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox"; Name = "iDisableCEFRepairDialog"; Type = "DWord"; Value = 1 },
+	# ARM (Adobe Application Manager) settings
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\ARMUser" -Name "bDeclined" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox" -Name "iAVARMNoAutoUpdateWarning" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox" -Name "iAutoAcceptEDCPrivacyNotification" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVAlert\cCheckbox" -Name "iDisableCEFRepairDialog" -Type "DWord" -Value 1
 
-		# Entitlement and activation status
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bActivated"; Type = "DWord"; Value = 1 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bIsAcroTrayEnabledAsService"; Type = "DWord"; Value = 0 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bActivated"; Type = "DWord"; Value = 1 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bSCAAcrCrashReporterEnabled"; Type = "DWord"; Value = 0 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bNewUserForModernization"; Type = "DWord"; Value = 0 },
+	# Entitlement and activation status
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "bActivated" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "bIsAcroTrayEnabledAsService" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bActivated" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bSCAAcrCrashReporterEnabled" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bNewUserForModernization" -Type "DWord" -Value 0
 
-		# First-time experience (FTE) settings
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog"; Name = "bFTEHomeOrViewerTourDialogueLaunched"; Type = "DWord"; Value = 1 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\HomeWelcome"; Name = "bIsAcrobatUpdated"; Type = "DWord"; Value = 1 },
+	# First-time experience (FTE) settings
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\FTEDialog" -Name "bFTEHomeOrViewerTourDialogueLaunched" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\HomeWelcome" -Name "bIsAcrobatUpdated" -Type "DWord" -Value 1
 
-		# Additional activation disable settings
-		@{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "Disabled"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation"; Name = "DisabledActivation"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\1.0\ARM"; Name = "DisablePromptForUpgrade"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\1.0\ARM"; Name = "iCheck"; Type = "DWord"; Value = 0 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "Disabled"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation"; Name = "DisabledActivation"; Type = "DWord"; Value = 1 },
+	# Additional activation disable settings
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation" -Name "Disabled" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Adobe\Adobe Acrobat\DC\Activation" -Name "DisabledActivation" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\1.0\ARM" -Name "DisablePromptForUpgrade" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe ARM\1.0\ARM" -Name "iCheck" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation" -Name "Disabled" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat\DC\Activation" -Name "DisabledActivation" -Type "DWord" -Value 1
 
-		# Group Policy-like settings for enterprise control
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bAcroSuppressUpsell"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bPurchaseAcro"; Type = "DWord"; Value = 0 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bSuppressSignOut"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleBillingIssue"; Type = "DWord"; Value = 0 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleFTE"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bToggleShareFeedback"; Type = "DWord"; Value = 0 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown"; Name = "bUpdater"; Type = "DWord"; Value = 0 },
+	# Group Policy-like settings for enterprise control
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown" -Name "bAcroSuppressUpsell" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown" -Name "bPurchaseAcro" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown" -Name "bSuppressSignOut" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown" -Name "bToggleBillingIssue" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown" -Name "bToggleFTE" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown" -Name "bToggleShareFeedback" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown" -Name "bUpdater" -Type "DWord" -Value 0
 
-		# In-product messaging settings
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cIPM"; Name = "bDontShowMsgWhenViewingDoc"; Type = "DWord"; Value = 0 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cIPM"; Name = "bShowMsgAtLaunch"; Type = "DWord"; Value = 0 },
+	# In-product messaging settings
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cIPM" -Name "bDontShowMsgWhenViewingDoc" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cIPM" -Name "bShowMsgAtLaunch" -Type "DWord" -Value 0
 
-		# Services and notification settings
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bEnableBellButton"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bToggleNotificationToasts"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bToggleNotifications"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bTogglePrefsSync"; Type = "DWord"; Value = 1 },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices"; Name = "bUpdater"; Type = "DWord"; Value = 0 },
+	# Services and notification settings
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices" -Name "bEnableBellButton" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices" -Name "bToggleNotificationToasts" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices" -Name "bToggleNotifications" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices" -Name "bTogglePrefsSync" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Policies\Adobe\Adobe Acrobat\DC\FeatureLockDown\cServices" -Name "bUpdater" -Type "DWord" -Value 0
 
-		# Process blocking via Image File Execution Options X64 (redirects to ctfmon)
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ADNotificationManager.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGCInvokerUtility.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGMService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGSService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AcroServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Crash Processor.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Genuine Launcher.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeCollabSync.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeGCClient.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\SingleClientServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\agshelper.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\armsvc.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		# Process blocking via Image File Execution Options X32 (redirects to ctfmon)
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ADNotificationManager.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGCInvokerUtility.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGMService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGSService.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AcroServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Crash Processor.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Genuine Launcher.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeCollabSync.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeGCClient.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\SingleClientServicesUpdater.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\agshelper.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
-		@{Path = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\armsvc.exe"; Name = "Debugger"; Type = "String"; Value = "ctfmon" },
+	# Process blocking via Image File Execution Options X64 (redirects to ctfmon)
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ADNotificationManager.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGCInvokerUtility.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGMService.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGSService.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AcroServicesUpdater.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Crash Processor.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Genuine Launcher.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeCollabSync.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeGCClient.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\SingleClientServicesUpdater.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\agshelper.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\armsvc.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	# Process blocking via Image File Execution Options X32 (redirects to ctfmon)
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\ADNotificationManager.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGCInvokerUtility.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGMService.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AGSService.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AcroServicesUpdater.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Crash Processor.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\Adobe Genuine Launcher.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeCollabSync.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\AdobeGCClient.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\SingleClientServicesUpdater.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\agshelper.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
+	Add-RegEntry -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\armsvc.exe" -Name "Debugger" -Type "String" -Value "ctfmon"
 
-		# Arabic language and RTL support
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bComplexScript"; Type = "DWord"; Value = 1 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bHindiDigit"; Type = "DWord"; Value = 0 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bLigature"; Type = "DWord"; Value = 1 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "iIntlSelectFont"; Type = "DWord"; Value = 0 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "iParaDir"; Type = "DWord"; Value = 2 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bDigitsUI"; Type = "DWord"; Value = 1 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl"; Name = "bRTLUI"; Type = "DWord"; Value = 1 },
+	# Arabic language and RTL support
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl" -Name "bComplexScript" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl" -Name "bHindiDigit" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl" -Name "bLigature" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl" -Name "iIntlSelectFont" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl" -Name "iParaDir" -Type "DWord" -Value 2
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl" -Name "bDigitsUI" -Type "DWord" -Value 1
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\Intl" -Name "bRTLUI" -Type "DWord" -Value 1
 
-		# UI optimization and customization
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bEnableAV2"; Type = "DWord"; Value = 0 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bOpenCommentAppAutomatically"; Type = "DWord"; Value = 0 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bCommentAppLaunchNotSetByIPM"; Type = "DWord"; Value = 1 },
+	# UI optimization and customization
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bEnableAV2" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bOpenCommentAppAutomatically" -Type "DWord" -Value 0
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bCommentAppLaunchNotSetByIPM" -Type "DWord" -Value 1
 
-		# Toolbar favorites customization
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a0"; Type = "String"; Value = "PagesApp" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a1"; Type = "String"; Value = "EditPDFApp" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a2"; Type = "String"; Value = "ExportPDFApp" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a3"; Type = "String"; Value = "OptimizePDFApp" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a4"; Type = "String"; Value = "CombineApp" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a5"; Type = "String"; Value = "PaperToPDFApp" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a6"; Type = "String"; Value = "CreatePDFApp" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites"; Name = "a7"; Type = "String"; Value = "PrintProductionApp" },
+	# Toolbar favorites customization
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites" -Name "a0" -Type "String" -Value "PagesApp"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites" -Name "a1" -Type "String" -Value "EditPDFApp"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites" -Name "a2" -Type "String" -Value "ExportPDFApp"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites" -Name "a3" -Type "String" -Value "OptimizePDFApp"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites" -Name "a4" -Type "String" -Value "CombineApp"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites" -Name "a5" -Type "String" -Value "PaperToPDFApp"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites" -Name "a6" -Type "String" -Value "CreatePDFApp"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AcroApp\cFavorites" -Name "a7" -Type "String" -Value "PrintProductionApp"
 
-		# View and display preferences
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\RememberedViews"; Name = "iRememberView"; Type = "DWord"; Value = 2 },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\FullScreen"; Name = "bForceSinglePageFitPage"; Type = "DWord"; Value = 1 },
+	# View and display preferences
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\RememberedViews" -Name "iRememberView" -Type "DWord" -Value 2
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\FullScreen" -Name "bForceSinglePageFitPage" -Type "DWord" -Value 1
 
-		# Print settings
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bPrintSaveToner"; Type = "DWord"; Value = 0 },
+	# Print settings
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bPrintSaveToner" -Type "DWord" -Value 0
 
-		# Service startup configuration (4 = Disabled)
-		@{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AGMService"; Name = "Start"; Type = "DWord"; Value = 4 },
-		@{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AGSService"; Name = "Start"; Type = "DWord"; Value = 4 },
-		@{Path = "HKLM:\SYSTEM\CurrentControlSet\Services\AdobeARMservice"; Name = "Start"; Type = "DWord"; Value = 4 }
-	)
-
-	# Apply all registry changes
-	foreach ($item in $registryChanges) {
-		try {
-			if (-not (Test-Path $item.Path)) { New-Item -Path $item.Path -Force | Out-Null }
-			Add-RegEntry -Path $item.Path -Name $item.Name -Value $item.Value -Type $item.Type -Force
-		} catch { Write-Warning "Error!" } # Silently continue on errors to ensure uninterrupted execution
-	}
+	# Service startup configuration (4 Disabled)
+	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\AGMService" -Name "Start" -Type "DWord" -Value 4
+	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\AGSService" -Name "Start" -Type "DWord" -Value 4
+	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\AdobeARMservice" -Name "Start" -Type "DWord" -Value 4
 
 	# Delete registry values related to trial mode and licensing
-	$registryDeletes = @(
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bInTrialMode" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "bInTrialMode" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "iDayPassUserState" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "iLicenseDaysRemaining" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement"; Name = "uDayPassExpiryTime" },
-		@{Path = "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral"; Name = "bShowTrialNag" }
-	)
-
-	foreach ($item in $registryDeletes) {
-		try {
-			Remove-ItemProperty -Path $item.Path -Name $item.Name -Force -EA SilentlyContinue
-		} catch { Write-Warning "Error!" } # Silently continue if property doesn't exist
-	}
+	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bInTrialMode"
+	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "bInTrialMode"
+	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "iDayPassUserState"
+	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "iLicenseDaysRemaining"
+	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "uDayPassExpiryTime"
+	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bShowTrialNag"
 
 	# Delete entire registry keys
 	$registryKeyDeletes = @(
@@ -2479,7 +2485,7 @@ function Invoke-AcrobatFix {
 	foreach ($key in $registryKeyDeletes) {
 		try {
 			Remove-Item -Path $key -Recurse -Force -EA SilentlyContinue
-		} catch { Write-Warning "Error!" } # Silently continue if key doesn't exist
+		} catch {} # Silently continue if key doesn't exist
 	}
 	#endregion
 
@@ -2492,7 +2498,7 @@ function Invoke-AcrobatFix {
 	foreach ($process in $processes) {
 		try {
 			Get-Process -Name $process -EA SilentlyContinue | Stop-Process -Force
-		} catch { Write-Warning "Error!" } # Silently continue if process isn't running
+		} catch {} # Silently continue if process isn't running
 	}
 	#endregion
 
@@ -2509,7 +2515,7 @@ function Invoke-AcrobatFix {
 
 			# Disable the service from starting automatically
 			Set-Service -Name $service -StartupType Disabled -EA SilentlyContinue
-		} catch { Write-Warning "Error!" } # Silently continue if service doesn't exist or can't be modified
+		} catch {} # Silently continue if service doesn't exist or can't be modified
 	}
 	#endregion
 
@@ -2526,7 +2532,7 @@ function Invoke-AcrobatFix {
 			Disable-ScheduledTask -TaskName $task.TaskName -EA SilentlyContinue
 			# Then completely remove it
 			Unregister-ScheduledTask -TaskName $task.TaskName -Confirm:$false -EA SilentlyContinue
-		} catch { Write-Warning "Error!" } # Silently continue if task cannot be modified or removed
+		} catch {} # Silently continue if task cannot be modified or removed
 	}
 	#endregion
 
@@ -2546,7 +2552,7 @@ function Invoke-AcrobatFix {
 			if (Test-Path $path) {
 				Remove-Item -Path $path -Recurse -Force -EA SilentlyContinue
 			}
-		} catch { Write-Warning "Error!" }
+		} catch {}
 	}
 	#endregion
 
@@ -2570,13 +2576,40 @@ function Invoke-AcrobatFix {
 			# Check if the path exists before trying to access it
 			if (Test-Path $runPath) {
 				$properties = Get-ItemProperty -Path $runPath -EA SilentlyContinue
-				if ($properties) { $properties.PSObject.Properties | Where-Object { $_.Name -match 'Adobe' -or $_.Name -match 'Acrobat' } | ForEach-Object { Remove-ItemProperty -Path $runPath -Name $_.Name -Force -EA SilentlyContinue } }
+				if ($properties) { $properties.PSObject.Properties | Where-Object { $_.Name -match 'Adobe' -or $_.Name -match 'Acrobat' } | ForEach-Object { Remove-RegEntry -Path $runPath -Name $_.Name -Force -EA SilentlyContinue } }
 			}
 		} catch { Write-Warning "Error!" } # Silently continue if registry operations fail
 	}
 	#endregion
 
 	Write-Host "Acrobat fix completed successfully!"
+}
+
+function Invoke-ShellAssocChanged {
+	<#
+    .SYNOPSIS
+        Notifies Explorer that file associations or shell handlers have changed.
+
+    .DESCRIPTION
+        Calls SHChangeNotify with SHCNE_ASSOCCHANGED to refresh the system’s
+        awareness of file type/handler changes without requiring logout/reboot.
+    #>
+
+	Add-Type 
+@"
+    using System;
+    using System.Runtime.InteropServices;
+
+    public static class Shell32 {
+        [DllImport("shell32.dll")]
+        public static extern void SHChangeNotify(
+            int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);
+    }
+"@
+
+	# SHCNE_ASSOCCHANGED = 0x08000000
+	# SHCNF_IDLIST       = 0x0000
+	[Shell32]::SHChangeNotify(0x08000000, 0x0000, [IntPtr]::Zero, [IntPtr]::Zero)
 }
 
 function Ins-AcrobatPro {
@@ -2589,11 +2622,14 @@ function Ins-AcrobatPro {
 	$DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/1dvAq0k6JRtSOOXiR4hhkfva_OuxSzYbf/view" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
 	if ($DDURL) { Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -EA SilentlyContinue | Out-Null }
 	Start-Job -Name AcrobatPro { if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue | Out-Null } } | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name, State
-	# Apply thumbnail handler
-	Add-RegEntry 'HKCR:\.pdf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}' "(default)" "{DC6EFB56-9CFA-464D-8880-44885D7DC193}" 'String'
-	# Apply preview handler
+	# Thumbnail image handler (IThumbnailProvider)
+	Add-RegEntry 'HKCR:\.pdf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}' "(default)" "{F9DB5320-233E-11D1-9F84-707F02C10627}" 'String'
+	# Image handler (IExtractImage)
+	Add-RegEntry 'HKCR:\.pdf\ShellEx\{BB2E617C-0920-11d1-9A0B-00C04FC2D6C1}' "(default)" "{F9DB5320-233E-11D1-9F84-707F02C10627}" 'String'
+	# Preview handler (IPreviewHandler)
 	Add-RegEntry 'HKCR:\.pdf\ShellEx\{8895b1c6-b41f-4c1c-a562-0d564250836f}' "(default)" "{DC6EFB56-9CFA-464D-8880-44885D7DC193}" 'String'
-	Remove-Item -Path $ENV:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db -Force -EA SilentlyContinue | Out-Null
+	Ins-Foxit
+	Invoke-ShellAssocChanged
 	$printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
 	Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
 	(New-Object -ComObject WScript.Network).SetDefaultPrinter('Adobe PDF')
@@ -2639,21 +2675,76 @@ function Ins-OpenAl {
 function Ins-Foxit {
 	# Step 1: Install Foxit PDF Reader via winget
 	Write-Host "📥 Installing Foxit PDF Reader..."
-	winget install -e --id "Foxit.FoxitReader" --silent --accept-source-agreements --accept-package-agreements
 
-	# Step 2: Set Foxit as the default thumbnail & preview handler for PDFs
+	# Define download folder
+	$DownloadFolder = "$env:TEMP\FoxitDownload"
+
+	# 1. Delete old folder if it exists
+	if (Test-Path $DownloadFolder) {
+		Remove-Item -Path $DownloadFolder -Recurse -Force
+	}
+	# Recreate folder
+	New-Item -Path $DownloadFolder -ItemType Directory | Out-Null
+
+	# 2. Download latest Foxit Reader EXE using winget
+	winget download -e --id "Foxit.FoxitReader" --accept-source-agreements --accept-package-agreements -d $DownloadFolder
+
+	# 3. Find the downloaded EXE
+	$InstallerExe = Get-ChildItem -Path $DownloadFolder -Filter *.exe -File -Recurse | Select-Object -First 1
+	if (-not $InstallerExe) {
+		Write-Error "Foxit installer EXE not found in $DownloadFolder"
+		exit 1
+	}
+
+	# 4. Extract EXE contents
+	Start-Process -FilePath $InstallerExe.FullName -ArgumentList "/extract `"$DownloadFolder`"" -Wait
+
+	# 5. Get MSI + MSP files
+	$MsiFile = Get-ChildItem -Path $DownloadFolder -Filter *.msi -File -Recurse | Select-Object -First 1
+	$MspFile = Get-ChildItem -Path $DownloadFolder -Filter *.msp -File -Recurse | Select-Object -First 1
+
+	if (-not $MsiFile) {
+		Write-Error "No MSI file found in $DownloadFolder"
+		exit 1
+	}
+
+	# 6. Define custom install arguments (updated)
+	$InstallArgs = @(
+		"/i `"$($MsiFile.FullName)`"",
+		"/quiet", "/norestart",
+		"ADDLOCAL=All",
+		"MAKEDEFAULT=0",
+		"VIEW_IN_BROWSER=0",
+		"DESKTOP_SHORTCUT=0",
+		"STARTMENU_SHORTCUT=0",
+		"LAUNCHCHECKDEFAULT=0",
+		"EMBEDDED_PDF_INOFFICE=0",
+		"REMOVENEWVERSION=1",
+		"INTERNET_DISABLE=1",
+		"AUTO_UPDATE=0",
+		"NOTINSTALLUPDATE=1"
+	)
+
+	# 7. Install MSI
+	Write-Host "Installing Foxit Reader MSI..."
+	Start-Process -FilePath "msiexec.exe" -ArgumentList ($InstallArgs -join ' ') -Wait -NoNewWindow
+
+	# 8. Apply MSP patch if available
+	if ($MspFile) {
+		Write-Host "Applying MSP patch..."
+		Start-Process -FilePath "msiexec.exe" -ArgumentList "/p `"$($MspFile.FullName)`" /quiet /norestart" -Wait -NoNewWindow
+	}
+
+	Write-Host "Foxit Reader setup completed successfully."
+
 	Write-Host "🔧 Configuring Foxit as default PDF thumbnail provider..."
 
 	# Apply thumbnail handler
-	Add-RegEntry 'HKCR:\.pdf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}' "(default)" "{1B0F3B9D-3A01-453F-BD45-0A9438F97BDA}" 'String'
+	Add-RegEntry 'HKCR:\.pdf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}' "(default)" "{21F5E992-636E-48DC-9C47-5B05DEF82372}" 'String'
 	# Apply preview handler
 	Add-RegEntry 'HKCR:\.pdf\ShellEx\{8895b1c6-b41f-4c1c-a562-0d564250836f}' "(default)" "{1B0F3B9D-3A01-453F-BD45-0A9438F97BDA}" 'String'
-
-	# Step 3: Clear Thumbnails & Restart Explorer to apply changes
-	Fix-AdobeAcrobatProPdfThumbnails
-	Restart-ExplorerSilently
-	Start-Sleep -Seconds 5
-	Refresh-Desktop
+	# Image extract handler acrobat
+	Add-RegEntry 'HKCR:\.pdf\ShellEx\{BB2E617C-0920-11d1-9A0B-00C04FC2D6C1}' "(default)" "{F9DB5320-233E-11D1-9F84-707F02C10627}" 'String'
 
 	Write-Host "✅ Foxit PDF Reader installed and set as default thumbnail preview handler."
 }
@@ -3021,7 +3112,7 @@ function Registry-Tweaks {
 	# Desktop icon sort order. 0x40000002 = sort by Name (ascending).
 
 	$sortBinary = [byte[]] (0x02, 0x00, 0x00, 0x40)
-	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "Sort" -Value $sortBinary -Type Binary
+	Add-RegEntry -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "Sort" -Value $sortBinary -Type Binary
 	# Same as above in binary form (02 00 00 40 = Name ascending).
 
 	Add-RegEntry "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" "FFlags" "0x40200225" 'DWord'
@@ -3109,10 +3200,10 @@ function Registry-Tweaks {
 	Add-RegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'DisableLogonBackgroundImage' '0' 'DWord'
 	# Keep logon background image (0=use image, 1=solid color).
 
-	Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticecaption' -Force -EA SilentlyContinue | Out-Null
+	Remove-RegEntry -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticecaption' -Force -EA SilentlyContinue | Out-Null
 	# Remove legal notice caption (if exists).
 
-	Remove-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticetext' -Force -EA SilentlyContinue | Out-Null
+	Remove-RegEntry -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticetext' -Force -EA SilentlyContinue | Out-Null
 	# Remove legal notice text (if exists).
 
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'dontdisplaylastusername' '0' 'DWord'
@@ -3224,7 +3315,7 @@ function Registry-Tweaks {
 	Add-RegEntry 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' 'NumberOfSIUFInPeriod' '0' 'DWord'
 	# Feedback frequency count (0 = never prompt).
 
-	Remove-ItemProperty -LiteralPath 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' -Name 'PeriodInNanoSeconds' -Force -EA SilentlyContinue | Out-Null
+	Remove-RegEntry -LiteralPath 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' -Name 'PeriodInNanoSeconds' -Force -EA SilentlyContinue | Out-Null
 	# Remove feedback timing window (reset).
 
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\System' 'AllowCommercialDataPipeline' '0' 'DWord'
@@ -3809,7 +3900,7 @@ function Set-EmptyIFEO {
 
 	foreach ($key in $keys) {
 		if (-not (Test-Path $key)) { New-Item -Path $key -Force | Out-Null }
-		New-ItemProperty -Path $key -Name 'Debugger' -Value $exePath -PropertyType String -Force | Out-Null
+		Add-RegEntry -Path $key -Name 'Debugger' -Value $exePath -PropertyType String -Force | Out-Null
 		Write-Host "[OK] Set Debugger for $key -> $exePath"
 	}
 
@@ -5001,78 +5092,79 @@ function Uninstall-Programs {
 }
 
 function Set-Personalization {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$false)]
-        [string]$AccentColor = "126 115 95",   # "R G B" or "#RRGGBB" or "RRGGBB"
+	[CmdletBinding()]
+	param(
+		[Parameter(Mandatory = $false)]
+		[string]$AccentColor = "126 115 95",   # "R G B" or "#RRGGBB" or "RRGGBB"
 
-        [switch]$LightMode,                    # optional: enable light mode if set
-        [switch]$NoRestart                     # optional: don't restart Explorer/ShellExperienceHost
-    )
+		[switch]$LightMode,                    # optional: enable light mode if set
+		[switch]$NoRestart                     # optional: don't restart Explorer/ShellExperienceHost
+	)
 
-    # --- parse input ---
-    if ($AccentColor -match '^#?[0-9A-Fa-f]{6}$') {
-        $hex = $AccentColor.TrimStart('#')
-        $r = [int][Convert]::ToInt32($hex.Substring(0,2),16)
-        $g = [int][Convert]::ToInt32($hex.Substring(2,2),16)
-        $b = [int][Convert]::ToInt32($hex.Substring(4,2),16)
-    } elseif ($AccentColor -match '^\s*\d{1,3}\s+\d{1,3}\s+\d{1,3}\s*$') {
-        $parts = ($AccentColor -split '\s+')
-        $r = [int]$parts[0]; $g = [int]$parts[1]; $b = [int]$parts[2]
-    } else {
-        throw "AccentColor must be 'R G B' or '#RRGGBB' / 'RRGGBB'"
-    }
+	# --- parse input ---
+	if ($AccentColor -match '^#?[0-9A-Fa-f]{6}$') {
+		$hex = $AccentColor.TrimStart('#')
+		$r = [int][Convert]::ToInt32($hex.Substring(0, 2), 16)
+		$g = [int][Convert]::ToInt32($hex.Substring(2, 2), 16)
+		$b = [int][Convert]::ToInt32($hex.Substring(4, 2), 16)
+	} elseif ($AccentColor -match '^\s*\d{1,3}\s+\d{1,3}\s+\d{1,3}\s*$') {
+		$parts = ($AccentColor -split '\s+')
+		$r = [int]$parts[0]; $g = [int]$parts[1]; $b = [int]$parts[2]
+	} else {
+		throw "AccentColor must be 'R G B' or '#RRGGBB' / 'RRGGBB'"
+	}
 
-    foreach ($v in @($r,$g,$b)) { if ($v -lt 0 -or $v -gt 255) { throw "RGB values must be 0..255" } }
+	foreach ($v in @($r, $g, $b)) { if ($v -lt 0 -or $v -gt 255) { throw "RGB values must be 0..255" } }
 
-    # --- Build DWORDs ---
-    # DWM expects ABGR → swap R <-> B
-    $dword_DWM = [BitConverter]::ToUInt32(@([byte]$b,[byte]$g,[byte]$r,0xFF),0)
-    # Explorer expects ARGB → normal RGB
-    $dword_Explorer = [BitConverter]::ToUInt32(@([byte]$r,[byte]$g,[byte]$b,0xFF),0)
+	# --- Build DWORDs ---
+	# DWM expects ABGR → swap R <-> B
+	$dword_DWM = [BitConverter]::ToUInt32(@([byte]$b, [byte]$g, [byte]$r, 0xFF), 0)
+	# Explorer expects ARGB → normal RGB
+	$dword_Explorer = [BitConverter]::ToUInt32(@([byte]$r, [byte]$g, [byte]$b, 0xFF), 0)
 
-    # --- Personalization: dark/light mode ---
-    $personalizePath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-    $lightValue = if ($LightMode) { 1 } else { 0 }
-    Set-ItemProperty -Path $personalizePath -Name "AppsUseLightTheme" -Value $lightValue -Type DWord -Force
-    Set-ItemProperty -Path $personalizePath -Name "SystemUsesLightTheme" -Value $lightValue -Type DWord -Force
-    Set-ItemProperty -Path $personalizePath -Name "ColorPrevalence" -Value 1 -Type DWord -Force
+	# --- Personalization: dark/light mode ---
+	$personalizePath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+	$lightValue = if ($LightMode) { 1 } else { 0 }
+	Add-RegEntry -Path $personalizePath -Name "AppsUseLightTheme" -Value $lightValue -Type DWord -Force
+	Add-RegEntry -Path $personalizePath -Name "SystemUsesLightTheme" -Value $lightValue -Type DWord -Force
+	Add-RegEntry -Path $personalizePath -Name "ColorPrevalence" -Value 1 -Type DWord -Force
 
-    # --- DWM keys (ABGR) ---
-    $dwmPath = "HKCU:\SOFTWARE\Microsoft\Windows\DWM"
-    New-Item -Path $dwmPath -Force | Out-Null
-    Set-ItemProperty -Path $dwmPath -Name "AccentColor" -Value $dword_DWM -Type DWord -Force
-    Set-ItemProperty -Path $dwmPath -Name "ColorizationColor" -Value $dword_DWM -Type DWord -Force
-    Set-ItemProperty -Path $dwmPath -Name "ColorizationAfterglow" -Value $dword_DWM -Type DWord -Force
-    Set-ItemProperty -Path $dwmPath -Name "AccentColorInactive" -Value $dword_DWM -Type DWord -Force
-    Set-ItemProperty -Path $dwmPath -Name "EnableWindowColorization" -Value 1 -Type DWord -Force
-    Set-ItemProperty -Path $dwmPath -Name "ColorizationColorBalance" -Value 60 -Type DWord -Force
+	# --- DWM keys (ABGR) ---
+	$dwmPath = "HKCU:\SOFTWARE\Microsoft\Windows\DWM"
+	New-Item -Path $dwmPath -Force | Out-Null
+	Add-RegEntry -Path $dwmPath -Name "AccentColor" -Value $dword_DWM -Type DWord -Force
+	Add-RegEntry -Path $dwmPath -Name "ColorizationColor" -Value $dword_DWM -Type DWord -Force
+	Add-RegEntry -Path $dwmPath -Name "ColorizationAfterglow" -Value $dword_DWM -Type DWord -Force
+	Add-RegEntry -Path $dwmPath -Name "AccentColorInactive" -Value $dword_DWM -Type DWord -Force
+	Add-RegEntry -Path $dwmPath -Name "EnableWindowColorization" -Value 1 -Type DWord -Force
+	Add-RegEntry -Path $dwmPath -Name "ColorizationColorBalance" -Value 60 -Type DWord -Force
 
-    # --- Explorer keys (ARGB) ---
-    $accentPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Accent"
-    New-Item -Path $accentPath -Force | Out-Null
-    Set-ItemProperty -Path $accentPath -Name "AccentColor" -Value $dword_Explorer -Type DWord -Force
-    Set-ItemProperty -Path $accentPath -Name "AccentColorMenu" -Value $dword_Explorer -Type DWord -Force
-    Set-ItemProperty -Path $accentPath -Name "StartColorMenu" -Value $dword_Explorer -Type DWord -Force
-    Set-ItemProperty -Path $accentPath -Name "AccentColorInactive" -Value $dword_Explorer -Type DWord -Force
+	# --- Explorer keys (ARGB) ---
+	$accentPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Accent"
+	New-Item -Path $accentPath -Force | Out-Null
+	Add-RegEntry -Path $accentPath -Name "AccentColor" -Value $dword_Explorer -Type DWord -Force
+	Add-RegEntry -Path $accentPath -Name "AccentColorMenu" -Value $dword_Explorer -Type DWord -Force
+	Add-RegEntry -Path $accentPath -Name "StartColorMenu" -Value $dword_Explorer -Type DWord -Force
+	Add-RegEntry -Path $accentPath -Name "AccentColorInactive" -Value $dword_Explorer -Type DWord -Force
 
-    # --- AccentPalette (8 ARGB DWORDs) ---
-    $paletteList = New-Object System.Collections.Generic.List[byte]
-    for ($i=0; $i -lt 8; $i++) {
-        $bytes = [BitConverter]::GetBytes([UInt32]$dword_Explorer)
-        $paletteList.AddRange($bytes)
-    }
-    $paletteBytes = $paletteList.ToArray()
-    New-ItemProperty -Path $accentPath -Name "AccentPalette" -Value ([byte[]]$paletteBytes) -PropertyType Binary -Force | Out-Null
+	# --- AccentPalette (8 ARGB DWORDs) ---
+	$paletteList = New-Object System.Collections.Generic.List[byte]
+	for ($i = 0; $i -lt 8; $i++) {
+		$bytes = [BitConverter]::GetBytes([UInt32]$dword_Explorer)
+		$paletteList.AddRange($bytes)
+	}
+	$paletteBytes = $paletteList.ToArray()
+	Add-RegEntry -Path $accentPath -Name "AccentPalette" -Value ([byte[]]$paletteBytes) -PropertyType Binary -Force | Out-Null
 
-    # --- Control Panel legacy string ---
-    $cpPath = "HKCU:\Control Panel\Desktop\Colors"
-    New-Item -Path $cpPath -Force | Out-Null
-    $cpColors = "{0} {1} {2} 0 0 0 0 0 0" -f $r, $g, $b
-    Set-ItemProperty -Path $cpPath -Name "AccentColorMenu" -Value $cpColors -Type String -Force
+	# --- Control Panel legacy string ---
+	$cpPath = "HKCU:\Control Panel\Desktop\Colors"
+	New-Item -Path $cpPath -Force | Out-Null
+	$cpColors = "{0} {1} {2} 0 0 0 0 0 0" -f $r, $g, $b
+	Add-RegEntry -Path $cpPath -Name "AccentColorMenu" -Value $cpColors -Type String -Force
 
-    # --- Broadcast ImmersiveColorSet ---
-    Add-Type @"
+	# --- Broadcast ImmersiveColorSet ---
+	Add-Type 
+@"
 using System;
 using System.Runtime.InteropServices;
 public class User32 {
@@ -5083,23 +5175,23 @@ public class User32 {
 }
 "@
 
-    $HWND_BROADCAST = [intptr]0xffff
-    $WM_SETTINGCHANGE = 0x1A
-    [UIntPtr]$result = [UIntPtr]::Zero
-    try {
-        [void][User32]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, "ImmersiveColorSet", 2, 5000, [ref]$result)
-    } catch {Write-Warning "Error! $_"}
+	$HWND_BROADCAST = [intptr]0xffff
+	$WM_SETTINGCHANGE = 0x1A
+	[UIntPtr]$result = [UIntPtr]::Zero
+	try {
+		[void][User32]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, "ImmersiveColorSet", 2, 5000, [ref]$result)
+	} catch { Write-Warning "Error! $_" }
 
-    # --- Restart Explorer / Shell hosts unless NoRestart ---
-    if (-not $NoRestart) {
-        Restart-ExplorerSilently
-    }
+	# --- Restart Explorer / Shell hosts unless NoRestart ---
+	if (-not $NoRestart) {
+		Restart-ExplorerSilently
+	}
 
-    Write-Host "✓ Personalization applied" -ForegroundColor Green
-    Write-Host ("RGB (as seen in Settings): {0} {1} {2}" -f $r,$g,$b) -ForegroundColor Cyan
-    Write-Host ("DWM ABGR DWORD: 0x{0:X8}" -f $dword_DWM) -ForegroundColor Cyan
-    Write-Host ("Explorer ARGB DWORD: 0x{0:X8}" -f $dword_Explorer) -ForegroundColor Cyan
-    if ($NoRestart) { Write-Host "Note: Explorer/Shell restart skipped" -ForegroundColor Yellow }
+	Write-Host "✓ Personalization applied" -ForegroundColor Green
+	Write-Host ("RGB (as seen in Settings): {0} {1} {2}" -f $r, $g, $b) -ForegroundColor Cyan
+	Write-Host ("DWM ABGR DWORD: 0x{0:X8}" -f $dword_DWM) -ForegroundColor Cyan
+	Write-Host ("Explorer ARGB DWORD: 0x{0:X8}" -f $dword_Explorer) -ForegroundColor Cyan
+	if ($NoRestart) { Write-Host "Note: Explorer/Shell restart skipped" -ForegroundColor Yellow }
 }
 
 # ==================================================================================
@@ -5667,3 +5759,4 @@ function Update-MSStoreApps {
 	-ctrlControlType "Button"
 	return
 }
+
