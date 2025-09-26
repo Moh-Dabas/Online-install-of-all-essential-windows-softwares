@@ -4252,17 +4252,22 @@ function ActOffice {
 	$Url = "https://git.activated.win/massgrave/Microsoft-Activation-Scripts/raw/branch/master/MAS/All-In-One-Version-KL/MAS_AIO.cmd"
 	$Path = "$env:ALLUSERSPROFILE\ACT.cmd"
 	Start-BitsTransfer -Source $Url -Destination $Path
-	Start-Sleep -Seconds 1
-	Start-Process -FilePath $Path -ArgumentList '/K-Office', '/K-NoRenewalTask' -Verb RunAs -Wait
-	Start-Sleep -Seconds 1
-	Start-Process -FilePath $Path -ArgumentList '/Z-Office' -Verb RunAs -Wait
-	Start-Sleep -Seconds 1
-	Remove-Item $Path -Force
+	# Ohook activation
+	Start-Process -FilePath $Path -ArgumentList '/Ohook' -Verb RunAs -Wait
+	# Ts-fogerd activation
+	Start-Process -FilePath $Path -ArgumentList '/Z-Reset' -Verb RunAs -Wait
+	Start-Process -FilePath $Path -ArgumentList '/Z-Office /Z-KMS4k' -Verb RunAs -Wait
 	$Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs"; $Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
 	if (Test-Path -Path $Officeospp64 -EA SilentlyContinue) { $officeospp = $Officeospp64 } elseif (Test-Path -Path $Officeospp32 -EA SilentlyContinue) { $officeospp = $Officeospp32 } else { Write-Host -f C "Office16 ospp.vbs not found"; return }
 	$LicenseStatus = cscript $officeospp /dstatus | Where-Object { ($_ -like "*LICENSE STATUS:*") -and ($_ -like "*LICENSED*") }
-	if ($LicenseStatus) { Write-Host -f Green "Successfully activated Office.`r`nFull activation details below`r`n" } else { Write-Host -f Green "Office Activation Failed" }
+	if ($LicenseStatus) { Write-Host -f Green "Successfully activated Office using Ts-forge.`r`nFull activation details below`r`n" } else {
+		Write-Host -f Green "Office Activation using ts-forged Failed. `nTrying KMS Activation..."
+		Start-Process -FilePath $Path -ArgumentList '/K-Office' -Verb RunAs -Wait
+		$LicenseStatus = cscript $officeospp /dstatus | Where-Object { ($_ -like "*LICENSE STATUS:*") -and ($_ -like "*LICENSED*") }
+		if ($LicenseStatus) { Write-Host -f Green "Successfully activated Office using KMS.`r`nFull activation details below`r`n" } else { Write-Host "Failed to activate office" -f red}
+	}
 	cscript $officeospp /dstatus
+	Remove-Item $Path -Force
 	return
 }
 
@@ -4270,7 +4275,7 @@ function Config-Office {
 	# -----------------------------
 	# Office Application Settings
 	# -----------------------------
-	# Disable automatic updates (user wonâ€™t get updates)
+	# Disable automatic updates (user wont get updates)
 	Add-RegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'EnableAutomaticUpdates' '0' 'DWord'
 	# Hide update-related options in the UI (user cannot enable updates manually)
 	Add-RegEntry 'HKCU:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\OfficeUpdate' 'HideEnableDisableUpdates' '1' 'DWord'
