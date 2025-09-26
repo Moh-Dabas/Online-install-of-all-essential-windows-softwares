@@ -4256,6 +4256,7 @@ function ActOffice {
 	Start-Process -FilePath $Path -ArgumentList '/K-Office', '/K-NoRenewalTask' -Verb RunAs -Wait
 	Start-Sleep -Seconds 1
 	Start-Process -FilePath $Path -ArgumentList '/Z-Office' -Verb RunAs -Wait
+	Start-Sleep -Seconds 1
 	Remove-Item $Path -Force
 	$Officeospp64 = "$Env:Programfiles\Microsoft Office\Office16\ospp.vbs"; $Officeospp32 = "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
 	if (Test-Path -Path $Officeospp64 -EA SilentlyContinue) { $officeospp = $Officeospp64 } elseif (Test-Path -Path $Officeospp32 -EA SilentlyContinue) { $officeospp = $Officeospp32 } else { Write-Host -f C "Office16 ospp.vbs not found"; return }
@@ -4476,9 +4477,9 @@ function Config-Office {
 
 function Deploy-Office {
 	Write-Host -f C "`r`n *** Downloading & extracting Office Deployment Tool *** `r`n"
-	for ($i = 1; $i -le 50; $i++) {
-		$webpage2 = Repeatiwr -uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
-		$FileLink = $webpage2.Links | Where-Object href -Like '*officedeploymenttool*exe' | select -Last 1 -expand href
+	for ($i = 1; $i -le 10; $i++) {
+		$webpage = Repeatiwr -uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
+		$FileLink = $webpage.Links | Where-Object href -Like '*officedeploymenttool*exe' | select -Last 1 -expand href
 		if ($Filelink -ne $null) { break }
 	}
 	if ($Filelink -ne $null) { Invoke-WebRequest -Uri $FileLink -OutFile "$env:TEMP\IA\office\officedeploymenttool.exe" }
@@ -4486,8 +4487,15 @@ function Deploy-Office {
 	Write-Host -f C "`r`n *** Installing Office ... *** `r`n"
 	if (Test-Path -Path "$env:TEMP\IA\office\setup.exe" -EA SilentlyContinue) {
 		Start-Process -WindowStyle Minimized -Wait -FilePath "$env:TEMP\IA\office\setup.exe" -ArgumentList "/configure", "$env:TEMP\IA\office\configuration.xml" -EA SilentlyContinue | Out-Null
-		Start-Sleep -Seconds 2
+		$counter = 0 # Check to protect against early return before the setup completion
+		while ($counter -lt 30) {
+			$process = Get-Process -Name "setup" -ErrorAction SilentlyContinue
+			if (!$process) {break}
+			Start-Sleep -Seconds 1
+			$counter++
+		}
 	} else { Write-Host -f C "`r`n Failed to download & extract Office Deployment Tool" }
+	return
 }
 
 function configurationFile21PP {
