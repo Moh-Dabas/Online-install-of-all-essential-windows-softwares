@@ -429,8 +429,7 @@ function Fix-InternetConnection {
 function Invoke-WiFiScan {
 	param([string]$InterfaceName)
 
-	$wlanApi =
-	@"
+	$wlanApi = @"
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
@@ -2263,8 +2262,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 	$acroProPath = Get-AcrobatProPath
 	if ($acroProPath) {
 		try {
-			$xmlContent =
-			@"
+			$xmlContent = @"
 <?xml version="1.0" encoding="UTF-8"?>
 <DefaultAssociations>
     <Association Identifier=".pdf" ProgId="AcroExch.Document.DC" ApplicationName="Adobe Acrobat Pro DC" />
@@ -2293,8 +2291,7 @@ function Fix-AdobeAcrobatProPdfThumbnails {
 }
 
 function Refresh-Desktop {
-	Add-Type -TypeDefinition
-	@"
+	Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 
@@ -2595,8 +2592,7 @@ function Invoke-ShellAssocChanged {
         awareness of file type/handler changes without requiring logout/reboot.
     #>
 
-	Add-Type
-	@"
+	Add-Type @"
     using System;
     using System.Runtime.InteropServices;
 
@@ -3913,8 +3909,7 @@ function Adj-Hosts {
 	Write-Host -f C "======================================================================================================================`r`n"
 	Write-Host -f C "`r`n Taking ownership of hosts file"
 	AdminTakeownership -Path "$env:SystemRoot\System32\drivers\etc\hosts"
-	$HostsFile =
-	@"
+	$HostsFile = @"
 #<localhost>
 127.0.0.1 localhost
 127.0.0.1 localhost.localdomain
@@ -4505,8 +4500,7 @@ function Deploy-Office {
 }
 
 function configurationFile21PP {
-	$ConfigurationFile =
-	@"
+	$ConfigurationFile = @"
 <Configuration ID="d66f0ad9-6e2f-47dc-a4fe-de1b73dfddff">
 <Add OfficeClientEdition="64" Channel="PerpetualVL2021">
 <Product ID="ProPlus2021Volume" PIDKEY="FXYTK-NJJ8C-GB6DW-3DYQT-6F7TH">
@@ -4553,8 +4547,7 @@ function configurationFile21PP {
 }
 
 function configurationFile24PP {
-	$ConfigurationFile =
-	@"
+	$ConfigurationFile = @"
 <Configuration ID="0ba18fea-354d-4d3a-bb5f-b5c04d3eca9d">
 <Add OfficeClientEdition="64" Channel="PerpetualVL2024">
 <Product ID="ProPlus2024Volume" PIDKEY="XJ2XN-FW8RK-P4HMP-DKDBV-GCVGB">
@@ -4731,8 +4724,7 @@ function Create-RLMCopyShortcut {
 	$iconPath = Join-Path $env:SystemRoot "System32\imageres.dll"
 
 	# 2. Create the VBScript
-	$vbsContent =
-	@"
+	$vbsContent = @"
 Set objShell = CreateObject("Wscript.Shell")
 ' Run PowerShell silently to copy RLM to clipboard
 objShell.Run "powershell.exe -NoProfile -Command Set-Clipboard ([char]0x200F);exit", 0, False
@@ -4780,8 +4772,7 @@ function Pin-to-taskbar {
 	# also choose whether to keep the previous pins or to remove them by setting Replace
 	# or use-ClearAll to remove all pins without adding any ie: Pin-to-taskbar -ClearAll
 	# All other parameters are useless when using -ClearAll as it will just clear all pins anyway so you should use for that> Pin-to-taskbar -ClearAll
-	$taskbar_layout1 =
-	@"
+	$taskbar_layout1 = @"
 <?xml version="1.0" encoding="utf-8"?>
 <LayoutModificationTemplate
 xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification"
@@ -4792,8 +4783,7 @@ Version="1">
 
 "@
 	if ($Replace -or $ClearAll) { $Placement = '<CustomTaskbarLayoutCollection PinListPlacement="Replace">' } else { $Placement = '<CustomTaskbarLayoutCollection>' }
-	$taskbar_layout2 =
-	@"
+	$taskbar_layout2 = @"
 
 <defaultlayout:TaskbarLayout>
 <taskbar:TaskbarPinList>
@@ -4808,8 +4798,7 @@ Version="1">
 			"DesktopApplicationLinkPath" { $pin = '<taskbar:DesktopApp DesktopApplicationLinkPath="' + $IDorPath + '" />' }
 		}
 	}
-	$taskbar_layout3 =
-	@"
+	$taskbar_layout3 = @"
 
 </taskbar:TaskbarPinList>
 </defaultlayout:TaskbarLayout>
@@ -5177,8 +5166,7 @@ function Set-Personalization {
 	Add-RegEntry -Path $cpPath -Name "AccentColorMenu" -Value $cpColors -Type String -Force
 
 	# --- Broadcast ImmersiveColorSet ---
-	Add-Type
-		@"
+	Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class User32 {
@@ -5213,8 +5201,7 @@ public class User32 {
 # - Return an object with [UIA WindowElement, handle, title, Class Name, Control Type & Automation Id] of the current Foreground Window
 # ==================================================================================
 function Get-ForegroundWindow {
-	Add-Type -TypeDefinition
-		@"
+	Add-Type -TypeDefinition @"
     using System;
     using System.Runtime.InteropServices;
     public class Win32 {
