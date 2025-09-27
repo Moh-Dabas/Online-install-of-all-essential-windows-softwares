@@ -2718,9 +2718,10 @@ function Ins-AcrobatPro {
 	#Set-MpPreference -DisableRealtimeMonitoring $false
 	Write-Host -f C "`r`n *** Installing Adobe Acrobat Pro DC *** `r`n"
 	Disable-DefenderRealtimeProtection
-	# Acrobat 2024 https://drive.google.com/file/d/10R43n4peqwLJJBIoR8PxMOIcRbrlvDNb/view
-	# Acrobat 2025 https://drive.google.com/file/d/1dvAq0k6JRtSOOXiR4hhkfva_OuxSzYbf/view
-	$DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/1dvAq0k6JRtSOOXiR4hhkfva_OuxSzYbf/view" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
+	# Acrobat 2025
+	$URL = "https://drive.google.com/file/d/173Ck-8lXon9LnjhQb8viROIcWY-YHcXn/view"
+	$Key = "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
+	$DDURL = Convert-GoogleDriveUrl -URL $URL -Key $Key
 	if ($DDURL) { Write-Host "Downloading...";Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -EA SilentlyContinue | Out-Null }
 	Start-Job -Name AcrobatPro { if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue | Out-Null } } | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name, State
 	# Thumbnail image handler (IThumbnailProvider)
