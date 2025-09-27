@@ -40,7 +40,6 @@ function Relaunch {
 	}
 
 	$parentProcess | Stop-Process
-
 	exit
 }
 
@@ -166,122 +165,122 @@ function Remove-RegEntry {
 }
 
 function Invoke-ReliableHttpClient {
-    param (
-        [string]$Uri,
-        [int]$MaxRetries = 5,
-        [int]$TimeoutSec = 15
-    )
+	param (
+		[string]$Uri,
+		[int]$MaxRetries = 5,
+		[int]$TimeoutSec = 15
+	)
 
-    Add-Type -AssemblyName System.Net.Http
+	Add-Type -AssemblyName System.Net.Http
 
-    $Handler = New-Object System.Net.Http.HttpClientHandler
-    $Client  = New-Object System.Net.Http.HttpClient($Handler)
-    $Client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
+	$Handler = New-Object System.Net.Http.HttpClientHandler
+	$Client = New-Object System.Net.Http.HttpClient($Handler)
+	$Client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
 
-    for ($i = 1; $i -le $MaxRetries; $i++) {
-        try {
-            $Response = $Client.GetAsync($Uri).Result
-            if ($Response.IsSuccessStatusCode) {
-                $Html = $Response.Content.ReadAsStringAsync().Result
+	for ($i = 1; $i -le $MaxRetries; $i++) {
+		try {
+			$Response = $Client.GetAsync($Uri).Result
+			if ($Response.IsSuccessStatusCode) {
+				$Html = $Response.Content.ReadAsStringAsync().Result
 
-                # --- Try to load HtmlAgilityPack ---
-                $HAPLoaded = $false
-                try {
-                    if (-not ("HtmlAgilityPack.HtmlDocument" -as [type])) {
-                        try {
-                            # Try NuGet install (if available)
-                            Install-Package -Name HtmlAgilityPack -Force -Scope CurrentUser -ProviderName NuGet -ErrorAction Stop | Out-Null
-                        } catch {
-                            Write-Verbose "HtmlAgilityPack NuGet install failed: $($_.Exception.Message)"
-                        }
+				# --- Try to load HtmlAgilityPack ---
+				$HAPLoaded = $false
+				try {
+					if (-not ("HtmlAgilityPack.HtmlDocument" -as [type])) {
+						try {
+							# Try NuGet install (if available)
+							Install-Package -Name HtmlAgilityPack -Force -Scope CurrentUser -ProviderName NuGet -ErrorAction Stop | Out-Null
+						} catch {
+							Write-Verbose "HtmlAgilityPack NuGet install failed: $($_.Exception.Message)"
+						}
 
-                        # Try loading from local NuGet cache
-                        $DllPath = Get-ChildItem -Path "$env:USERPROFILE\.nuget\packages\htmlagilitypack\" -Recurse -Filter "HtmlAgilityPack.dll" -ErrorAction SilentlyContinue |
-                                   Sort-Object LastWriteTime -Descending |
-                                   Select-Object -First 1 -ExpandProperty FullName
+						# Try loading from local NuGet cache
+						$DllPath = Get-ChildItem -Path "$env:USERPROFILE\.nuget\packages\htmlagilitypack\" -Recurse -Filter "HtmlAgilityPack.dll" -ErrorAction SilentlyContinue |
+						Sort-Object LastWriteTime -Descending |
+						Select-Object -First 1 -ExpandProperty FullName
 
-                        if ($DllPath) {
-                            Add-Type -Path $DllPath
-                        }
-                    }
+						if ($DllPath) {
+							Add-Type -Path $DllPath
+						}
+					}
 
-                    if ("HtmlAgilityPack.HtmlDocument" -as [type]) {
-                        $Doc = New-Object HtmlAgilityPack.HtmlDocument
-                        $Doc.LoadHtml($Html)
-                        $Links = foreach ($node in $Doc.DocumentNode.SelectNodes("//a[@href]")) {
-                            [PSCustomObject]@{
-                                href      = $node.GetAttributeValue("href", "")
-                                innerText = $node.InnerText.Trim()
-                            }
-                        }
-                        $HAPLoaded = $true
-                    }
-                } catch {
-                    Write-Verbose "HtmlAgilityPack load failed, will fallback to regex"
-                }
+					if ("HtmlAgilityPack.HtmlDocument" -as [type]) {
+						$Doc = New-Object HtmlAgilityPack.HtmlDocument
+						$Doc.LoadHtml($Html)
+						$Links = foreach ($node in $Doc.DocumentNode.SelectNodes("//a[@href]")) {
+							[PSCustomObject]@{
+								href      = $node.GetAttributeValue("href", "")
+								innerText = $node.InnerText.Trim()
+							}
+						}
+						$HAPLoaded = $true
+					}
+				} catch {
+					Write-Verbose "HtmlAgilityPack load failed, will fallback to regex"
+				}
 
-                # --- Fallback: regex link extraction ---
-                if (-not $HAPLoaded) {
-                    $Links = [regex]::Matches($Html, '<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>') |
-                        ForEach-Object {
-                            [PSCustomObject]@{
-                                href      = $_.Groups[1].Value
-                                innerText = ($_.Groups[2].Value -replace '\s+', ' ').Trim()
-                            }
-                        }
-                }
+				# --- Fallback: regex link extraction ---
+				if (-not $HAPLoaded) {
+					$Links = [regex]::Matches($Html, '<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>') |
+					ForEach-Object {
+						[PSCustomObject]@{
+							href      = $_.Groups[1].Value
+							innerText = ($_.Groups[2].Value -replace '\s+', ' ').Trim()
+						}
+					}
+				}
 
-                return [PSCustomObject]@{
-                    Content = $Html
-                    Links   = $Links
-                }
-            }
-        } catch {
-            Write-Verbose "Attempt $i failed: $($_.Exception.Message)"
-        }
+				return [PSCustomObject]@{
+					Content = $Html
+					Links   = $Links
+				}
+			}
+		} catch {
+			Write-Verbose "Attempt $i failed: $($_.Exception.Message)"
+		}
 
-        if ($i -lt $MaxRetries) {
-            Start-Sleep -Seconds ([Math]::Pow(2, $i)) # exponential backoff
-        }
-    }
+		if ($i -lt $MaxRetries) {
+			Start-Sleep -Seconds ([Math]::Pow(2, $i)) # exponential backoff
+		}
+	}
 
-    throw "Failed to get $Uri after $MaxRetries attempts."
+	throw "Failed to get $Uri after $MaxRetries attempts."
 }
 
 function Invoke-ReliableWebRequest {
-    param (
-        [Parameter(Mandatory)]
-        [string]$Uri,
+	param (
+		[Parameter(Mandatory)]
+		[string]$Uri,
 
-        [int]$MaxRetries = 10,
+		[int]$MaxRetries = 10,
 
-        [int]$InitialDelaySeconds = 1
-    )
+		[int]$InitialDelaySeconds = 1
+	)
 
-    $Delay = $InitialDelaySeconds
-    for ($i = 1; $i -le $MaxRetries; $i++) {
-        try {
-            $Response = Invoke-WebRequest -Uri $Uri -UseBasicParsing -ErrorAction Stop
-            if ($Response.StatusCode -eq 200) {
-                return $Response
-            }
-        } catch {
-            if ($_.Exception.Response) {
-                $StatusCode = $_.Exception.Response.StatusCode.value__
-                $Description = $_.Exception.Response.StatusDescription
-                Write-Verbose "Attempt $i failed: [$StatusCode] $Description"
-            } else {
-                Write-Verbose "Attempt $i failed: $($_.Exception.Message)"
-            }
-        }
+	$Delay = $InitialDelaySeconds
+	for ($i = 1; $i -le $MaxRetries; $i++) {
+		try {
+			$Response = Invoke-WebRequest -Uri $Uri -UseBasicParsing -ErrorAction Stop
+			if ($Response.StatusCode -eq 200) {
+				return $Response
+			}
+		} catch {
+			if ($_.Exception.Response) {
+				$StatusCode = $_.Exception.Response.StatusCode.value__
+				$Description = $_.Exception.Response.StatusDescription
+				Write-Verbose "Attempt $i failed: [$StatusCode] $Description"
+			} else {
+				Write-Verbose "Attempt $i failed: $($_.Exception.Message)"
+			}
+		}
 
-        if ($i -lt $MaxRetries) {
-            Start-Sleep -Seconds $Delay
-            $Delay *= 2  # exponential backoff
-        }
-    }
+		if ($i -lt $MaxRetries) {
+			Start-Sleep -Seconds $Delay
+			$Delay *= 2  # exponential backoff
+		}
+	}
 
-    throw "Failed to get $Uri after $MaxRetries attempts."
+	throw "Failed to get $Uri after $MaxRetries attempts."
 }
 
 function AdminTakeownership {
@@ -1200,37 +1199,37 @@ function Ins-Scoop-git {
 }
 
 function Test-MicrosoftFileUrl {
-    param(
-        [string]$Url,
-        [int]$TimeoutSec = 15
-    )
+	param(
+		[string]$Url,
+		[int]$TimeoutSec = 15
+	)
 
-    Add-Type -AssemblyName System.Net.Http
+	Add-Type -AssemblyName System.Net.Http
 
-    $Handler = New-Object System.Net.Http.HttpClientHandler
-    $Handler.AllowAutoRedirect = $true   # follow redirects
+	$Handler = New-Object System.Net.Http.HttpClientHandler
+	$Handler.AllowAutoRedirect = $true   # follow redirects
 
-    $Client = New-Object System.Net.Http.HttpClient($Handler)
-    $Client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
+	$Client = New-Object System.Net.Http.HttpClient($Handler)
+	$Client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
 
-    try {
-        # Use GET but only read headers (no full download)
-        $Response = $Client.GetAsync($Url, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
+	try {
+		# Use GET but only read headers (no full download)
+		$Response = $Client.GetAsync($Url, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).Result
 
-        $FinalUrl = $Response.RequestMessage.RequestUri.AbsoluteUri
-        $Status   = [int]$Response.StatusCode
+		$FinalUrl = $Response.RequestMessage.RequestUri.AbsoluteUri
+		$Status = [int]$Response.StatusCode
 
-        if ($Status -eq 200 -and $FinalUrl.StartsWith("https://download.microsoft.com")) {
-            return $true
-        } else {
-            return $false
-        }
-    } catch {
-        return $false
-    } finally {
-        $Client.Dispose()
-        $Handler.Dispose()
-    }
+		if ($Status -eq 200 -and $FinalUrl.StartsWith("https://download.microsoft.com")) {
+			return $true
+		} else {
+			return $false
+		}
+	} catch {
+		return $false
+	} finally {
+		$Client.Dispose()
+		$Handler.Dispose()
+	}
 }
 
 function Install-UpdateVCLibs {
@@ -2221,10 +2220,15 @@ function Unins-Acrobat {
 	winget uninstall -e --id "Adobe.Acrobat.Reader.64-bit"
 	winget uninstall -e --id "Adobe.Acrobat.Pro"
 	Write-Host -f C "`r`n *** Removing All Acrobat left overs *** `r`n"
-	$DDURL = Convert-GoogleDriveUrl -URL "https://drive.google.com/file/d/16etkp4rCcon2NyGGh0oYSocHhB_054cm" -Key "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
-	if ($DDURL) { Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcroCleaner.exe"  -EA SilentlyContinue | Out-Null }
-	if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent", "/product=0", "/cleanlevel=1" -EA SilentlyContinue | Out-Null }
-	if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent", "/product=1", "/cleanlevel=1" -EA SilentlyContinue | Out-Null }
+	$Url = "https://drive.google.com/file/d/16etkp4rCcon2NyGGh0oYSocHhB_054cm"
+	$Key = "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
+	$Destination = "$env:TEMP\AdobeAcroCleaner.exe"
+	$DDURL = Convert-GoogleDriveUrl -URL $Url -Key $Key
+	if ($DDURL) { Start-BitsTransfer -Source $DDURL -Destination $Destination -EA SilentlyContinue | Out-Null }
+	if (Test-Path -Path "$env:TEMP\AdobeAcroCleaner.exe" -EA SilentlyContinue) {
+		Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent", "/product=0", "/cleanlevel=1" -EA SilentlyContinue | Out-Null
+		Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcroCleaner.exe" -ArgumentList "/silent", "/product=1", "/cleanlevel=1" -EA SilentlyContinue | Out-Null
+	}
 	return
 }
 
@@ -2722,7 +2726,7 @@ function Ins-AcrobatPro {
 	$URL = "https://drive.google.com/file/d/173Ck-8lXon9LnjhQb8viROIcWY-YHcXn/view"
 	$Key = "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
 	$DDURL = Convert-GoogleDriveUrl -URL $URL -Key $Key
-	if ($DDURL) { Write-Host "Downloading...";Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -EA SilentlyContinue | Out-Null }
+	if ($DDURL) { Write-Host "Downloading..."; Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -EA SilentlyContinue | Out-Null }
 	Start-Job -Name AcrobatPro { if (Test-Path -Path "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue) { Start-Process -Wait -Verb RunAs -FilePath "$env:TEMP\AdobeAcrobatProDCx64.exe" -EA SilentlyContinue | Out-Null } } | Wait-Job -Timeout 400 | Format-Table -Wrap -AutoSize -Property Name, State
 	# Thumbnail image handler (IThumbnailProvider)
 	Add-RegEntry 'HKCR:\.pdf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}' "(default)" "{F9DB5320-233E-11D1-9F84-707F02C10627}" 'String'
@@ -3205,38 +3209,6 @@ function Tweak-schtasks {
 
 function Registry-Tweaks {
 	Write-Host -f C "`r`n *** Applying Registry Tweaks *** `r`n"
-
-	# ===============================
-	# DESKTOP ICONS & LAYOUT
-	# ===============================
-
-	Add-RegEntry "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" "Sort" "0x40000002" 'DWord'
-	# Desktop icon sort order. 0x40000002 = sort by Name (ascending).
-
-	$sortBinary = [byte[]] (0x02, 0x00, 0x00, 0x40)
-	Add-RegEntry -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "Sort" -Value $sortBinary -Type Binary
-	# Same as above in binary form (02 00 00 40 = Name ascending).
-
-	Add-RegEntry "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" "FFlags" "0x40200225" 'DWord'
-	# Desktop view flags (auto-arrange/align/show icons etc.). Composite flag value.
-
-	Add-RegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" '1' 'DWord'
-	# Hide Microsoft Edge desktop icon (CLSID).
-
-	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{018D5C66-4533-4307-9B53-224DE2ED1FE6}" '1' 'DWord'
-	# Hide OneDrive icon on desktop (CLSID). 0=show, 1=hide.
-
-	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{59031a47-3f72-44a7-89c5-5595fe6b30ee}" '0' 'DWord'
-	# Show "User Files" (profile) icon on desktop.
-
-	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{20D04FE0-3AEA-1069-A2D8-08002B30309D}" '0' 'DWord'
-	# Show "This PC" icon on desktop.
-
-	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}" '0' 'DWord'
-	# Show "Network" icon on desktop.
-
-	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}" '0' 'DWord'
-	# Show "Control Panel" icon on desktop.
 
 	# ===============================
 	# SMARTSCREEN & REPUTATION-BASED PROTECTION
@@ -4311,10 +4283,10 @@ function Uninstall-MicrosoftOffice {
 		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
 		"HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
 	)
-		
+
 	# Find all Microsoft Office installations
 	$officePrograms = Get-ItemProperty $uninstallPaths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*Microsoft Office*" }
-	
+
 	if (-not $officePrograms) {
 		Write-Host "No Microsoft Office installations found."
 		return
@@ -5021,7 +4993,7 @@ function Change_computer_name {
 	# Create the form
 	$form = New-Object System.Windows.Forms.Form
 	$form.Text = "Change Computer Name"
-	$form.Size = New-Object System.Drawing.Size(400, 220)
+	$form.Size = New-Object System.Drawing.Size(400, 240)
 	$form.StartPosition = "CenterScreen"
 
 	# Label - Current Computer Name
@@ -5071,6 +5043,60 @@ function Change_computer_name {
 		}
 	})
 	$form.Controls.Add($buttonRestart)
+
+	# Countdown label
+	$countdownLabel = New-Object System.Windows.Forms.Label
+	$countdownLabel.Text = "Form will auto-close in 2:00"
+	$countdownLabel.Location = New-Object System.Drawing.Point(10, 160)
+	$countdownLabel.Size = New-Object System.Drawing.Size(360, 20)
+	$countdownLabel.TextAlign = "MiddleCenter"
+	$countdownLabel.ForeColor = "Red"
+	$form.Controls.Add($countdownLabel)
+
+	# Use a background job for the countdown to avoid freezing
+	$countdown = 120 # 2 minutes in seconds
+	$timerJob = Start-Job -ScriptBlock {
+		param($seconds)
+		for ($i = $seconds; $i -gt 0; $i--) {
+			Start-Sleep -Seconds 1
+			$i # Output the current countdown value
+		}
+		0 # Output 0 when done
+	} -ArgumentList $countdown
+
+	# Timer to check the background job status
+	$timer = New-Object System.Windows.Forms.Timer
+	$timer.Interval = 500 # Check every 500ms
+	$timer.Add_Tick({
+		if ($timerJob.State -eq "Completed") {
+			$result = Receive-Job -Job $timerJob
+			if ($result -contains 0) {
+				$timer.Stop()
+				Remove-Job -Job $timerJob -Force
+				$form.Close()
+			}
+		}
+
+		# Update countdown display (non-blocking)
+		if ($timerJob.HasMoreData) {
+			$currentTime = Receive-Job -Job $timerJob -Keep:$true | Where-Object { $_ -gt 0 } | Select-Object -Last 1
+			if ($currentTime -gt 0) {
+				$minutes = [math]::Floor($currentTime / 60)
+				$seconds = $currentTime % 60
+				$countdownLabel.Text = "Form will auto-close in {0}:{1:D2}" -f $minutes, $seconds
+			}
+		}
+	})
+	$timer.Start()
+
+	# Clean up when form closes
+	$form.Add_FormClosed({
+		$timer.Stop()
+		$timer.Dispose()
+		if ($timerJob.State -ne "Completed") {
+			Remove-Job -Job $timerJob -Force
+		}
+	})
 
 	# Show the form
 	[void]$form.ShowDialog()
@@ -5205,6 +5231,80 @@ function Uninstall-Programs {
 	return $true
 }
 
+function WinWallpaper {
+	Write-Host -f C "`r`n *** Downloading Windows wallpaper *** `r`n"
+	$Url = "https://drive.google.com/file/d/1tXMic2gKgrwhYDF29Ne9JcN0XbiBvvZw/view?usp=sharing"
+	$Key = "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
+	$Destination = "$env:ALLUSERSPROFILE\pxfuel.jpg"
+	$DDURL = Convert-GoogleDriveUrl -URL $Url -Key $Key
+	if ($DDURL) { Start-BitsTransfer -Source $DDURL -Destination $Destination -EA SilentlyContinue | Out-Null }
+	if (Test-Path -Path $Destination -EA SilentlyContinue) {
+		Write-Host "Setting Wallpaper as desktop background"
+		Set-Wallpaper -ImagePath $Destination -Style "Fill"
+	} else { Write-Host "Failed to download wallpaper file!" -f red }
+	return
+}
+
+function Set-Wallpaper {
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$ImagePath,
+		[ValidateSet('Fill', 'Fit', 'Stretch', 'Tile', 'Center', 'Span')]
+		[string]$Style = 'Fill'
+	)
+
+	Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using Microsoft.Win32;
+public class Wallpaper {
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+
+    public static void SetWallpaper(string path, string style) {
+        SystemParametersInfo(0x0014, 0, path, 0x01 | 0x02);
+
+        // Set wallpaper style
+        RegistryKey key = Registry.CurrentUser.OpenSubKey("Control Panel\\Desktop", true);
+
+        switch(style) {
+            case "Fill":
+                key.SetValue(@"WallpaperStyle", "10");
+                key.SetValue(@"TileWallpaper", "0");
+                break;
+            case "Fit":
+                key.SetValue(@"WallpaperStyle", "6");
+                key.SetValue(@"TileWallpaper", "0");
+                break;
+            case "Stretch":
+                key.SetValue(@"WallpaperStyle", "2");
+                key.SetValue(@"TileWallpaper", "0");
+                break;
+            case "Tile":
+                key.SetValue(@"WallpaperStyle", "0");
+                key.SetValue(@"TileWallpaper", "1");
+                break;
+            case "Center":
+                key.SetValue(@"WallpaperStyle", "0");
+                key.SetValue(@"TileWallpaper", "0");
+                break;
+            case "Span":
+                key.SetValue(@"WallpaperStyle", "22");
+                key.SetValue(@"TileWallpaper", "0");
+                break;
+        }
+
+        key.Close();
+
+        // Refresh desktop
+        SystemParametersInfo(0x0014, 0, path, 0x01 | 0x02);
+    }
+}
+"@
+
+	[Wallpaper]::SetWallpaper($ImagePath, $Style)
+}
+
 function Set-Personalization {
 	[CmdletBinding()]
 	param(
@@ -5214,6 +5314,38 @@ function Set-Personalization {
 		[switch]$LightMode,                    # optional: enable light mode if set
 		[switch]$NoRestart                     # optional: don't restart Explorer/ShellExperienceHost
 	)
+
+	# ===============================
+	# DESKTOP ICONS & LAYOUT
+	# ===============================
+
+	Add-RegEntry "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" "Sort" "0x40000002" 'DWord'
+	# Desktop icon sort order. 0x40000002 = sort by Name (ascending).
+
+	$sortBinary = [byte[]] (0x02, 0x00, 0x00, 0x40)
+	Add-RegEntry -Path "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" -Name "Sort" -Value $sortBinary -Type Binary
+	# Same as above in binary form (02 00 00 40 = Name ascending).
+
+	Add-RegEntry "HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop" "FFlags" "0x40200225" 'DWord'
+	# Desktop view flags (auto-arrange/align/show icons etc.). Composite flag value.
+
+	Add-RegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" '1' 'DWord'
+	# Hide Microsoft Edge desktop icon (CLSID).
+
+	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{018D5C66-4533-4307-9B53-224DE2ED1FE6}" '1' 'DWord'
+	# Hide OneDrive icon on desktop (CLSID). 0=show, 1=hide.
+
+	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{59031a47-3f72-44a7-89c5-5595fe6b30ee}" '0' 'DWord'
+	# Show "User Files" (profile) icon on desktop.
+
+	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{20D04FE0-3AEA-1069-A2D8-08002B30309D}" '0' 'DWord'
+	# Show "This PC" icon on desktop.
+
+	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}" '0' 'DWord'
+	# Show "Network" icon on desktop.
+
+	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}" '0' 'DWord'
+	# Show "Control Panel" icon on desktop.
 
 	# --- parse input ---
 	if ($AccentColor -match '^#?[0-9A-Fa-f]{6}$') {
@@ -5400,7 +5532,7 @@ function Invoke-UIControl {
 		[int]$Delay = 2000,				  				# Delay after finding the window for initialization (Milliseconds)
 		[int]$Timeout = 10000,			  				# How long to keep searching for the window (Milliseconds)
 
-		# Decide the job you want to do (Default single Ctrl Click)
+		# Decide the job you want to do (Default is Click/invoke the control)
 		[switch]$ListWindows,							# Returns a list of all Open windows found and thier properties
 		[switch]$ListControls,			  				# Returns a list of all controls found on the target window and thier properties
 		[switch]$CheckWindow,			  				# Returns $true/$false if Window exists
@@ -5423,7 +5555,7 @@ function Invoke-UIControl {
 	}
 
 	# ----------------------------------------------------------------
-	# Section 2: List Windows: Shows a list of all Open windows found and thier properties
+	# Section 2: List Windows: Shows a list of all Open windows found and their properties
 	# ----------------------------------------------------------------
 	# root: Windows Desktop
 	$root = [System.Windows.Automation.AutomationElement]::RootElement
@@ -5871,5 +6003,6 @@ function Update-MSStoreApps {
 	-ctrlControlType "Button"
 	return
 }
+
 
 

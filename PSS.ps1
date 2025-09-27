@@ -1,19 +1,29 @@
 ﻿# Main commands
 
+$global:ScriptDebug = $true
+
 # Get Caller CMD
 param($RecievedCmdfullPath)
 $global:GRCmdfullPath = $RecievedCmdfullPath
 $SetCmdfullPath = $env:CALLER_SCRIPT
 $global:GSCmdfullPath = $SetCmdfullPath
-Write-Host "Starting CMD full path we recieved from the CMD: $GRCmdfullPath"
-Write-Host "Starting CMD full path which was set by the CMD: $GSCmdfullPath"
-
 # Save the path for the ps1
 $global:CallerScriptPath = $MyInvocation.MyCommand.Path
+if ($ScriptDebug) {
+	Write-Host "Starting CMD full path we recieved from the CMD: $GRCmdfullPath"
+	Write-Host "Starting CMD full path which was set by the CMD: $GSCmdfullPath"
+	Write-Host "Caller Script path: $CallerScriptPath"
+}
 
 # Powershell variables
-$global:ErrorActionPreference = 'SilentlyContinue'
-$global:progressPreference = 'SilentlyContinue'
+if ($ScriptDebug) {
+	$global:ErrorActionPreference = 'Continue'
+	$global:progressPreference = 'Continue'
+} else {
+	$global:ErrorActionPreference = 'SilentlyContinue'
+	$global:progressPreference = 'SilentlyContinue'
+}
+
 $global:ConfirmPreference = 'None'
 $global:Force = $true
 
@@ -21,11 +31,12 @@ $global:Force = $true
 $ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 try {
 	Import-Module -Name $ScriptDirectory\AllFunctions.psm1 -DisableNameChecking -Global -Force
-} catch { Write-Host "AllFunctions.psm1 file not found"; Start-Sleep 5; exit }
+} catch { Write-Host "AllFunctions.psm1 file not found or failed to Import it"; Start-Sleep 5; exit }
 
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 InitializeCommands
 Set-Personalization
+WinWallpaper
 Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
 Registry-Tweaks #Applye Registry Tweaks
 DeepTweaks
@@ -87,34 +98,3 @@ Create-RLMCopyShortcut
 Update-MSStoreApps
 Fix-MSWindows #Fix Windows
 Clean-up
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
