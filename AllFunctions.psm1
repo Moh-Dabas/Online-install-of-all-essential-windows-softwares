@@ -5438,14 +5438,14 @@ function Set-Personalization {
 	Set-ItemProperty -Path $accentPath -Name "AccentColorInactive" -Value $dword_Explorer -Type DWord -Force
 
 	# --- AccentPalette (8 ARGB DWORDs, little-endian) ---
-	$paletteList = New-Object System.Collections.Generic.List[byte]
-	for ($i = 0; $i -lt 8; $i++) {
-		$bytes = [BitConverter]::GetBytes([UInt32]$dword_Explorer)   # little-endian
-		$paletteList.AddRange($bytes)
-	}
-	$paletteBytes = New-AccentPalette -R $r -G $g -B $b
-	New-ItemProperty -Path $accentPath -Name "AccentPalette" -Value $paletteBytes -PropertyType Binary -Force | Out-Null
-
+    $paletteList = New-Object System.Collections.Generic.List[byte]
+    for ($i=0; $i -lt 8; $i++) {
+        $bytes = [BitConverter]::GetBytes([UInt32]$dword_Explorer)   # little-endian
+        $paletteList.AddRange($bytes)
+    }
+    $paletteBytes = $paletteList.ToArray()
+    New-ItemProperty -Path $accentPath -Name "AccentPalette" -Value ([byte[]]$paletteBytes) -PropertyType Binary -Force | Out-Null
+	
 	# --- Control Panel legacy string ---
 	$cpPath = "HKCU:\Control Panel\Desktop\Colors"
 	New-Item -Path $cpPath -Force | Out-Null
