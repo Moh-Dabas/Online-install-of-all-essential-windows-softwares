@@ -1,7 +1,5 @@
 ﻿# Main commands
 
-$global:ScriptDebug = $true
-
 # Get Caller CMD
 param($RecievedCmdfullPath)
 $global:GRCmdfullPath = $RecievedCmdfullPath
@@ -9,6 +7,11 @@ $SetCmdfullPath = $env:CALLER_SCRIPT
 $global:GSCmdfullPath = $SetCmdfullPath
 # Save the path for the ps1
 $global:CallerScriptPath = $MyInvocation.MyCommand.Path
+
+# Set global flag for Debug
+$global:ScriptDebug = $true
+
+# Show debug for script paths
 if ($ScriptDebug) {
 	Write-Host "Starting CMD full path we recieved from the CMD: $GRCmdfullPath"
 	Write-Host "Starting CMD full path which was set by the CMD: $GSCmdfullPath"
