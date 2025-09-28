@@ -164,6 +164,60 @@ function Remove-RegEntry {
 	}
 }
 
+function Remove-AppxApp {
+	param (
+		[Parameter(Mandatory = $true)]
+		[string]$AppName
+	)
+
+	Write-Host "Checking for AppxPackage matching '$AppName'..." -ForegroundColor Yellow
+
+	$matchedPackages = Get-AppxPackage -AllUsers | Where-Object { $_.Name -like "*$AppName*" }
+
+	if (-not $matchedPackages) {
+		Write-Warning "No installed AppxPackage found matching '*$AppName*'. Nothing to remove."
+		return
+	}
+
+	Write-Host "Removing AppxPackage for Current User..." -ForegroundColor Yellow
+
+	$matchedPackages | ForEach-Object {
+		$pkgFullName = $_.PackageFullName
+		Write-Host "Removing package: $pkgFullName" -ForegroundColor Cyan
+
+		Remove-AppxPackage -Package $pkgFullName -EA SilentlyContinue
+
+		# Wait until the package is fully removed with timeout
+		$maxWaitSeconds = 60
+		$waited = 0
+
+		while ($waited -lt $maxWaitSeconds) {
+			$exists = Get-AppxPackage -AllUsers | Where-Object { $_.PackageFullName -eq $pkgFullName }
+			if (-not $exists) { break }
+			Start-Sleep -Seconds 1
+			$waited++
+		}
+
+		# Final check to confirm removal
+		$finalCheck = Get-AppxPackage | Where-Object { $_.PackageFullName -eq $pkgFullName }
+
+		if ("" -ne $finalCheck) {
+			Write-Warning "Package $pkgFullName still exists after timeout"
+		} else {
+			Write-Host "Package $pkgFullName removed successfully" -ForegroundColor Green
+		}
+	}
+
+	Write-Host "Removing AppxProvisionedPackage (from system image for new users)..." -ForegroundColor Yellow
+
+	Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like "*$AppName*" } | ForEach-Object {
+		Write-Host "Removing provisioned package: $($_.PackageName)" -ForegroundColor Cyan
+		Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -EA SilentlyContinue
+	}
+
+	Write-Host "Operation completed." -ForegroundColor Green
+}
+
 function Invoke-ReliableHttpClient {
 	param (
 		[string]$Uri,
@@ -2576,12 +2630,12 @@ function Invoke-AcrobatFix {
 	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\AdobeARMservice" -Name "Start" -Type "DWord" -Value 4
 
 	# Delete registry values related to trial mode and licensing
-	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bInTrialMode"
-	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "bInTrialMode"
-	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "iDayPassUserState"
-	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "iLicenseDaysRemaining"
-	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "uDayPassExpiryTime"
-	addregentry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bShowTrialNag"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bInTrialMode"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "bInTrialMode"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "iDayPassUserState"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "iLicenseDaysRemaining"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "uDayPassExpiryTime"
+	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bShowTrialNag"
 
 	# Delete entire registry keys
 	$registryKeyDeletes = @(
@@ -2786,8 +2840,9 @@ function Ins-Foxit {
 	}
 	# Recreate folder
 	New-Item -Path $DownloadFolder -ItemType Directory | Out-Null
-	
+
 	# Uninstall old installation
+	Uninstall-Programs -MSIExec -partName "Foxit*Reader"
 	winget uninstall -e --id "Foxit.FoxitReader" --all --silent --disable-interactivity
 
 	# Download latest Foxit Reader EXE using winget
@@ -5948,6 +6003,7 @@ function Update-MSStoreApps {
 	-ctrlControlType "Button"
 	return
 }
+
 
 
 
