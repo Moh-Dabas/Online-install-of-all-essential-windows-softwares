@@ -5045,14 +5045,14 @@ function Change_computer_name {
 	# Create the form
 	$form = New-Object System.Windows.Forms.Form
 	$form.Text = "Change Computer Name"
-	$form.Size = New-Object System.Drawing.Size(400, 240)
+	$form.Size = New-Object System.Drawing.Size(400, 400)
 	$form.StartPosition = "CenterScreen"
 
 	# Label - Current Computer Name
 	$label = New-Object System.Windows.Forms.Label
 	$label.Text = "Current Computer Name:"
 	$label.Location = New-Object System.Drawing.Point(10, 20)
-	$label.Size = New-Object System.Drawing.Size(150, 20)
+	$label.Size = New-Object System.Drawing.Size(150, 50)
 	$form.Controls.Add($label)
 
 	# TextBox - New Computer Name
@@ -5064,9 +5064,9 @@ function Change_computer_name {
 
 	# Button - Change Computer Name
 	$buttonChange = New-Object System.Windows.Forms.Button
-	$buttonChange.Text = "Change Computer Name"
+	$buttonChange.Text = "Change Name"
 	$buttonChange.Location = New-Object System.Drawing.Point(110, 60)
-	$buttonChange.Size = New-Object System.Drawing.Size(160, 30)
+	$buttonChange.Size = New-Object System.Drawing.Size(160, 50)
 	$buttonChange.Add_Click({
 		$newName = $textBox.Text.Trim()
 		if ($newName -eq $env:COMPUTERNAME) {
@@ -5087,7 +5087,7 @@ function Change_computer_name {
 	$buttonRestart = New-Object System.Windows.Forms.Button
 	$buttonRestart.Text = "Restart Now"
 	$buttonRestart.Location = New-Object System.Drawing.Point(110, 110)
-	$buttonRestart.Size = New-Object System.Drawing.Size(160, 30)
+	$buttonRestart.Size = New-Object System.Drawing.Size(160, 50)
 	$buttonRestart.Add_Click({
 		$result = [System.Windows.Forms.MessageBox]::Show("Are you sure you want to restart now?", "Confirm Restart", "YesNo")
 		if ($result -eq "Yes") {
@@ -5149,7 +5149,9 @@ function Change_computer_name {
 			Remove-Job -Job $timerJob -Force
 		}
 	})
-
+	
+	# Minimize all windows
+	(New-Object -ComObject "Shell.Application").MinimizeAll()
 	# Show the form
 	[void]$form.ShowDialog()
 }
