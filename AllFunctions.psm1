@@ -2216,9 +2216,9 @@ function Unins-Acrobat {
 		} catch { Write-Warning "Failed to uninstall $DisplayName with product code $ProductCode. Error: $_" }
 	}
 	# Uninstall Using winget
-	winget uninstall -e --id "Adobe.Acrobat.Reader.32-bit"
-	winget uninstall -e --id "Adobe.Acrobat.Reader.64-bit"
-	winget uninstall -e --id "Adobe.Acrobat.Pro"
+	winget uninstall -e --id "Adobe.Acrobat.Reader.32-bit" --all --silent --disable-interactivity
+	winget uninstall -e --id "Adobe.Acrobat.Reader.64-bit" --all --silent --disable-interactivity
+	winget uninstall -e --id "Adobe.Acrobat.Pro" --all --silent --disable-interactivity
 	Write-Host -f C "`r`n *** Removing All Acrobat left overs *** `r`n"
 	$Url = "https://drive.google.com/file/d/16etkp4rCcon2NyGGh0oYSocHhB_054cm"
 	$Key = "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
@@ -2587,7 +2587,6 @@ function Invoke-AcrobatFix {
 	$registryKeyDeletes = @(
 		"HKLM:\SOFTWARE\Adobe\Adobe Genuine Service"
 	)
-
 	foreach ($key in $registryKeyDeletes) {
 		try {
 			Remove-Item -Path $key -Recurse -Force -EA SilentlyContinue
@@ -2600,7 +2599,6 @@ function Invoke-AcrobatFix {
 
 	# List of Adobe processes to terminate
 	$processes = @("AGMService", "AGSService", "AdobeIPCBroker", "acrotray")
-
 	foreach ($process in $processes) {
 		try {
 			Get-Process -Name $process -EA SilentlyContinue | Stop-Process -Force
@@ -2613,7 +2611,6 @@ function Invoke-AcrobatFix {
 
 	# List of Adobe services to disable
 	$services = @("AGMService", "AGSService", "AdobeARMservice")
-
 	foreach ($service in $services) {
 		try {
 			# Stop the service if it's running
@@ -2652,13 +2649,12 @@ function Invoke-AcrobatFix {
 		"${env:COMMONPROGRAMFILES(X86)}\Adobe\AdobeGCClient",
 		"${env:SYSTEMDRIVE}\Users\Public\Documents\AdobeGCData"
 	)
-
 	foreach ($path in $paths) {
 		try {
 			if (Test-Path $path) {
 				Remove-Item -Path $path -Recurse -Force -EA SilentlyContinue
 			}
-		} catch {}
+		} catch {} # Silently continue on errors
 	}
 	#endregion
 
@@ -2668,7 +2664,7 @@ function Invoke-AcrobatFix {
 	# Remove task files from the system tasks directory
 	try {
 		Get-ChildItem -Path "$env:SystemRoot\SYSTEM32\TASKS" | Where-Object { ($_.Name -match 'Adobe') -or ($_.Name -match 'Acrobat') } | Remove-Item -Recurse -Force -EA SilentlyContinue
-	} catch { Write-Warning "Error!" } # Silently continue on errors
+	} catch {} # Silently continue on errors
 
 	# Clean Adobe entries from Run registry keys (both HKLM and HKCU)
 	$runPaths = @(
@@ -2676,7 +2672,6 @@ function Invoke-AcrobatFix {
 		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
 		"HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"
 	)
-
 	foreach ($runPath in $runPaths) {
 		try {
 			# Check if the path exists before trying to access it
@@ -2735,7 +2730,7 @@ function Ins-AcrobatPro {
 	# Preview handler (IPreviewHandler)
 	Add-RegEntry 'HKCR:\.pdf\ShellEx\{8895b1c6-b41f-4c1c-a562-0d564250836f}' "(default)" "{DC6EFB56-9CFA-464D-8880-44885D7DC193}" 'String'
 	Ins-Foxit
-	Invoke-ShellAssocChanged
+	# Invoke-ShellAssocChanged
 	$printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
 	Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
 	(New-Object -ComObject WScript.Network).SetDefaultPrinter('Adobe PDF')
@@ -2785,36 +2780,38 @@ function Ins-Foxit {
 	# Define download folder
 	$DownloadFolder = "$env:TEMP\FoxitDownload"
 
-	# 1. Delete old folder if it exists
+	# Delete old folder if it exists
 	if (Test-Path $DownloadFolder) {
 		Remove-Item -Path $DownloadFolder -Recurse -Force
 	}
 	# Recreate folder
 	New-Item -Path $DownloadFolder -ItemType Directory | Out-Null
+	
+	# Uninstall old installation
+	winget uninstall -e --id "Foxit.FoxitReader" --all --silent --disable-interactivity
 
-	# 2. Download latest Foxit Reader EXE using winget
+	# Download latest Foxit Reader EXE using winget
 	winget download -e --id "Foxit.FoxitReader" --accept-source-agreements --accept-package-agreements -d $DownloadFolder
 
-	# 3. Find the downloaded EXE
+	# Find the downloaded EXE
 	$InstallerExe = Get-ChildItem -Path $DownloadFolder -Filter *.exe -File -Recurse | Select-Object -First 1
 	if (-not $InstallerExe) {
 		Write-Error "Foxit installer EXE not found in $DownloadFolder"
-		exit 1
+		return
 	}
 
-	# 4. Extract EXE contents
+	# Extract EXE contents
 	Start-Process -FilePath $InstallerExe.FullName -ArgumentList "/extract `"$DownloadFolder`"" -Wait
 
-	# 5. Get MSI + MSP files
+	# Get MSI + MSP files
 	$MsiFile = Get-ChildItem -Path $DownloadFolder -Filter *.msi -File -Recurse | Select-Object -First 1
 	$MspFile = Get-ChildItem -Path $DownloadFolder -Filter *.msp -File -Recurse | Select-Object -First 1
-
 	if (-not $MsiFile) {
 		Write-Error "No MSI file found in $DownloadFolder"
-		exit 1
+		return
 	}
 
-	# 6. Define custom install arguments (updated)
+	# Define custom install arguments (updated)
 	$InstallArgs = @(
 		"/i `"$($MsiFile.FullName)`"",
 		"/quiet", "/norestart",
@@ -2831,11 +2828,11 @@ function Ins-Foxit {
 		"NOTINSTALLUPDATE=1"
 	)
 
-	# 7. Install MSI
+	# Install MSI
 	Write-Host "Installing Foxit Reader MSI..."
 	Start-Process -FilePath "msiexec.exe" -ArgumentList ($InstallArgs -join ' ') -Wait -NoNewWindow
 
-	# 8. Apply MSP patch if available
+	# Apply MSP patch if available
 	if ($MspFile) {
 		Write-Host "Applying MSP patch..."
 		Start-Process -FilePath "msiexec.exe" -ArgumentList "/p `"$($MspFile.FullName)`" /quiet /norestart" -Wait -NoNewWindow
@@ -2865,7 +2862,7 @@ function Ins-WhatsApp {
 function Unins-Devhome {
 	Write-Host -f C "`r`n *** Uninstalling Dev Home *** `r`n"
 	Remove-AppxApp -AppName "DevHome"
-	winget uninstall --id 'Microsoft.DevHome'
+	winget uninstall --id 'Microsoft.DevHome' --all --silent --disable-interactivity
 }
 
 function Unins-DropboxPromotion {
@@ -2876,7 +2873,7 @@ function Unins-DropboxPromotion {
 function Unins-Cortana {
 	Write-Host -f C "`r`n *** Uninstalling & disabling Cortana & tweaking search *** `r`n"
 	Remove-AppxApp -AppName "Microsoft.549981C3F5F10"
-	winget uninstall cortana
+	winget uninstall cortana --all --silent --disable-interactivity
 	Add-RegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'AllowCortana' '0' 'DWord'
 	Add-RegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search' 'AllowCortanaAboveLock' '0' 'DWord'
 	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Windows Search' 'CortanaConsent' '0' 'DWord'
@@ -5347,19 +5344,19 @@ function Set-Personalization {
 	# --- Personalization: ---
 	$personalizePath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 	# Dark mode
-	Set-ItemProperty -Path $personalizePath -Name "AppsUseLightTheme" -Value 0 -Type DWord -Force
-	Set-ItemProperty -Path $personalizePath -Name "SystemUsesLightTheme" -Value 0 -Type DWord -Force
+	Add-RegEntry -Path $personalizePath -Name "AppsUseLightTheme" -Value 0 -Type DWord -Force
+	Add-RegEntry -Path $personalizePath -Name "SystemUsesLightTheme" -Value 0 -Type DWord -Force
 	# Enable accent color on start menu and taskbar
-	Set-ItemProperty -Path $personalizePath -Name "ColorPrevalence" -Value 1 -Type DWord -Force
+	Add-RegEntry -Path $personalizePath -Name "ColorPrevalence" -Value 1 -Type DWord -Force
 	# Set accent color to automatic
-	Set-ItemProperty -Path $personalizePath -Name "AutoColor" -Type DWord -Value 1
+	Add-RegEntry -Path $personalizePath -Name "AutoColor" -Type DWord -Value 1
 
 	# --- DWM keys (ABGR) ---
 	$dwmPath = "HKCU:\SOFTWARE\Microsoft\Windows\DWM"
 	New-Item -Path $dwmPath -Force | Out-Null
-	Set-ItemProperty -Path $dwmPath -Name "EnableWindowColorization" -Value 1 -Type DWord -Force
-	Set-ItemProperty -Path $dwmPath -Name "ColorizationColorBalance" -Value 70 -Type DWord -Force
-	Set-ItemProperty -Path $dwmPath -Name "ColorPrevalence" -Type DWord -Value 1
+	Add-RegEntry -Path $dwmPath -Name "EnableWindowColorization" -Value 1 -Type DWord -Force
+	Add-RegEntry -Path $dwmPath -Name "ColorizationColorBalance" -Value 70 -Type DWord -Force
+	Add-RegEntry -Path $dwmPath -Name "ColorPrevalence" -Type DWord -Value 1
 
 	# --- Broadcast ImmersiveColorSet (WM_SETTINGCHANGE) ---
 	Add-Type @"
