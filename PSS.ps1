@@ -98,6 +98,7 @@ Adj-Hosts #Adjust Hosts file
 Ins-Office24PP #Start Install Office 2024 Pro Plus & remove old versions
 Ins-ExtraFonts #Install Extra Fonts
 Create-RLMCopyShortcut
-Update-MSStoreApps
+Update-MSStoreApps # Update MS Store apps using UIA
+Set-IdlLock # Set Idle look using UIA
 Fix-MSWindows #Fix Windows
 Clean-up

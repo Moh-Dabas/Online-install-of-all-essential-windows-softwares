@@ -2701,7 +2701,7 @@ function Invoke-AcrobatFix {
 		"${env:COMMONPROGRAMFILES(X86)}\Adobe\OOBE\PDApp\IPC",
 		"${env:COMMONPROGRAMFILES}\Adobe\OOBE\PDApp\IPC",
 		"${env:COMMONPROGRAMFILES(X86)}\Adobe\AdobeGCClient",
-		"${env:SYSTEMDRIVE}\Users\Public\Documents\AdobeGCData"
+		"$env:Public\Documents\AdobeGCData"
 	)
 	foreach ($path in $paths) {
 		try {
@@ -5542,7 +5542,8 @@ function Invoke-UIControl {
 		[switch]$MultiCtrl,								# Press all Buttons that match
 		[switch]$NoWarn,								# Supress warning if the control to be clicked isn't found
 		[ValidateSet("On", "Off", "Toggle")]
-		[string]$SwitchToggle							# For Toggle Switchs change state to On, Off or Toggle it
+		[string]$SwitchToggle,							# For Toggle Switchs change state to On, Off or Toggle it
+		[string]$SelectItemName							# Item name to select from the ComboBox
 	)
 
 	Add-Type -AssemblyName UIAutomationClient
@@ -5681,6 +5682,30 @@ function Invoke-UIControl {
 			}
 			Write-Host "✅ Toggled Switch $SwitchToggle : AutomationId= $controlAutomationId  Name= $controlName  Class= $controlClass  Type= $ctrlControlType "
 			return $true
+		} elseif ($SelectItemName) {
+			# SelectionItem pattern logic
+			# Expand the combo box first if possible
+			if ($control.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)) {
+				$expandPattern = $control.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+				$expandPattern.Expand()
+				Start-Sleep -Milliseconds 300
+			}
+
+			# Find the child item by Name
+			$SelectNameCondition = New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::NameProperty, $SelectItemName)
+			$item = $control.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $SelectNameCondition)
+
+			if ($item) {
+				$selectPattern = $item.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+				$selectPattern.Select()
+				Write-Host "✅ Selected '$SelectItemName' in control: Name='$($control.Current.Name)'"
+			} else {
+				Write-Warning "⚠️ Could not find item '$SelectItemName' in control: Name='$($control.Current.Name)'"
+			}
+
+			# Collapse combo box if expanded
+			if ($expandPattern) { $expandPattern.Collapse() }
+			return $true
 		} elseif ($MultiCtrl) {
 			# Multi Ctrls
 			foreach ($control in $controls) {
@@ -5697,9 +5722,53 @@ function Invoke-UIControl {
 			return $true
 		}
 	} catch {
-		Write-Warning "⚠️ Control found but does not support Invoke or Toggle"
+		Write-Warning "⚠️ Control found but could not perform Invoke / Toggle / Select"
 		return $false
 	}
+}
+
+function Set-IdlLock {
+    param(
+        [string]$SelectValue = "Every Time"
+    )
+
+    # Window / App properties
+    $uri = "ms-settings:signinoptions"
+    $winName = "Settings"
+    $winClass = "ApplicationFrameWindow"
+    $winControlType = "Window"
+
+    # Step 1: Select the combo box value
+    $SelectResult = Invoke-UIControl `
+        -uri  $uri `
+        -winName $winName `
+        -winClass $winClass `
+        -winControlType $winControlType `
+        -controlAutomationId "SystemSettings_Users_DelayLock_ComboBox" `
+        -controlClass "ComboBox" `
+        -ctrlControlType "ComboBox" `
+        -SelectItemName $SelectValue
+
+    if (-not $SelectResult) {
+        Write-Warning "⚠️ Failed to select Idle Lock '$SelectValue' in Sign-in options."
+        return $false
+    }
+
+    # Step 2: Close the Settings window
+    $CloseResult = Invoke-UIControl `
+        -winName $winName `
+        -winClass $winClass `
+        -winControlType $winControlType `
+        -controlAutomationId "Close" `
+        -ctrlControlType "Button"
+
+    if ($CloseResult) {
+        Write-Host "✅ Successfully set Idle Lock to '$SelectValue' and closed Settings."
+        return $true
+    } else {
+        Write-Warning "⚠️ Could not close the Settings window."
+        return $false
+    }
 }
 
 function Test-WindowsDefenderStatus {
