@@ -39,7 +39,7 @@ try {
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 InitializeCommands
 Set-Personalization
-Set-IdlLock # Set Idle look using UIA
+Set-IdleLock # Set Idle look using UIA
 WinWallpaper
 Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
 Registry-Tweaks #Applye Registry Tweaks
@@ -102,3 +102,4 @@ Create-RLMCopyShortcut
 Update-MSStoreApps # Update MS Store apps using UIA
 Fix-MSWindows #Fix Windows
 Clean-up
+
