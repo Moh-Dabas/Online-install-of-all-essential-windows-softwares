@@ -1789,6 +1789,7 @@ function Restart-ExplorerSilently {
 		}
 	} catch { Write-Error "Failed to restart Windows Explorer: $($_.Exception.Message)" }
 	Write-Host -f C "Windows Explorer restarted successfully."
+	return
 }
 
 function Set-en-US-Culture {
@@ -5440,7 +5441,7 @@ public class User32 {
 	Restart-ExplorerSilently
 	# broadcast again after restart
 	try { [void][User32]::SendMessageTimeout($HWND_BROADCAST, $WM_SETTINGCHANGE, [UIntPtr]::Zero, "ImmersiveColorSet", 2, 5000, [ref]$result) } catch {}
-
+	return
 }
 
 # ==================================================================================
@@ -5451,10 +5452,17 @@ function Interact-UIA {
 		[string]$uri,                					# URI scheme (shell activation) or real executable path to launch application (optional). Examples: ms-windows-store://downloadsandupdates or C:\Windows\explorer.exe
 
 		[switch]$noWindow,								# Search for controls directly from desktop root, bypassing window search
+		[switch]$HostWindow,							# if set use the host Window (ApplicationFrameWindow) else by default we will use Win32 or Core
 		[switch]$fallBackInOrder,						# Allow multi window search scenarios with a fallback order
 		[IntPtr]$WindowHandle = [IntPtr]::Zero,			# Direct window handle to use instead of searching
 		[string]$ProcessName,							# Get Window from process name
 		[string]$partAppId,								# Get Window from Partial App user model Id Similar to package Id
+
+		# Timing and wait parameters for dynamic UI scenarios
+		[int]$ExtraDelay = 0,				  			# Delay in milliseconds after finding window (allows UI initialization)
+		[int]$Timeout = 1000,			  				# Timeout in milliseconds for window search operations
+		[int]$ProcessTimout = 0,						# Timeout in milliseconds for each of waiting for process to become Input Idle & to have main window
+		[switch]$WaitWindowReady,						# Dynamic wait until window is ready.
 
 		# Window identification properties - use multiple properties for accurate window targeting
 		[array]$WinProperty = @(),						# Window property names to filter by e.g. ("ClassName", "Name", "AutomationId", "ControlType", "FrameworkId")
@@ -5473,16 +5481,11 @@ function Interact-UIA {
 		[string]$PatternMethod,							# Pattern method to invoke (e.g., "Invoke", "Toggle", "SetValue", "Select")
 		[array]$PatternMethodArgs = @(),				# Arguments to pass to the pattern method
 		[string]$PatternProperty,						# Pattern property to check condition against or return value from
-		[string]$ConditionValue,						# Pattern Property value for conditional execution
 		[ValidateSet("Equals", "NotEquals", "Contains", "GreaterThan", "LessThan")]
 		[string]$ConditionOperator = "Equals",			# Comparison operator for conditional pattern execution
-		[switch]$GetPatternProperty,					# Return pattern property value instead of executing method
+		[string]$ConditionValue,						# Pattern Property value for conditional execution
+		[switch]$GetPatternPropertyValue,				# Return pattern property value instead of executing method
 		[switch]$CheckPatternSupported,					# Check if specified pattern is supported by the control
-
-		# Timing and wait parameters for dynamic UI scenarios
-		[int]$ExtraDelay = 0,				  			# Delay in milliseconds after finding window (allows UI initialization)
-		[int]$Timeout = 1000,			  				# Timeout in milliseconds for window search operations
-		[int]$ProcessTimout = 0,						# Timeout in milliseconds for each of waiting for process to become Input Idle & to have main window
 
 		# Discovery and verification operations
 		[switch]$ListWindows,							# List all windows matching criteria with their properties
@@ -5492,7 +5495,8 @@ function Interact-UIA {
 		[switch]$ControlExist,            				# Check if control exists and return existence status with element(s)
 		[switch]$ChildExist,							# Check if child control exists and return existence status with element(s)
 		[switch]$MultiElements,							# Process all elements that match the conditions (not just first match)
-		[switch]$NoWarn									# Suppress warning if window or element isn't found (useful for retry scenarios)
+		[switch]$NoWarn,								# Suppress warning if window or element isn't found (useful for retry scenarios)
+		[switch]$DebugSwitch
 	)
 
 	Add-Type -AssemblyName UIAutomationClient
@@ -5557,40 +5561,40 @@ function Interact-UIA {
 				return $false
 			}
 
-			Write-Host "Minimizing all open windows"
+			if ($DebugSwitch) { Write-Host "Minimizing all open windows" }
 			(New-Object -ComObject "Shell.Application").MinimizeAll()
 
 			Write-Host "🚀 Launching application from URI: $uri" -ForegroundColor Cyan
 			if ($PathType -eq "URI") {
 				# Simple URI launch
 				Start-Process $uri
-				Write-Host "✅ URI launched successfully" -ForegroundColor Green
+				if ($DebugSwitch) { Write-Host "✅ URI launched successfully" -ForegroundColor Green }
 			} else {
 				# Start an excutable
 				$proc = Start-Process $uri -PassThru
-				Write-Host "✅ Excutable launched successfully" -ForegroundColor Green
+				if ($DebugSwitch) { Write-Host "✅ Excutable launched successfully" -ForegroundColor Green }
 				if ($ProcessTimout -ne 0) {
 					Write-Host "⏳ Waiting for excutable main window..." -ForegroundColor Yellow
 					# Wait until the process is ready for input (max $ProcessTimout)
 					if (-not $proc.WaitForInputIdle($ProcessTimout)) {
-						Write-Host "Process did not become idle after $ProcessTimout milliseconds." -ForegroundColor Red
+						if ($DebugSwitch) { Write-Host "Process did not become idle after $ProcessTimout milliseconds." -ForegroundColor Red }
 					}
 					$windowFound = $false
 					$waitStartTime = Get-Date
 					while (((Get-Date) - $waitStartTime).TotalMilliseconds -lt $ProcessTimout -and (-not $windowFound) -and (-not $noWindow)) {
 						if ($proc.MainWindowHandle -ne 0) {
-							Write-Host "Process main Window found with title: $proc.MainWindowTitle"
+							if ($DebugSwitch) { Write-Host "Process main Window found with title: $proc.MainWindowTitle" }
 							$windowFound = $true
 						}
 					}
 				}
 				if (-not $windowFound) {
-					Write-Host "Process had no Win32 main window after $ProcessTimout milliseconds." -ForegroundColor Red
+					if ($DebugSwitch) { Write-Host "Process had no Win32 main window after $ProcessTimout milliseconds." -ForegroundColor Red }
 				}
 			}
 
 		} catch {
-			Write-Warning "⚠️ Failed to launch application from URI: $uri - $($_.Exception.Message)"
+			if ($DebugSwitch) { Write-Warning "⚠️ Failed to launch application from URI: $uri - $($_.Exception.Message)" }
 			return $false
 		}
 	}
@@ -5602,17 +5606,18 @@ function Interact-UIA {
 	# Section 3: List Windows: Shows a list of all Open windows found and their properties
 	# ----------------------------------------------------------------
 	if ($ListWindows) {
+		if ($DebugSwitch) { Write-Host "Listing Windows" }
 		$out = @()
 		$allWindows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
 		foreach ($win in $allWindows) {
 			$out += [pscustomobject] @{
-				Name         = $win.Current.Name
-				ClassName    = $win.Current.ClassName
-				ControlType  = $win.Current.ControlType.ProgrammaticName -replace '^ControlType\.', ''
-				AutomationId	= $win.Current.AutomationId
+				Name          = $win.Current.Name
+				ClassName     = $win.Current.ClassName
+				ControlType   = $win.Current.ControlType.ProgrammaticName -replace '^ControlType\.', ''
+				AutomationId  = $win.Current.AutomationId
+				WindowElement = $win
 			}
 		}
-		$out = $out | Sort-Object Signal -Descending | Format-Table -Property Name, ClassName, ControlType, AutomationId -AutoSize -Wrap
 		return $out
 	}
 
@@ -5635,7 +5640,7 @@ function Interact-UIA {
 	# Case 1: Use desktop root if noWindow specified
 	if ($noWindow) {
 		$appWin = $root
-		Write-Host "ℹ️  Using desktop root as search scope" -ForegroundColor Cyan
+		if ($DebugSwitch) { Write-Host "ℹ️  Using desktop root as search scope" -ForegroundColor Cyan }
 	}
 
 	# Case 2: Use specified window handle (since there is hwnd so the window is already open)
@@ -5644,27 +5649,37 @@ function Interact-UIA {
 			Write-Host "🔍 Using specified window handle: 0x$($WindowHandle.ToString('X8'))" -ForegroundColor Cyan
 			$appWin = [System.Windows.Automation.AutomationElement]::FromHandle($WindowHandle)
 			if ($appWin) {
-				Write-Host "✅ Successfully acquired window: $($appWin.Current.Name) `n hwnd: 0x$($WindowHandle.ToString('X8'))" -ForegroundColor Green
+				if ($DebugSwitch) { Write-Host "✅ Successfully acquired window: $($appWin.Current.Name) Class: $($appWin.Current.ClassName) `n hwnd: 0x$($WindowHandle.ToString('X8'))" -ForegroundColor Green }
 			} else {
-				Write-Warning "⚠️ Could not acquire window from handle: 0x$($WindowHandle.ToString('X8'))"
+				if ($DebugSwitch) { Write-Warning "⚠️ Could not acquire window from handle: 0x$($WindowHandle.ToString('X8'))" }
 				return $false
 			}
 		} catch {
-			Write-Warning "⚠️ Error accessing window handle: 0x$($WindowHandle.ToString('X8')) - $($_.Exception.Message)"
+			if ($DebugSwitch) { Write-Warning "⚠️ Error accessing window handle: 0x$($WindowHandle.ToString('X8')) - $($_.Exception.Message)" }
 			return $false
 		}
+		$appFrameHwnd = Get-UWPPairedWindow -SourceHWnd $WindowHandle -Direction "ToAppFrame"
+		if ($appFrameHwnd -eq [IntPtr]::Zero) { $appFrameHwnd = $WindowHandle }
+		$coreWindowHwnd = Get-UWPPairedWindow -SourceHWnd $WindowHandle -Direction "ToCoreWindow"
+		if ($coreWindowHwnd -eq [IntPtr]::Zero) { $coreWindowHwnd = $WindowHandle }
 	}
 
 	# Case 3: Search & wait for window by Process Name
 	if (-not $appWin -and $ProcessName) {
 		# Execute search with timeout
-		Write-Host "🔍 Searching for window by Process Name..." -ForegroundColor Yellow
+		if ($DebugSwitch) { Write-Host "🔍 Searching for window by Process Name..." -ForegroundColor Yellow }
 		while (($elapsed -lt $Timeout) -and ($null -eq $appWin)) {
-			$appWin = [System.Windows.Automation.AutomationElement]::FromHandle((Get-AppHwnd -ProcessName $ProcessName).RealHWND)
+			if ($HostWindow) {
+				$appFrameHwnd = (Get-AppHwnd -ProcessName $ProcessName).HWND
+				$appWin = [System.Windows.Automation.AutomationElement]::FromHandle($appFrameHwnd)
+			} else {
+				$coreWindowHwnd = (Get-AppHwnd -ProcessName $ProcessName).RealHWND
+				$appWin = [System.Windows.Automation.AutomationElement]::FromHandle($coreWindowHwnd)
+			}
 			if (-not $appWin) {
 				Start-Sleep -Milliseconds 200; $elapsed += 200
 			} else {
-				Write-Host "✅ Found window: $($appWin.Current.Name)" -ForegroundColor Green
+				if ($DebugSwitch) { Write-Host "✅ Found window: $($appWin.Current.Name) Class: $($appWin.Current.ClassName)" -ForegroundColor Green }
 				break
 			}
 		}
@@ -5673,13 +5688,19 @@ function Interact-UIA {
 	# Case 4: Search & wait for window by part App Id
 	if (-not $appWin -and $partAppId) {
 		# Execute search with timeout
-		Write-Host "🔍 Searching for window by Part App Id..." -ForegroundColor Yellow
+		if ($DebugSwitch) { Write-Host "🔍 Searching for window by Part App Id..." -ForegroundColor Yellow }
 		while (($elapsed -lt $Timeout) -and ($null -eq $appWin)) {
-			$appWin = [System.Windows.Automation.AutomationElement]::FromHandle((Get-HwndByAppUserModelId -partAppId $partAppId))
+			if ($HostWindow) {
+				$appFrameHwnd = (Get-HwndByAppUserModelId -partAppId $partAppId).HWND
+				$appWin = [System.Windows.Automation.AutomationElement]::FromHandle($appFrameHwnd)
+			} else {
+				$coreWindowHwnd = (Get-HwndByAppUserModelId -partAppId $partAppId).RealHWND
+				$appWin = [System.Windows.Automation.AutomationElement]::FromHandle($coreWindowHwnd)
+			}
 			if (-not $appWin) {
 				Start-Sleep -Milliseconds 200; $elapsed += 200
 			} else {
-				Write-Host "✅ Found window: $($appWin.Current.Name)" -ForegroundColor Green
+				if ($DebugSwitch) { Write-Host "✅ Found window: $($appWin.Current.Name) Class: $($appWin.Current.ClassName)" -ForegroundColor Green }
 				break
 			}
 		}
@@ -5691,13 +5712,18 @@ function Interact-UIA {
 
 		# Build window conditions from dynamic property arrays
 		if ($WinProperty.Count -ne $WinValue.Count) {
-			Write-Warning "⚠️ WinProperty and WinValue arrays must have the same number of elements"
+			if ($DebugSwitch) { Write-Warning "⚠️ WinProperty and WinValue arrays must have the same number of elements" }
 			return $false
 		}
 
 		for ($i = 0; $i -lt $WinProperty.Count; $i++) {
 			$WinProperty[$i] = $WinProperty[$i] + "Property"
-			$WinConditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($WinProperty[$i]), $WinValue[$i])
+			if ($WinProperty[$i] -eq "ControlTypeProperty") {
+				$ControlTypeValue = ([System.Windows.Automation.ControlType]::($WinValue[$i]))
+				$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($WinProperty[$i]), $ControlTypeValue)
+			} else {
+				$WinConditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($WinProperty[$i]), $WinValue[$i])
+			}
 		}
 
 		# Create search condition from individual conditions
@@ -5708,28 +5734,41 @@ function Interact-UIA {
 		}
 
 		# Execute search with timeout
-		Write-Host "🔍 Searching for window with specified conditions..." -ForegroundColor Yellow
+		if ($DebugSwitch) { Write-Host "🔍 Searching for window with specified conditions..." -ForegroundColor Yellow }
 		while ($elapsed -lt $Timeout -and $null -eq $appWin) {
 			$appWin = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $WinCondition)
 			if (-not $appWin) {
 				Start-Sleep -Milliseconds 200; $elapsed += 200
 			} else {
-				Write-Host "✅ Found conditions target window: $($appWin.Current.Name)" -ForegroundColor Green
+				if ($DebugSwitch) { Write-Host "✅ Found conditions target window: $($appWin.Current.Name) Class: $($appWin.Current.ClassName)" -ForegroundColor Green }
 				break
 			}
 		}
+		$NativeHwnd = $appWin.Current.NativeWindowHandle
+		$appFrameHwnd = Get-UWPPairedWindow -SourceHWnd $NativeHwnd -Direction "ToAppFrame"
+		if ($appFrameHwnd -eq [IntPtr]::Zero) { $appFrameHwnd = $NativeHwnd }
+		$coreWindowHwnd = Get-UWPPairedWindow -SourceHWnd $NativeHwnd -Direction "ToCoreWindow"
+		if ($coreWindowHwnd -eq [IntPtr]::Zero) { $coreWindowHwnd = $NativeHwnd }
 	}
 
 	# Case 6: Search & wait for the window that is foreground if no specific parameters provided or search failed for all others with fallBackInOrder
 	if ((-not $appWin) -and (-not $noWindow) -and ($fallBackInOrder -or (-not $ProcessName -and $WinProperty.Count -eq 0 -and $WindowHandle -eq [IntPtr]::Zero))) {
 		# Execute search with timeout
-		Write-Host "🔍 Searching for foreground window..." -ForegroundColor Yellow
+		if ($DebugSwitch) { Write-Host "🔍 Searching for foreground window..." -ForegroundColor Yellow }
 		while ($elapsed -lt $Timeout -and $null -eq $appWin) {
-			$appWin = (Get-ForegroundWindow).WindowElement
+			if ($HostWindow) {
+				$appFrameHwnd = Get-UWPPairedWindow -SourceHWnd ((Get-ForegroundWindow).HWND) -Direction "ToAppFrame"
+				if ($appFrameHwnd -eq [IntPtr]::Zero) { $appFrameHwnd = ((Get-ForegroundWindow).HWND) }
+				$appWin = [System.Windows.Automation.AutomationElement]::FromHandle($appFrameHwnd)
+			} else {
+				$coreWindowHwnd = Get-UWPPairedWindow -SourceHWnd ((Get-ForegroundWindow).HWND) -Direction "ToCoreWindow"
+				if ($coreWindowHwnd -eq [IntPtr]::Zero) { $coreWindowHwnd = ((Get-ForegroundWindow).HWND) }
+				$appWin = [System.Windows.Automation.AutomationElement]::FromHandle($coreWindowHwnd)
+			}
 			if (-not $appWin) {
 				Start-Sleep -Milliseconds 200; $elapsed += 200
 			} else {
-				Write-Host "✅ Found Foreground window: $($appWin.Current.Name)" -ForegroundColor Green
+				if ($DebugSwitch) { Write-Host "✅ Found Foreground window: $($appWin.Current.Name) Class: $($appWin.Current.ClassName)" -ForegroundColor Green }
 				break
 			}
 		}
@@ -5757,16 +5796,44 @@ function Interact-UIA {
 	# IMPORTANT: Allow UI initialization time if specified
 	# This is crucial for heavy windows like MS Store
 	# ----------------------------------------------------------------
+	# Must work on Core or Win32 not framehost
+	if ($WaitWindowReady) {
+		Write-Host "⏳ Waiting for window to become ready..."
+		if ($coreWindowHwnd) {
+			Wait-WindowReady -Hwnd $coreWindowHwnd
+			if ($DebugSwitch) {
+				$WEl = [System.Windows.Automation.AutomationElement]::FromHandle($coreWindowHwnd)
+				[pscustomobject] @{
+					Name      = $WEl.Current.Name
+					ClassName = $WEl.Current.ClassName
+					HWND      = [IntPtr] $coreWindowHwnd
+					RealHWND  = [IntPtr] $WEl.Current.NativeWindowHandle
+				}
+			}
+		} else {
+			$coreWindowHwnd = Get-UWPPairedWindow -SourceHWnd $appFrameHwnd -Direction "ToCoreWindow"
+			if ($DebugSwitch) {
+				$WEl = [System.Windows.Automation.AutomationElement]::FromHandle($coreWindowHwnd)
+				[pscustomobject] @{
+					Name      = $WEl.Current.Name
+					ClassName = $WEl.Current.ClassName
+					HWND      = [IntPtr] $coreWindowHwnd
+					RealHWND  = [IntPtr] $WEl.Current.NativeWindowHandle
+				}
+			}
+		}
+	}
+
 	if ($ExtraDelay -gt 0) {
-		Write-Host "⏳ Allowing $Delay ms for UI initialization..." -ForegroundColor Cyan
-		Start-Sleep -Milliseconds $Delay
+		if ($DebugSwitch) { Write-Host "⏳ Allowing $ExtraDelay ms for UI initialization..." -ForegroundColor Cyan }
+		Start-Sleep -Milliseconds $ExtraDelay
 	}
 
 	# ----------------------------------------------------------------
 	# If only URI/WindowHandle was provided without any operations, return success
 	# ----------------------------------------------------------------
 	$hasControlOperation = $ControlProperty.Count -gt 0 -or $ChildProperty.Count -gt 0 -or $Pattern -or `
-	$GetPatternProperty -or $CheckPatternSupported -or $ListControls -or `
+	$GetPatternPropertyValue -or $CheckPatternSupported -or $ListControls -or `
 	$ListChildren -or $ControlExist -or $ChildExist
 
 	if (-not $hasControlOperation) {
@@ -5778,12 +5845,16 @@ function Interact-UIA {
 	# If Pure Window Operation skip control and child
 	# ----------------------------------------------------------------
 	$PureWindowOperation = -not ($ControlProperty.Count -gt 0 -or $ChildProperty.Count -gt 0 -or $ListControls -or $ListChildren)
-	if ($PureWindowOperation) { $control = $appWin }
+	if ($PureWindowOperation) {
+		if ($DebugSwitch) { Write-Host "Window Operation" }
+		$control = $appWin
+	}
 
 	# ----------------------------------------------------------------
 	# Section 5: Control Discovery and Listing
 	# ----------------------------------------------------------------
 	if ($ListControls) {
+		if ($DebugSwitch) { Write-Host "Listing Controls" }
 		$ctrlconditions = @()
 
 		# Build control search conditions from dynamic property arrays
@@ -5795,7 +5866,12 @@ function Interact-UIA {
 
 			for ($i = 0; $i -lt $ControlProperty.Count; $i++) {
 				$ControlProperty[$i] = $ControlProperty[$i] + "Property"
-				$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ControlProperty[$i]), $ControlValue[$i])
+				if ($ControlProperty[$i] -eq "ControlTypeProperty") {
+					$ControlTypeValue = ([System.Windows.Automation.ControlType]::($ControlValue[$i]))
+					$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ControlProperty[$i]), $ControlTypeValue)
+				} else {
+					$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ControlProperty[$i]), $ControlValue[$i])
+				}
 			}
 		}
 
@@ -5813,13 +5889,13 @@ function Interact-UIA {
 		$out = @()
 		foreach ($ctrl in $allctrls) {
 			$out += [pscustomobject] @{
-				Element      = $ctrl
 				AutomationId	= $ctrl.Current.AutomationId
 				ClassName    = $ctrl.Current.ClassName
 				ControlType  = $ctrl.Current.ControlType.ProgrammaticName -replace '^ControlType\.', ''
 				Name         = $ctrl.Current.Name
 				FrameworkId  = $ctrl.Current.FrameworkId
 				Patterns     = ($ctrl.GetSupportedPatterns().ProgrammaticName -join ", ")
+				Element      = $ctrl
 			}
 		}
 		return $out
@@ -5833,6 +5909,7 @@ function Interact-UIA {
 
 	# Build control search conditions from dynamic property arrays
 	if ($ControlProperty -and $ControlProperty.Count -gt 0) {
+		if ($DebugSwitch) { Write-Host "Searching for control" }
 		if ($ControlProperty.Count -ne $ControlValue.Count) {
 			Write-Warning "⚠️ ControlProperty and ControlValue arrays must have the same number of elements"
 			return $false
@@ -5840,7 +5917,12 @@ function Interact-UIA {
 
 		for ($i = 0; $i -lt $ControlProperty.Count; $i++) {
 			$ControlProperty[$i] = $ControlProperty[$i] + "Property"
-			$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ControlProperty[$i]), $ControlValue[$i])
+			if ($ControlProperty[$i] -eq "ControlTypeProperty") {
+				$ControlTypeValue = ([System.Windows.Automation.ControlType]::($ControlValue[$i]))
+				$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ControlProperty[$i]), $ControlTypeValue)
+			} else {
+				$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ControlProperty[$i]), $ControlValue[$i])
+			}
 		}
 
 
@@ -5859,6 +5941,7 @@ function Interact-UIA {
 		} else {
 			$control = $appWin.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $ctrlCondition)
 		}
+		if ($DebugSwitch) { if ($control) { Write-Host "Control found" } else { Write-Warning "⚠️ Control Not found" } }
 	}
 
 	# Return control existence check with element references
@@ -5877,6 +5960,7 @@ function Interact-UIA {
 	# ----------------------------------------------------------------
 	# Search for child controls within found parent control(s)
 	if ($ChildProperty -and $ChildProperty.Count -gt 0) {
+		if ($DebugSwitch) { Write-Host "Searching for child" }
 		if (-not $control -and -not $controls) {
 			if (-not $NoWarn) { Write-Warning "⚠️ Parent control not found for child search" }
 			return $false
@@ -5893,7 +5977,12 @@ function Interact-UIA {
 
 			for ($i = 0; $i -lt $ChildProperty.Count; $i++) {
 				$ChildProperty[$i] = $ChildProperty[$i] + "Property"
-				$childConditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ChildProperty[$i]), $ChildValue[$i])
+				if ($ChildProperty[$i] -eq "ControlTypeProperty") {
+					$ControlTypeValue = ([System.Windows.Automation.ControlType]::($ChildValue[$i]))
+					$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ChildProperty[$i]), $ControlTypeValue)
+				} else {
+					$childConditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ChildProperty[$i]), $ChildValue[$i])
+				}
 			}
 		}
 
@@ -5941,6 +6030,7 @@ function Interact-UIA {
 
 	# List children operation - display all direct child controls of found parent(s)
 	if ($ListChildren) {
+		if ($DebugSwitch) { Write-Host "Listing Children" }
 		if (-not $control -and -not $controls) {
 			if (-not $NoWarn) { Write-Warning "⚠️ Parent control not found for listing children" }
 			return $false
@@ -5959,16 +6049,15 @@ function Interact-UIA {
 		$out = @()
 		foreach ($child in $allChildren) {
 			$out += [pscustomobject] @{
-				Element      = $child
 				AutomationId	= $child.Current.AutomationId
 				ClassName    = $child.Current.ClassName
 				ControlType  = $child.Current.ControlType.ProgrammaticName -replace '^ControlType\.', ''
 				Name         = $child.Current.Name
 				FrameworkId  = $child.Current.FrameworkId
 				Patterns     = ($child.GetSupportedPatterns().ProgrammaticName -join ", ")
+				Element      = $child
 			}
 		}
-		$out = $out | Sort-Object ControlType, Name | Format-Table -Property AutomationId, ClassName, ControlType, Name, FrameworkId, Patterns -Wrap -AutoSize
 		return $out
 	}
 
@@ -5983,7 +6072,7 @@ function Interact-UIA {
 	# ----------------------------------------------------------------
 	try {
 		# Determine which elements to process (single or multiple)
-		$elementsToProcess = if ($MultiElements) { $controls } else { @($control) }
+		if ($MultiElements) { $elementsToProcess = $controls } else { $elementsToProcess = @($control) }
 		$results = @()
 
 		foreach ($element in $elementsToProcess) {
@@ -5991,30 +6080,31 @@ function Interact-UIA {
 			if ($CheckPatternSupported) {
 				$patternType = Get-PatternType -PatternName $Pattern
 				if (-not $patternType) {
-					Write-Warning "⚠️ Pattern '$Pattern' not recognized"
+					if (-not $NoWarn) { Write-Warning "⚠️ Pattern '$Pattern' not recognized" }
 					return $false
 				}
 				$ElementSupportedPatterns = $element.GetSupportedPatterns()
 				$isSupported = $ElementSupportedPatterns | Where-Object { $_.ProgrammaticName -eq $patternType.ProgrammaticName }
-				Write-Host "Used pattern:"
-				$patternType
-				Write-Host "Element Supported Patterns:"
-				$ElementSupportedPatterns
-				Write-Host "Supported Result: $isSupported"
+				if ($DebugSwitch) { Write-Host "Used pattern: $Pattern" }
+				if ($DebugSwitch) { Write-Host "PatternType: "; $patternType.ProgrammaticName }
+				if ($DebugSwitch) { Write-Host "Supported Patterns: "; (($element.GetSupportedPatterns()).ProgrammaticName -join ", ") }
+				if ($DebugSwitch) { Write-Host "Matched Pattern: "; $isSupported.ProgrammaticName }
 				$results += [bool]$isSupported
 				continue
 			}
 
 			# Pattern property retrieval
-			if ($GetPatternProperty -and $PatternProperty) {
+			if ($GetPatternPropertyValue -and $PatternProperty) {
 				$patternType = Get-PatternType -PatternName $Pattern
 				if (-not $patternType) {
-					Write-Warning "⚠️ Pattern '$Pattern' not recognized"
+					if (-not $NoWarn) { Write-Warning "⚠️ Pattern '$Pattern' not recognized" }
 					return $false
 				}
 
-				$pattern = $element.GetCurrentPattern($patternType)
-				$propertyValue = $pattern.$PatternProperty
+				$ExecutePattern = $element.GetCurrentPattern($patternType)
+				$StrExp = '$propertyValue = $ExecutePattern.' + $PatternProperty
+				Invoke-Expression -Command $StrExp
+				if ($DebugSwitch) { Write-Host "Pattern Property Value: "; $propertyValue }
 				$results += $propertyValue
 				continue
 			}
@@ -6023,7 +6113,7 @@ function Interact-UIA {
 			if ($Pattern -and $PatternMethod) {
 				$patternType = Get-PatternType -PatternName $Pattern
 				if (-not $patternType) {
-					Write-Warning "⚠️ Pattern '$Pattern' not recognized"
+					if (-not $NoWarn) { Write-Warning "⚠️ Pattern '$Pattern' not recognized" }
 					return $false
 				}
 
@@ -6032,7 +6122,9 @@ function Interact-UIA {
 				# Check condition if specified (execute only if condition matches)
 				$shouldExecute = $true
 				if ($PatternProperty -and $ConditionValue) {
-					$currentValue = $ExecutePattern.$PatternProperty
+					$StrExp = '$currentValue = $ExecutePattern.' + $PatternProperty
+					Invoke-Expression -Command $StrExp
+					if ($DebugSwitch) { Write-Host "Pattern Property Value: "; $currentValue }
 					$shouldExecute = Test-Condition -CurrentValue $currentValue -ExpectedValue $ConditionValue -Operator $ConditionOperator
 				}
 
@@ -6043,11 +6135,10 @@ function Interact-UIA {
 					} else {
 						$ExecutePattern.$PatternMethod.Invoke()
 					}
-
-					Write-Host "✅ Executed $Pattern.$PatternMethod on element: Name='$($element.Current.Name)' AutomationId='$($element.Current.AutomationId)'" -ForegroundColor Green
+					if ($DebugSwitch) { Write-Host "✅ Executed $Pattern $PatternMethod() on element: Name='$($element.Current.Name)' AutomationId='$($element.Current.AutomationId)'" -ForegroundColor Green }
 					$results += $true
 				} else {
-					Write-Host "⏭️  Condition not met for $Pattern.$PatternMethod on element: Name='$($element.Current.Name)'" -ForegroundColor Yellow
+					if ($DebugSwitch) { Write-Host "⏭️  Condition not met for $Pattern $PatternMethod() on element: Name='$($element.Current.Name)'" -ForegroundColor Yellow }
 					$results += $false
 				}
 				continue
@@ -6055,15 +6146,73 @@ function Interact-UIA {
 		}
 
 		# Return operation results
-		if ($CheckPatternSupported -or $GetPatternProperty) {
-			return if ($results.Count -eq 1) { $results[0] } else { $results }
+		if ($CheckPatternSupported -or $GetPatternPropertyValue) {
+			if ($results.Count -eq 1) { return $results[0] } else { return $results }
 		} else {
 			return $results -contains $true
 		}
 	} catch {
 		Write-Warning "⚠️ Error performing pattern operation: $($_.Exception.Message)"
+		if (-not $ExecutePattern) { Write-Host "Failed to Get Current Pattern for the element" }
 		return $false
 	}
+}
+
+# ==================================================================================
+# Helper function for Dynamic Conditions Search
+# ==================================================================================
+function DynamicConditionsSearch {
+	param(
+		[array]$ElementProperty = @(),													# Element property names to filter by e.g. ("ClassName", "Name", "AutomationId", "ControlType", "FrameworkId")
+		[array]$ElementValue = @(),														# Element property values corresponding to ElementProperty array
+		[object]$source = ([System.Windows.Automation.AutomationElement]::RootElement),	# The Starting point of the search, Default is desktop.
+		[switch]$MultiElements,															# Process all elements that match the conditions (not just first match)
+		[switch]$DebugSwitch
+	)
+
+	# Load UI Automation assemblies
+	Add-Type -AssemblyName UIAutomationClient -ErrorAction SilentlyContinue
+	Add-Type -AssemblyName UIAutomationTypes -ErrorAction SilentlyContinue
+
+	$ElementConditions = @()
+	# Build Element search conditions from dynamic property arrays
+	if ($ElementProperty -and $ElementProperty.Count -gt 0) {
+		if ($DebugSwitch) { Write-Host "Searching for Element" }
+		if ($ElementProperty.Count -ne $ElementValue.Count) {
+			Write-Warning "⚠️ ElementProperty and ElementValue arrays must have the same number of elements"
+			return $false
+		}
+
+		for ($i = 0; $i -lt $ElementProperty.Count; $i++) {
+			$ElementProperty[$i] = $ElementProperty[$i] + "Property"
+			if ($ElementProperty[$i] -eq "ControlTypeProperty") {
+				# Correction for ControlType value type
+				$ElementTypeValue = ([System.Windows.Automation.ControlType]::($ElementValue[$i]))
+				$Elementconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ElementProperty[$i]), $ControlTypeValue)
+			} else {
+				$Elementconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ElementProperty[$i]), $ElementValue[$i])
+			}
+		}
+	}
+
+	# Create search condition from individual conditions
+	if ($Elementconditions.Count -gt 1) {
+		$ElementCondition = New-Object System.Windows.Automation.AndCondition($ctrlconditions)
+	} elseif ($Elementconditions.Count -eq 1) {
+		$ElementCondition = $ctrlconditions[0]
+	} else {
+		$ElementCondition = [System.Windows.Automation.Condition]::TrueCondition
+	}
+
+	# Execute search for single or multiple elements based on MultiElements switch
+	if ($MultiElements) {
+		$Elements = $source.FindAll([System.Windows.Automation.TreeScope]::Descendants, $ctrlCondition)
+	} else {
+		$Element = $source.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $ctrlCondition)
+	}
+	if ($DebugSwitch) { if ($Element -or $Elements) { Write-Host "Element(s) Found" } else { Write-Warning "⚠️ Element(s) Not found" } }
+
+	return
 }
 
 # ==================================================================================
@@ -6116,6 +6265,113 @@ function Get-PatternType {
 	}
 
 	return $PatternType
+}
+
+function Get-PatternStateType {
+	param([string]$PatternName)
+
+	$StrExp = '$PatternStateType = [System.Windows.Automation.' + $PatternName + 'State]'
+	Invoke-Expression -Command $StrExp
+
+	return $PatternStateType
+}
+
+# ==================================================================================
+# Function: Wait-WindowReady
+# Helper function for dynamic waiting until window is ready
+# ==================================================================================
+# --- Function and class together ---
+function Wait-WindowReady {
+	param(
+		[Parameter(Mandatory)]
+		$Hwnd,         # Can be IntPtr, UIntPtr, or System.Reflection.Pointer
+		[int]$Timeout = 10000
+	)
+
+	# --- Add Win32 class once ---
+	if (-not ("Win32" -as [type])) {
+		Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public class Win32 {
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+
+    [DllImport("user32.dll")]
+    public static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsHungAppWindow(IntPtr hWnd);
+}
+"@
+	}
+
+	# --- Normalize HWND to IntPtr ---
+	if ($Hwnd -is [System.Reflection.Pointer]) {
+		$hwndPtr = [System.Runtime.InteropServices.Pointer]::Unbox($Hwnd)
+	} elseif ($Hwnd -is [UIntPtr]) {
+		$hwndPtr = [IntPtr]::new([UInt64]$Hwnd.ToUInt64())
+	} elseif ($Hwnd -is [IntPtr]) {
+		$hwndPtr = $Hwnd
+	} else {
+		$hwndPtr = [IntPtr]::new([UInt64]$Hwnd)
+	}
+
+	# --- Get owning process ---
+	$null = [Win32]::GetWindowThreadProcessId($hwndPtr, [ref]([int]$ownerPid = 0))
+	if (-not $ownerPid) { return $false }
+
+	try {
+		$proc = Get-Process -Id $ownerPid -ErrorAction Stop
+	} catch {
+		return $false
+	}
+
+	# --- WaitForInputIdle (half timeout) ---
+	$halfTimeout = [Math]::Max(500, [int]($Timeout / 2))
+	try { $null = $proc.WaitForInputIdle($halfTimeout) } catch {}
+
+	# --- Poll until window is ready ---
+	$sw = [Diagnostics.Stopwatch]::StartNew()
+	while ($sw.ElapsedMilliseconds -lt $Timeout) {
+		$isValid = [Win32]::IsWindow($hwndPtr)
+		$isVisible = [Win32]::IsWindowVisible($hwndPtr)
+		$isHung = [Win32]::IsHungAppWindow($hwndPtr)
+
+		if ($isValid -and $isVisible -and -not $isHung) {
+			return $true
+		}
+
+		Start-Sleep -Milliseconds 100
+	}
+
+	return $false
 }
 
 # ==================================================================================
@@ -6171,83 +6427,44 @@ function Get-TargetType {
 	return "Unknown"
 }
 
+function Test-TypeExists {
+	param([string]$TypeName)
+	try {
+		[System.Type]::GetType($TypeName, $true) | Out-Null
+		return $true
+	} catch {
+		return $false
+	}
+}
+
 # ==================================================================================
 # Function: Get-ForegroundWindow
 # - Return an object with [UIA WindowElement, handle, title, Class Name, Control Type & Automation Id] of the current Foreground Window
 # - Helper function to get current foreground window
 # ==================================================================================
 function Get-ForegroundWindow {
-	Add-Type -TypeDefinition @"
-    using System;
-    using System.Runtime.InteropServices;
-    public class Win32 {
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetForegroundWindow();
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count);
-
-        [DllImport("user32.dll")]
-        public static extern int GetWindowTextLength(IntPtr hWnd);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
-    }
-"@
-
-	# Load UI Automation assemblies
-	Add-Type -AssemblyName UIAutomationClient
-	Add-Type -AssemblyName UIAutomationTypes
-
-	# Get the foreground window handle
-	$hWnd = [Win32]::GetForegroundWindow()
-
-	if ($hWnd -eq [IntPtr]::Zero) {
-		Write-Warning "⚠️ No foreground window found"
-		return [IntPtr]::Zero
-	}
-
-	# Get the window title
-	$titleLength = [Win32]::GetWindowTextLength($hWnd)
-	$titleBuilder = New-Object System.Text.StringBuilder($titleLength + 1)
-	[Win32]::GetWindowText($hWnd, $titleBuilder, $titleBuilder.Capacity) | Out-Null
-	$title = $titleBuilder.ToString()
-
-	# Get the window class name
-	$classBuilder = New-Object System.Text.StringBuilder(256)
-	[Win32]::GetClassName($hWnd, $classBuilder, $classBuilder.Capacity) | Out-Null
-	$className = $classBuilder.ToString()
-
-	# Get UI Automation element and ControlType
-	try {
-		$WindowElement = [System.Windows.Automation.AutomationElement]::FromHandle($hWnd)
-		$ctrlControlType = $WindowElement.Current.ControlType.ProgrammaticName.Replace("ControlType.", "")
-		$AutomationId = $WindowElement.Current.AutomationId
-	} catch { Write-Warning "⚠️ Failed to get all the window properties" }
-
-	# Return an object with the properties
-	return [PSCustomObject] @{
-		WindowElement = $WindowElement
-		Handle        = [IntPtr] $hWnd
-		Title         = $title
-		ClassName     = $className
-		ControlType   = $ctrlControlType
-		AutomationId  = $AutomationId
-		Patterns      = ($WindowElement.GetSupportedPatterns().ProgrammaticName -join ", ")
-	}
-}
-
-# ==================================================================================
-# Function: Get-AllTopWindows
-# ==================================================================================
-function Get-AllTopWindows {
-	# --- Enumerate all top-level windows ---
-	Add-Type @"
+	# --- Get Foreground Window ---
+	if (-not (Test-TypeExists -TypeName "Win32")) {
+		Add-Type -TypeDefinition @"
 using System;
-using System.Text;
 using System.Runtime.InteropServices;
+using System.Text;
 
 public class Win32 {
+    // From first definition
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+
+    [DllImport("user32.dll")]
+    public static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    // From second definition
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
     [DllImport("user32.dll")]
@@ -6260,14 +6477,225 @@ public class Win32 {
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsWindowVisible(IntPtr hWnd);
-
-    [DllImport("user32.dll", CharSet=CharSet.Auto)]
-    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-
-    [DllImport("user32.dll", CharSet=CharSet.Auto)]
-    public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 }
 "@
+	}
+
+	# Load UI Automation assemblies
+	Add-Type -AssemblyName UIAutomationClient -ErrorAction SilentlyContinue
+	Add-Type -AssemblyName UIAutomationTypes -ErrorAction SilentlyContinue
+
+	# Get the foreground window handle
+	$hWnd = [Win32]::GetForegroundWindow()
+
+	if ($hWnd -eq [IntPtr]::Zero) {
+		Write-Warning "⚠️ No foreground window found"
+		return [PSCustomObject] @{
+			HWND = [IntPtr]::Zero
+		}
+	}
+
+	# Get the window title
+	$titleLength = [Win32]::GetWindowTextLength($hWnd)
+	$titleBuilder = New-Object System.Text.StringBuilder($titleLength + 1)
+	[Win32]::GetWindowText($hWnd, $titleBuilder, $titleBuilder.Capacity) | Out-Null
+	$title = $titleBuilder.ToString()
+
+	# Get UI Automation element and ControlType
+	try {
+		$WindowElement = [System.Windows.Automation.AutomationElement]::FromHandle($hWnd)
+		$ControlType = $WindowElement.Current.ControlType.ProgrammaticName.Replace("ControlType.", "")
+		$AutomationId = $WindowElement.Current.AutomationId
+		$className = $WindowElement.Current.ClassName
+		$Patterns = ($WindowElement.GetSupportedPatterns().ProgrammaticName -join ", ")
+	} catch { Write-Warning "⚠️ Failed to get all the window properties" }
+
+	if ($className -eq "Windows.UI.Core.CoreWindow") {} else {}
+
+	# Return an object with the properties
+	return [PSCustomObject] @{
+		HWND         = [IntPtr] $hWnd
+		Title        = $title
+		ClassName    = $className
+		ControlType  = $ControlType
+		AutomationId = $AutomationId
+		Patterns     = $Patterns
+	}
+}
+
+function Get-UWPPairedWindow {
+	param(
+		[Parameter(Mandatory = $true)]
+		[IntPtr]$SourceHWnd,
+
+		[Parameter(Mandatory = $true)]
+		[ValidateSet("ToAppFrame", "ToCoreWindow")]
+		[string]$Direction
+	)
+
+	# Define Win32 API functions
+	Add-Type -TypeDefinition @"
+        using System;
+        using System.Runtime.InteropServices;
+        using System.Text;
+
+        public class WindowUtils {
+            [DllImport("user32.dll")]
+            public static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+            [DllImport("user32.dll")]
+            public static extern IntPtr GetParent(IntPtr hWnd);
+
+            [DllImport("user32.dll", CharSet = CharSet.Auto)]
+            public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+            [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+            public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+            [DllImport("user32.dll")]
+            public static extern bool IsWindowVisible(IntPtr hWnd);
+
+            public const uint GW_CHILD = 5;
+            public const uint GW_HWNDFIRST = 0;
+            public const uint GW_HWNDNEXT = 2;
+        }
+"@ -ErrorAction SilentlyContinue
+
+	if ($SourceHWnd -eq [IntPtr]::Zero) {
+		return [IntPtr]::Zero
+	}
+
+	switch ($Direction) {
+		"ToAppFrame" {
+			# Get ApplicationFrameWindow from CoreWindow
+
+			# First try: Get direct parent
+			$parentHwnd = [WindowUtils]::GetParent($SourceHWnd)
+			if ($parentHwnd -ne [IntPtr]::Zero) {
+				$className = New-Object System.Text.StringBuilder 256
+				[WindowUtils]::GetClassName($parentHwnd, $className, $className.Capacity) | Out-Null
+				if ($className.ToString() -eq "ApplicationFrameWindow") {
+					return $parentHwnd
+				}
+			}
+
+			# Second try: Get the CoreWindow title and find matching ApplicationFrameWindow
+			$coreWindowTitle = New-Object System.Text.StringBuilder 256
+			[WindowUtils]::GetWindowText($SourceHWnd, $coreWindowTitle, $coreWindowTitle.Capacity) | Out-Null
+			$targetTitle = $coreWindowTitle.ToString()
+
+			if ([string]::IsNullOrEmpty($targetTitle)) {
+				return [IntPtr]::Zero
+			}
+
+			# Enumerate all ApplicationFrameWindow instances and match by title
+			$hwnd = [WindowUtils]::GetWindow([IntPtr]::Zero, [WindowUtils]::GW_HWNDFIRST)
+			while ($hwnd -ne [IntPtr]::Zero) {
+				if ([WindowUtils]::IsWindowVisible($hwnd)) {
+					$className = New-Object System.Text.StringBuilder 256
+					[WindowUtils]::GetClassName($hwnd, $className, $className.Capacity) | Out-Null
+
+					if ($className.ToString() -eq "ApplicationFrameWindow") {
+						$windowTitle = New-Object System.Text.StringBuilder 256
+						[WindowUtils]::GetWindowText($hwnd, $windowTitle, $windowTitle.Capacity) | Out-Null
+
+						if ($windowTitle.ToString() -eq $targetTitle) {
+							return $hwnd
+						}
+					}
+				}
+				$hwnd = [WindowUtils]::GetWindow($hwnd, [WindowUtils]::GW_HWNDNEXT)
+			}
+		}
+
+		"ToCoreWindow" {
+			# Get CoreWindow from ApplicationFrameWindow
+
+			# First try: Get direct child with CoreWindow class
+			$childHwnd = [WindowUtils]::GetWindow($SourceHWnd, [WindowUtils]::GW_CHILD)
+			while ($childHwnd -ne [IntPtr]::Zero) {
+				$className = New-Object System.Text.StringBuilder 256
+				[WindowUtils]::GetClassName($childHwnd, $className, $className.Capacity) | Out-Null
+				if ($className.ToString() -eq "Windows.UI.Core.CoreWindow") {
+					return $childHwnd
+				}
+				$childHwnd = [WindowUtils]::GetWindow($childHwnd, [WindowUtils]::GW_HWNDNEXT)
+			}
+
+			# Second try: Get ApplicationFrameWindow title and find matching CoreWindow
+			$appFrameTitle = New-Object System.Text.StringBuilder 256
+			[WindowUtils]::GetWindowText($SourceHWnd, $appFrameTitle, $appFrameTitle.Capacity) | Out-Null
+			$targetTitle = $appFrameTitle.ToString()
+
+			if ([string]::IsNullOrEmpty($targetTitle)) {
+				return [IntPtr]::Zero
+			}
+
+			# Enumerate all CoreWindow instances and match by title
+			$hwnd = [WindowUtils]::GetWindow([IntPtr]::Zero, [WindowUtils]::GW_HWNDFIRST)
+			while ($hwnd -ne [IntPtr]::Zero) {
+				if ([WindowUtils]::IsWindowVisible($hwnd)) {
+					$className = New-Object System.Text.StringBuilder 256
+					[WindowUtils]::GetClassName($hwnd, $className, $className.Capacity) | Out-Null
+
+					if ($className.ToString() -eq "Windows.UI.Core.CoreWindow") {
+						$windowTitle = New-Object System.Text.StringBuilder 256
+						[WindowUtils]::GetWindowText($hwnd, $windowTitle, $windowTitle.Capacity) | Out-Null
+
+						if ($windowTitle.ToString() -eq $targetTitle) {
+							return $hwnd
+						}
+					}
+				}
+				$hwnd = [WindowUtils]::GetWindow($hwnd, [WindowUtils]::GW_HWNDNEXT)
+			}
+		}
+	}
+
+	return [IntPtr]::Zero
+}
+
+# ==================================================================================
+# Function: Get-AllTopWindows
+# ==================================================================================
+function Get-AllTopWindows {
+	# --- Enumerate all top-level windows ---
+	if (-not (Test-TypeExists -TypeName "Win32")) {
+		Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public class Win32 {
+    // From first definition
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+
+    [DllImport("user32.dll")]
+    public static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    // From second definition
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+}
+"@
+	}
 
 	$allWindows = New-Object System.Collections.ArrayList
 
@@ -6286,11 +6714,11 @@ public class Win32 {
 		$class = $sbClass.ToString()
 
 		$obj = [PSCustomObject]@{
-			HWND    = [IntPtr] $hWnd
-			PID     = $wndPid
-			Title   = $title
-			Class   = $class
-			Visible = [Win32]::IsWindowVisible($hWnd)
+			HWND      = [IntPtr] $hWnd
+			PID       = $wndPid
+			Title     = $title
+			ClassName = $class
+			Visible   = [Win32]::IsWindowVisible($hWnd)
 		}
 
 		$null = $allWindows.Add($obj)
@@ -6318,6 +6746,7 @@ function Get-AppHwnd {
 		[switch]$DebugSwitch = $false
 	)
 
+	# Load UI Automation assemblies
 	Add-Type -AssemblyName UIAutomationClient -ErrorAction SilentlyContinue
 	Add-Type -AssemblyName UIAutomationTypes -ErrorAction SilentlyContinue
 
@@ -6353,7 +6782,7 @@ function Get-AppHwnd {
 
 		# Case 2: --- UWP direct CoreWindow --- Process UWP exposed Windows.UI.Core.CoreWindow (found by enum)
 		# This can change by interactions with the window and go 3rd case. Hard to detect but we cover both anyway
-		$coreWindows = $allWindows | Where-Object { $_.PID -eq $proc.Id -and $_.Class -eq "Windows.UI.Core.CoreWindow" }
+		$coreWindows = $allWindows | Where-Object { $_.PID -eq $proc.Id -and $_.ClassName -eq "Windows.UI.Core.CoreWindow" }
 		foreach ($cw in $coreWindows) {
 			$results += [PSCustomObject]@{
 				HWND     = [IntPtr] $cw.HWND
@@ -6364,12 +6793,13 @@ function Get-AppHwnd {
 				Class    = $cw.Class
 				Method   = "Core"
 			}
+			# Returns at the first finding
 			return $results
 		}
 
-		# Case 3: --- Hosted UWP (ApplicationFrameWindow) --- Process UWP wirh core window below the hosted window
+		# Case 3: --- Hosted UWP (ApplicationFrameWindow) --- Process UWP with core window below the hosted window
 		# This can change by interactions with the window and go 2nd case. Hard to detect but we cover both anyway
-		$hostWindows = $allWindows | Where-Object { $_.Class -eq "ApplicationFrameWindow" }
+		$hostWindows = $allWindows | Where-Object { $_.ClassName -eq "ApplicationFrameWindow" }
 		foreach ($hw in $hostWindows) {
 			try {
 				$ae = [System.Windows.Automation.AutomationElement]::FromHandle($hw.HWND)
@@ -6384,17 +6814,17 @@ function Get-AppHwnd {
 						Class    = $hw.Class
 						Method   = "Hosted"
 					}
+					# Returns at the first finding
 					return $results
 				}
-			} catch {}
+			} catch {} # Silent
 		}
 	}
 
-	if ($results.Count -eq 0) {
-		if ($DebugSwitch -and $ProcessName) { Write-Warning "No windows found for process $ProcessName" }
-		if ($DebugSwitch -and $ProcessId) { Write-Warning "No windows found for process with PID $ProcessId" }
-	}
-	$results += [PSCustomObject]@{
+	if ($DebugSwitch -and $ProcessName) { Write-Warning "No windows found for process $ProcessName" }
+	if ($DebugSwitch -and $ProcessId) { Write-Warning "No windows found for process with PID $ProcessId" }
+	$results = [PSCustomObject]@{
+		HWND     = [IntPtr]::Zero
 		RealHWND = [IntPtr]::Zero
 	}
 	return $results
@@ -6495,7 +6925,9 @@ public class UWPAppInfo
 "@ -ReferencedAssemblies @("System.Runtime.InteropServices")
 	}
 
-	if ($DebugSwitch) { Write-Host "Searching for AppUserModelId pattern: '$partAppId'" -ForegroundColor Yellow }
+	$results = @()
+
+	if ($DebugSwitch) { Write-Host "Searching for AppUserModelId pattern: $partAppId" -ForegroundColor Yellow }
 	if (-not $CaseSensitive) {
 		if ($DebugSwitch) { Write-Host "(Case-insensitive search)" -ForegroundColor Gray }
 	}
@@ -6505,7 +6937,10 @@ public class UWPAppInfo
 		$uwpApps = [UWPAppManager]::GetRunningUWPApps()
 	} catch {
 		Write-Host "Error getting UWP apps: $($_.Exception.Message)" -ForegroundColor Red
-		return @()
+		return [PSCustomObject]@{
+			HWND     = [IntPtr]::Zero
+			RealHWND = [IntPtr]::Zero
+		}
 	}
 
 	# Filter by AppUserModelId pattern
@@ -6519,27 +6954,30 @@ public class UWPAppInfo
 		Write-Host "No processes found with AppUserModelId containing: '$partAppId'" -ForegroundColor Yellow
 		Write-Host "Available AppUserModelIds:" -ForegroundColor Gray
 		$uwpApps | Select-Object -ExpandProperty AppUserModelId | Sort-Object | ForEach-Object { Write-Host "  $_" -ForegroundColor White }
-		return @()
+		return [PSCustomObject]@{
+			HWND     = [IntPtr]::Zero
+			RealHWND = [IntPtr]::Zero
+		}
 	}
 
 	if ($DebugSwitch) { Write-Host "Found $($matchingApps.Count) matching process(es)" -ForegroundColor Green }
 
-	$results = @()
+
 	foreach ($app in $matchingApps) {
 		if ($DebugSwitch) { Write-Host "Processing: $($app.ProcessName) (PID: $($app.ProcessId))" -ForegroundColor Gray }
 
 		# Call Get-AppHwnd function for each matching process
 		$AppResult = Get-AppHwnd -ProcessId $app.ProcessId
-		$hwndResult = ($AppResult).RealHWND
 
 		# Only add to results if we got a valid HWND
-		if ($hwndResult -ne [IntPtr]::Zero) {
+		if ($AppResult.HWND -ne [IntPtr]::Zero) {
 			$results += [PSCustomObject]@{
 				ProcessName    = $app.ProcessName
 				ProcessId      = $app.ProcessId
 				AppUserModelId = $app.AppUserModelId
 				WindowTitle    = $AppResult.Title
-				HWND           = [IntPtr] $hwndResult
+				HWND           = [IntPtr] $AppResult.HWND
+				RealHWND       = [IntPtr] $AppResult.RealHWND
 			}
 			Write-Host "Found app: $($AppResult.Title) , App Model Id: $($app.AppUserModelId) "
 		} else {
@@ -6562,38 +7000,44 @@ function Set-IdleLock {
 	Write-Host "`r`n*** Setting Idle Lock Timeout ***`r`n" -ForegroundColor Cyan
 
 	Write-Host "Closing all Settings windows"
-	Get-Process -ProcessName "SystemSettings" | Stop-Process
-	Start-Sleep -Milliseconds 500
+	Get-Process -ProcessName "SystemSettings" -ea SilentlyContinue | Stop-Process -ea SilentlyContinue | Out-Null
+	Start-Sleep -Milliseconds 100
 
 	# Use URI to launch Settings - language independent
 	$uri = "ms-settings:signinoptions"
 
-	# Step 1: Launch Settings with sufficient delay
+	# Step 1: Launch Settings with sufficient timout
 	Write-Host "Launching Settings..." -ForegroundColor Yellow
 	$settingsResult = Interact-UIA -uri $uri `
 	-ProcessName "SystemSettings" `
 	-partAppId "windows.immersivecontrolpanel" `
 	-fallBackInOrder `
-	-Timeout 10000 `
-	-ExtraDelay 1000
-
+	-Timeout 15000 `
+	-ExtraDelay 100 `
+	-WaitWindowReady
 	if (-not $settingsResult) {
 		Write-Warning "⚠️ Failed to access Settings window"
 		return $false
-	}
-	Write-Host "✅ Settings window ready for operations" -ForegroundColor Green
+	} else { Write-Host "✅ Settings window Found" -ForegroundColor Green }
+
+	Write-Host "Setting idle lock timeout..." -ForegroundColor Yellow
 
 	# Step 2: Expand the combo box using AutomationId
-	Write-Host "Setting idle lock timeout..." -ForegroundColor Yellow
-	$expandResult = Interact-UIA `
-	-ProcessName "SystemSettings" `
-	-partAppId "windows.immersivecontrolpanel" `
-	-fallBackInOrder `
-	-ControlProperty @("AutomationId", "ClassName", "ControlType") `
-	-ControlValue @("SystemSettings_Users_DelayLock_ComboBox", "ComboBox", "ComboBox") `
-	-Pattern "ExpandCollapse" `
-	-PatternMethod "Expand"
-
+	Write-Host "Searching for control"
+	$elapsed = 0
+	while ($elapsed -lt 200) {
+		$expandResult = Interact-UIA `
+		-ProcessName "SystemSettings" `
+		-partAppId "windows.immersivecontrolpanel" `
+		-fallBackInOrder `
+		-ControlProperty @("AutomationId", "ClassName", "ControlType") `
+		-ControlValue @("SystemSettings_Users_DelayLock_ComboBox", "ComboBox", "ComboBox") `
+		-Pattern "ExpandCollapse" `
+		-PatternMethod "Expand" `
+		-NoWarn
+		if ($expandResult) { Write-Host "✅ Combo box expanded  after $elapsed ms" -ForegroundColor Green; break }
+		Start-Sleep -Milliseconds 100; $elapsed += 100
+	}
 	if (-not $expandResult) {
 		Write-Warning "⚠️ Could not find idle lock combo box"
 		# Debug: List available controls to see what's there
@@ -6605,18 +7049,18 @@ function Set-IdleLock {
 		-ListControls
 
 		if ($allControls) {
-			$comboControls = $allControls | Where-Object { $_.ControlType -eq "ComboBox" }
+			$comboControls = $allControls | Where-Object { ($_.ControlType) -eq "ComboBox" }
 			if ($comboControls) {
 				Write-Host "Found combo boxes:" -ForegroundColor Yellow
-				$comboControls | Format-Table AutomationId, Name, ClassName -AutoSize
+				$comboControls | Format-Table -AutoSize -Wrap
 			}
 		}
 		return $false
 	}
 
-	Write-Host "✅ Combo box expanded" -ForegroundColor Green
 	# Wait for combo box to expand and items to load
 	Start-Sleep -Milliseconds 1000
+
 	# Step 3: Select the specific item
 	Write-Host "Selecting '$SelectValue'..." -ForegroundColor Yellow
 	$selectResult = Interact-UIA `
@@ -6625,15 +7069,13 @@ function Set-IdleLock {
 	-fallBackInOrder `
 	-ControlProperty @("AutomationId", "ClassName", "ControlType") `
 	-ControlValue @("SystemSettings_Users_DelayLock_ComboBox", "ComboBox", "ComboBox") `
+	-ChildProperty @("Name") `
 	-ChildValue @($SelectValue) `
 	-Pattern "SelectionItem" `
 	-PatternMethod "Select"
-
 	if (-not $selectResult) {
-		Write-Warning "⚠️ Failed to select '$SelectValue'"
-
+		Write-Warning "⚠️ Failed to select '$SelectValue'" -ForegroundColor Yellow
 		# Debug: List available child selection items
-		Write-Host "Trying alternative selection method..." -ForegroundColor Yellow
 		$comboItems = Interact-UIA `
 		-ProcessName "SystemSettings" `
 		-partAppId "windows.immersivecontrolpanel" `
@@ -6641,26 +7083,23 @@ function Set-IdleLock {
 		-ControlProperty @("AutomationId", "ClassName", "ControlType") `
 		-ControlValue @("SystemSettings_Users_DelayLock_ComboBox", "ComboBox", "ComboBox") `
 		-ListChildren
-
 		return $false
-	}
-
-	Write-Host "✅ Successfully set idle lock to '$SelectValue'" -ForegroundColor Green
+	} else { Write-Host "✅ Successfully set idle lock to '$SelectValue'" -ForegroundColor Green }
 
 	# Step 4: Close Settings
 	Write-Host "Closing Settings..." -ForegroundColor Yellow
 	$closeResult = Interact-UIA `
-	-ProcessName "SystemSettings" `
 	-partAppId "windows.immersivecontrolpanel" `
 	-fallBackInOrder `
 	-Pattern "Window" `
 	-PatternMethod "Close" `
-	-NoWarn
+	-HostWindow
 
 	if ($closeResult) {
 		Write-Host "✅ Settings closed successfully" -ForegroundColor Green
 	} else {
-		Write-Warning "⚠️ Could not close Settings automatically - please close manually"
+		Write-Warning "⚠️ Could not close Settings window for sign in options using close button `nUsing forceful process Killing"
+		Get-Process -ProcessName "SystemSettings" -ea SilentlyContinue | Stop-Process -ea SilentlyContinue | Out-Null
 	}
 
 	return $true
@@ -6672,7 +7111,7 @@ function Set-IdleLock {
 # ==================================================================================
 function Test-WindowsDefenderStatus {
 	param(
-		[switch]$DebugView
+		[switch]$DebugSwitch
 	)
 
 	$avProducts = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntivirusProduct -ErrorAction SilentlyContinue
@@ -6703,7 +7142,7 @@ function Test-WindowsDefenderStatus {
 			$otherAVEnabled = $true
 		}
 
-		if ($DebugView) {
+		if ($DebugSwitch) {
 			$debugOutput += [PSCustomObject]@{
 				DisplayName  = $product.displayName
 				ProductState = $state
@@ -6730,7 +7169,7 @@ function Test-WindowsDefenderStatus {
 		OtherAVActive = $otherAVEnabled
 	}
 
-	if ($DebugView) {
+	if ($DebugSwitch) {
 		Write-Output "=== Antivirus Debug Info ==="
 		$debugOutput | Format-Table -AutoSize
 		Write-Output "`n=== Result ==="
@@ -6758,60 +7197,99 @@ function Disable-DefenderRealtimeProtection {
 		return
 	}
 
-	Write-Host "Closing all Settings windows"
-	Get-Process -ProcessName "SystemSettings" | Stop-Process
-	Start-Sleep -Milliseconds 500
+	Write-Host "Closing all Windows Security windows"
+	Get-Process -ProcessName "SecHealthUI" -ea SilentlyContinue | Stop-Process -ea SilentlyContinue | Out-Null
+	Start-Sleep -Milliseconds 100
 
 	# ----------------------------------------------------------------
 	# Step 2: Launch Windows Security and toggle Real-time protection
 	# ----------------------------------------------------------------
 	$uri = "windowsdefender://threatsettings"
 
-	# Step 1: Launch Settings with sufficient delay
-
+	# Launch Settings with sufficient timeout
 	Write-Host "Launching Settings..." -ForegroundColor Yellow
-	$settingsResult = Interact-UIA -uri $uri `
-	-ProcessName "SystemSettings" `
-	-partAppId "windows.immersivecontrolpanel" `
+	$SecurityResult = Interact-UIA -uri $uri `
+	-ProcessName "SecHealthUI" `
+	-partAppId "Microsoft.SecHealthUI" `
 	-fallBackInOrder `
-	-Timeout 10000 `
-	-ExtraDelay 2000
+	-Timeout 15000 `
+	-ExtraDelay 100 `
+	-WaitWindowReady
+	if (-not $SecurityResult) {
+		Write-Warning "⚠️ Failed to access Windows Security window"
+		return $false
+	} else { Write-Host "✅ Windows Security window Found" -ForegroundColor Green }
 
-	Write-Host "`r`n *** 🔴 Turning Off Windows Defender Real-Time Protection *** `r`n" -ForegroundColor Cyan
-	# Use multiple properties for reliable control identification
-	$toggleResult = Interact-UIA `
-	-ProcessName "SystemSettings" `
-	-partAppId "windows.immersivecontrolpanel" `
+	Write-Host "Searching for control"
+	$elapsed = 0
+	while ($elapsed -lt 200) {
+		$RealtimeToggleState = Interact-UIA `
+		-ProcessName "SecHealthUI" `
+		-partAppId "Microsoft.SecHealthUI" `
+		-fallBackInOrder `
+		-ControlProperty @("AutomationId", "ClassName", "Name") `
+		-ControlValue @("settingToggle", "ToggleSwitch", "Real-time protection") `
+		-Pattern "Toggle" `
+		-PatternMethod "Toggle" `
+		-PatternProperty "Current.ToggleState" `
+		-CheckPatternSupported `
+		-NoWarn
+		if ($RealtimeToggleState ) { Write-Host "Real-time protection Toggle found after $elapsed ms "; break }
+		Start-Sleep -Milliseconds 100; $elapsed += 100
+	}
+
+	Start-Sleep -Milliseconds 100
+
+	Write-Host "`r`n *** 🔴 Turning Off Windows Defender Tamper Protection *** `r`n" -ForegroundColor Cyan
+	$TampertoggleResult = Interact-UIA `
+	-ProcessName "SecHealthUI" `
+	-partAppId "Microsoft.SecHealthUI" `
 	-fallBackInOrder `
-	-ControlProperty @("AutomationId", "Name") `
-	-ControlValue @("settingToggle", "Real-time protection") `
+	-ControlProperty @("AutomationId", "ClassName", "Name") `
+	-ControlValue @("settingToggle", "ToggleSwitch", "Tamper Protection") `
 	-Pattern "Toggle" `
 	-PatternMethod "Toggle" `
-	-PatternProperty "ToggleState" `
-	-ConditionValue "Off" `
-	-ConditionOperator "Equals"
+	-PatternProperty "Current.ToggleState" `
+	-ConditionOperator "Equals" `
+	-ConditionValue "On"
+	if (-not $TampertoggleResult) {
+		Write-Warning "⚠️ Tamper protection is already off"
+	} else { Write-Host "✅ Successfully toggled Tamper protection" -ForegroundColor Green }
 
-	if (-not $toggleResult) {
-		Write-Warning "⚠️ Could not find or toggle Real-time protection control"
-		return $false
-	}
-	Write-Host "✅ Successfully toggled Real-time protection" -ForegroundColor Green
+	Start-Sleep -Milliseconds 100
+
+	Write-Host "`r`n *** 🔴 Turning Off Windows Defender Real-Time Protection *** `r`n" -ForegroundColor Cyan
+	$RealtimetoggleResult = Interact-UIA `
+	-ProcessName "SecHealthUI" `
+	-partAppId "Microsoft.SecHealthUI" `
+	-fallBackInOrder `
+	-ControlProperty @("AutomationId", "ClassName", "Name") `
+	-ControlValue @("settingToggle", "ToggleSwitch", "Real-time protection") `
+	-Pattern "Toggle" `
+	-PatternMethod "Toggle" `
+	-PatternProperty "Current.ToggleState" `
+	-ConditionOperator "Equals" `
+	-ConditionValue "On"
+	if (-not $RealtimetoggleResult) {
+		Write-Warning "⚠️ Real-time protection already off"
+	} else { Write-Host "✅ Successfully toggled Real-time protection" -ForegroundColor Green }
 
 	# ----------------------------------------------------------------
 	# Step 3: Close Window using WindowPattern
 	# ----------------------------------------------------------------
 	$closeResult = Interact-UIA `
-	-ProcessName "SystemSettings" `
-	-partAppId "windows.immersivecontrolpanel" `
+	-ProcessName "SecHealthUI" `
+	-partAppId "Microsoft.SecHealthUI" `
 	-fallBackInOrder `
 	-Pattern "Window" `
 	-PatternMethod "Close" `
-	-NoWarn
+	-HostWindow
 
 	if ($closeResult) {
 		Write-Host "✅ Windows Security closed successfully" -ForegroundColor Green
 	} else {
-		Write-Warning "⚠️ Could not close Windows Security window"
+		Write-Warning "⚠️ Could not close Windows Security window using close button `nUsing forceful process Killing"
+		Get-Process -ProcessName "SecHealthUI" -ea SilentlyContinue | Stop-Process -ea SilentlyContinue | Out-Null
 	}
 
 	return $true
@@ -6832,14 +7310,36 @@ function Update-MSStoreApps {
 	# ----------------------------------------------------------------
 	# Step 1: Launch Store with sufficient delay
 	Write-Host "Launching Microsoft Store..." -ForegroundColor Yellow
-	$settingsResult = Interact-UIA -uri $uri `
+	$StoreResult = Interact-UIA -uri $uri `
 	-ProcessName "WinStore.App" `
 	-partAppId "Microsoft.WindowsStore" `
 	-fallBackInOrder `
-	-Timeout 10000 `
-	-ExtraDelay 1000
+	-Timeout 15000 `
+	-ExtraDelay 100 `
+	-WaitWindowReady
+	if (-not $StoreResult) {
+		Write-Warning "⚠️ Failed to access Microsoft Store window"
+		return $false
+	} else { Write-Host "✅ Microsoft Store window Found" -ForegroundColor Green }
 
 	Write-Host "Checking for updates..." -ForegroundColor Yellow
+	Write-Host "Searching for control"
+	$elapsed = 0
+	while ($elapsed -lt 200) {
+		$individualUpdates = Interact-UIA `
+		-ProcessName "WinStore.App" `
+		-partAppId "Microsoft.WindowsStore" `
+		-fallBackInOrder `
+		-ControlProperty @("AutomationId", "ControlType", "Name") `
+		-ControlValue @("ActionButton", "Button", "Open") `
+		-MultiElements `
+		-Pattern "Invoke" `
+		-PatternMethod "ScrollItem" `
+		-NoWarn
+		if ($individualUpdates) { Write-Host "Check For Updates Button found after $elapsed ms "; break }
+		Start-Sleep -Milliseconds 100; $elapsed += 100
+	}
+
 	$checkBtnResult = Interact-UIA `
 	-ProcessName "WinStore.App" `
 	-partAppId "Microsoft.WindowsStore" `
@@ -6848,11 +7348,10 @@ function Update-MSStoreApps {
 	-ControlValue @("CheckForUpdatesButton", "Button", "Button") `
 	-Pattern "Invoke" `
 	-PatternMethod "Invoke"
-
 	if (-not $checkBtnResult) {
 		Write-Warning "⚠️ Could not click 'Check for updates' button."
 		return $false
-	}
+	} else { Write-Host "✅ Successfully clicked 'Check for updates' button." }
 
 	# ----------------------------------------------------------------
 	# checking for updates ("Ring" is found)
@@ -6867,8 +7366,7 @@ function Update-MSStoreApps {
 	-ControlProperty @("AutomationId", "ClassName", "ControlType", "Name") `
 	-ControlValue @("Ring", "Microsoft.UI.Xaml.Controls.ProgressRing", "ProgressBar", "Busy") `
 	-ControlExist
-
-	if ($ringFound.Exists) { Write-Output "✅ Succefully initiated MS Store check for updates" }
+	if ($ringFound.Exists) { Write-Output "✅ Succefully initiated Microsoft Store check for updates" }
 
 	# ----------------------------------------------------------------
 	# Step 2: Monitor update progress & Wait for all updates to complete
@@ -6876,7 +7374,7 @@ function Update-MSStoreApps {
 	Write-Host "Monitoring update progress..." -ForegroundColor Yellow
 
 	$progressDetected = $false
-	for ($i = 1; $i -le 20000; $i++) {
+	for ($i = 1; $i -le 2000; $i++) {
 
 		# Try to click "Update all" button if available
 		$updateAllResult = Interact-UIA `
@@ -6900,18 +7398,17 @@ function Update-MSStoreApps {
 		-partAppId "Microsoft.WindowsStore" `
 		-fallBackInOrder `
 		-ControlProperty @("AutomationId", "ControlType", "Name") `
-		-ControlValue @("ActionButton", "Hyperlink", "Update") `
+		-ControlValue @("ActionButton", "Button", "Update") `
 		-MultiElements `
 		-Pattern "Invoke" `
 		-PatternMethod "Invoke" `
 		-NoWarn
-
 		if ($individualUpdates) {
 			Write-Host "✅ Individual updates initiated" -ForegroundColor Green
 			$updatesHappened = $true
 		}
 
-		# Check for progress indicators
+		# Check for Updates progress indicators
 		$progressRing = Interact-UIA `
 		-ProcessName "WinStore.App" `
 		-partAppId "Microsoft.WindowsStore" `
@@ -6931,19 +7428,19 @@ function Update-MSStoreApps {
 		if ($progressRing.Exists -or $progressBackground.Exists) {
 			$progressDetected = $true
 			$updatesHappened = $true
-			Write-Host "⏳ Updates in progress..." -ForegroundColor Cyan
-		}
+		} else { $progressDetected = $false }
 
 		# If no progress detected after several attempts, break
-		if ($i -gt 10 -and -not $progressDetected -and -not $updateAllResult -and -not $individualUpdates) {
+		if ($i -gt 60 -and -not $progressDetected -and -not $updateAllResult -and -not $individualUpdates) {
 			Write-Host "ℹ️ No update activity detected" -ForegroundColor Yellow
 			break
 		}
 
-		if ($i % 1000 -eq 0) { Write-Host "⏳ Still updating..." }
+		if ($i % 1000 -eq 0 -and $updatesHappened) { Write-Host "⏳ Updates in progress..." }
 		Start-Sleep -Milliseconds 100
 	}
-
+	if ($i -le 2000) { $UpdatesFinished = $true } else { $UpdatesFinished = $false }
+	if ($updatesHappened -and $UpdatesFinished) { Write-Host "All updates finished" }
 	# ----------------------------------------------------------------
 	# Step 3: Generate update report
 	# ----------------------------------------------------------------
@@ -6959,10 +7456,10 @@ function Update-MSStoreApps {
 
 		if ($allControls) {
 			$updatedApps = $allControls | Where-Object {
-				$_.Name -match "Modified (minutes|moments|hours|days) ago" -and
+				$_.Name -match "Modified (minutes|moments) ago" -and
 				$_.ControlType -in @("Custom")
 			} | ForEach-Object {
-				$_.Name -replace ', Modified (minutes|moments|hours|days) ago\.?', ''
+				$_.Name -replace ', Modified (minutes|moments) ago\.?', ''
 			} | Sort-Object -Unique
 
 			if ($updatedApps.Count -gt 0) {
@@ -6982,20 +7479,26 @@ function Update-MSStoreApps {
 	# ----------------------------------------------------------------
 	# Step 5: Close Microsoft Store
 	# ----------------------------------------------------------------
-	Write-Host "Closing Microsoft Store..." -ForegroundColor Yellow
-	$closeResult = Interact-UIA `
-	-ProcessName "WinStore.App" `
-	-partAppId "Microsoft.WindowsStore" `
-	-fallBackInOrder `
-	-Pattern "WindowPattern" `
-	-PatternMethod "Close"
+	if ($UpdatesFinished -or (-not $updatesHappened)) {
+		Write-Host "Closing Microsoft Store..." -ForegroundColor Yellow
+		$closeResult = Interact-UIA `
+		-ProcessName "WinStore.App" `
+		-partAppId "Microsoft.WindowsStore" `
+		-fallBackInOrder `
+		-Pattern "Window" `
+		-PatternMethod "Close" `
+		-HostWindow `
+		-DebugSwitch
 
-	if ($closeResult) {
-		Write-Host "✅ Microsoft Store closed successfully" -ForegroundColor Green
-	} else {
-		Write-Warning "⚠️ Could not close Microsoft Store window"
+		if ($closeResult) {
+			Write-Host "✅ Microsoft Store closed successfully" -ForegroundColor Green
+		} else {
+			Write-Warning "⚠️ Could not close Microsoft Store window using close button `nUsing forceful process Killing"
+			Get-Process -ProcessName "WinStore.App" -ea SilentlyContinue | Stop-Process -ea SilentlyContinue | Out-Null
+		}
 	}
-
 	return $updatesHappened
 }
+
+
 

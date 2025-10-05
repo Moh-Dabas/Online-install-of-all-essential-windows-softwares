@@ -35,7 +35,6 @@ $ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 try {
 	Import-Module -Name $ScriptDirectory\AllFunctions.psm1 -DisableNameChecking -Global -Force
 } catch { Write-Host "AllFunctions.psm1 file not found or failed to Import it"; Start-Sleep 5; exit }
-
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 InitializeCommands
 Set-Personalization
@@ -102,4 +101,5 @@ Create-RLMCopyShortcut
 Update-MSStoreApps # Update MS Store apps using UIA
 Fix-MSWindows #Fix Windows
 Clean-up
+
 
