@@ -6159,7 +6159,7 @@ function Interact-UIA {
 }
 
 # ==================================================================================
-# Helper function for Dynamic Conditions Search (UIA Element Finder Function) 
+# Helper function for Dynamic Conditions Search (UIA Element Finder Function)
 # ==================================================================================
 function DynamicConditionsSearch {
 	param(
@@ -6214,7 +6214,7 @@ function DynamicConditionsSearch {
 # Helper function Convert-UIAConditionType
 # ==================================================================================
 function Convert-UIAConditionType {
-    <#
+		<#
         .SYNOPSIS
         Normalizes AutomationElement property values to their proper .NET types
         so DynamicConditionsSearch and Interact-UIA can safely create conditions.
@@ -6232,90 +6232,90 @@ function Convert-UIAConditionType {
         .OUTPUTS
         The converted value in its correct type.
     #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Property,
+	[CmdletBinding()]
+	param(
+		[Parameter(Mandatory)]
+		[string]$Property,
 
-        [Parameter(Mandatory)]
-        [object]$Value
-    )
+		[Parameter(Mandatory)]
+		[object]$Value
+	)
 
-    switch -Regex ($Property) {
-        # --- UIA Element Properties that require conversion ---
-        '^ControlTypeProperty$' {
-            try {
-                # Accepts ControlType name, e.g., "Button", "Edit", etc.
-                if ($Value -is [string]) {
-                    return [System.Windows.Automation.ControlType]::$Value
-                } else {
-                    return $Value
-                }
-            } catch {
-                Write-Verbose "Invalid ControlType: $Value"
-                return $Value
-            }
-        }
+	switch -Regex ($Property) {
+		# --- UIA Element Properties that require conversion ---
+		'^ControlTypeProperty$' {
+			try {
+				# Accepts ControlType name, e.g., "Button", "Edit", etc.
+				if ($Value -is [string]) {
+					return [System.Windows.Automation.ControlType]::$Value
+				} else {
+					return $Value
+				}
+			} catch {
+				Write-Verbose "Invalid ControlType: $Value"
+				return $Value
+			}
+		}
 
-        '^(ProcessIdProperty|NativeWindowHandleProperty)$' {
-            return [int]$Value
-        }
+		'^(ProcessIdProperty|NativeWindowHandleProperty)$' {
+			return [int]$Value
+		}
 
-        '^BoundingRectangleProperty$' {
-            try {
-                return [Windows.Rect]::Parse($Value)
-            } catch {
-                Write-Verbose "Invalid Rect string: $Value"
-                return $Value
-            }
-        }
+		'^BoundingRectangleProperty$' {
+			try {
+				return [Windows.Rect]::Parse($Value)
+			} catch {
+				Write-Verbose "Invalid Rect string: $Value"
+				return $Value
+			}
+		}
 
-        '^OrientationProperty$' {
-            try {
-                if ($Value -is [string]) {
-                    return [System.Windows.Automation.OrientationType]::$Value
-                } else {
-                    return $Value
-                }
-            } catch {
-                Write-Verbose "Invalid OrientationType: $Value"
-                return $Value
-            }
-        }
+		'^OrientationProperty$' {
+			try {
+				if ($Value -is [string]) {
+					return [System.Windows.Automation.OrientationType]::$Value
+				} else {
+					return $Value
+				}
+			} catch {
+				Write-Verbose "Invalid OrientationType: $Value"
+				return $Value
+			}
+		}
 
-        '^CultureProperty$' {
-            try {
-                if ($Value -is [string]) {
-                    return [System.Globalization.CultureInfo]::new($Value)
-                } else {
-                    return $Value
-                }
-            } catch {
-                Write-Verbose "Invalid CultureInfo: $Value"
-                return $Value
-            }
-        }
+		'^CultureProperty$' {
+			try {
+				if ($Value -is [string]) {
+					return [System.Globalization.CultureInfo]::new($Value)
+				} else {
+					return $Value
+				}
+			} catch {
+				Write-Verbose "Invalid CultureInfo: $Value"
+				return $Value
+			}
+		}
 
-        '^RuntimeIdProperty$' {
-            try {
-                if ($Value -is [string]) {
-                    return ($Value -split '[,; ]+' | ForEach-Object { [int]$_ })
-                } elseif ($Value -is [int[]]) {
-                    return $Value
-                } else {
-                    return @([int]$Value)
-                }
-            } catch {
-                Write-Verbose "Invalid RuntimeId: $Value"
-                return $Value
-            }
-        }
+		'^RuntimeIdProperty$' {
+			try {
+				if ($Value -is [string]) {
+					return ($Value -split '[,; ]+' | ForEach-Object { [int]$_ })
+				} elseif ($Value -is [int[]]) {
+					return $Value
+				} else {
+					return @([int]$Value)
+				}
+			} catch {
+				Write-Verbose "Invalid RuntimeId: $Value"
+				return $Value
+			}
+		}
 
-        # --- Default (leave as-is) ---
-        default {
-            return $Value
-        }
-    }
+		# --- Default (leave as-is) ---
+		default {
+			return $Value
+		}
+	}
 }
 
 # ==================================================================================
@@ -6370,14 +6370,14 @@ function Get-PatternType {
 	return $PatternType
 }
 
-<#
+	<#
 # Still under development
 # Get the type of the value of an element Pattern Property 
 function Get-UIAPropertyValueType {
 	param(
 	[string]$PatternProperty 					#Pattern Value Name
 	)
-	
+
 	switch ($PatternValueName) {
 		"OrientationType"        { $PatternValueName = [System.Windows.Automation.OrientationType] }
         "ToggleState"            { $PatternValueName = [System.Windows.Automation.ToggleState] }
@@ -7621,6 +7621,7 @@ function Update-MSStoreApps {
 	}
 	return $updatesHappened
 }
+
 
 
 
