@@ -6159,12 +6159,12 @@ function Interact-UIA {
 }
 
 # ==================================================================================
-# Helper function for Dynamic Conditions Search
+# Helper function for Dynamic Conditions Search (UIA Element Finder Function) 
 # ==================================================================================
 function DynamicConditionsSearch {
 	param(
 		[array]$ElementProperty = @(),													# Element property names to filter by e.g. ("ClassName", "Name", "AutomationId", "ControlType", "FrameworkId")
-		[array]$ElementValue = @(),														# Element property values corresponding to ElementProperty array
+		[array]$ElementSearchValue = @(),												# Element property search condition values corresponding to Element Property array
 		[object]$source = ([System.Windows.Automation.AutomationElement]::RootElement),	# The Starting point of the search, Default is desktop.
 		[switch]$MultiElements,															# Process all elements that match the conditions (not just first match)
 		[switch]$DebugSwitch
@@ -6179,19 +6179,14 @@ function DynamicConditionsSearch {
 	if ($ElementProperty -and $ElementProperty.Count -gt 0) {
 		if ($DebugSwitch) { Write-Host "Searching for Element" }
 		if ($ElementProperty.Count -ne $ElementValue.Count) {
-			Write-Warning "⚠️ ElementProperty and ElementValue arrays must have the same number of elements"
+			Write-Warning "⚠️ Element properties and Element Search Values arrays must have the same number of elements"
 			return $false
 		}
 
 		for ($i = 0; $i -lt $ElementProperty.Count; $i++) {
-			$ElementProperty[$i] = $ElementProperty[$i] + "Property"
-			if ($ElementProperty[$i] -eq "ControlTypeProperty") {
-				# Correction for ControlType value type
-				$ElementTypeValue = ([System.Windows.Automation.ControlType]::($ElementValue[$i]))
-				$Elementconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ElementProperty[$i]), $ControlTypeValue)
-			} else {
-				$Elementconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ElementProperty[$i]), $ElementValue[$i])
-			}
+			if ($ElementProperty[$i] -notmatch 'Property$') { $ElementProperty[$i] = $ElementProperty[$i] + "Property" }
+			$SearchConditionValue = Convert-UIAConditionType -Property $ElementProperty[$i] -Value $ElementSearchValue[$i]
+			$Elementconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ElementProperty[$i]), $SearchConditionValue)
 		}
 	}
 
@@ -6213,6 +6208,114 @@ function DynamicConditionsSearch {
 	if ($DebugSwitch) { if ($Element -or $Elements) { Write-Host "Element(s) Found" } else { Write-Warning "⚠️ Element(s) Not found" } }
 
 	return
+}
+
+# ==================================================================================
+# Helper function Convert-UIAConditionType
+# ==================================================================================
+function Convert-UIAConditionType {
+    <#
+        .SYNOPSIS
+        Normalizes AutomationElement property values to their proper .NET types
+        so DynamicConditionsSearch and Interact-UIA can safely create conditions.
+
+        .DESCRIPTION
+        This handles the most common AutomationElement properties that throw
+        exceptions if passed as strings. All other properties are returned as-is.
+
+        .PARAMETER Property
+        The AutomationElement property name (string).
+
+        .PARAMETER Value
+        The string or object value to convert.
+
+        .OUTPUTS
+        The converted value in its correct type.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Property,
+
+        [Parameter(Mandatory)]
+        [object]$Value
+    )
+
+    switch -Regex ($Property) {
+        # --- UIA Element Properties that require conversion ---
+        '^ControlTypeProperty$' {
+            try {
+                # Accepts ControlType name, e.g., "Button", "Edit", etc.
+                if ($Value -is [string]) {
+                    return [System.Windows.Automation.ControlType]::$Value
+                } else {
+                    return $Value
+                }
+            } catch {
+                Write-Verbose "Invalid ControlType: $Value"
+                return $Value
+            }
+        }
+
+        '^(ProcessIdProperty|NativeWindowHandleProperty)$' {
+            return [int]$Value
+        }
+
+        '^BoundingRectangleProperty$' {
+            try {
+                return [Windows.Rect]::Parse($Value)
+            } catch {
+                Write-Verbose "Invalid Rect string: $Value"
+                return $Value
+            }
+        }
+
+        '^OrientationProperty$' {
+            try {
+                if ($Value -is [string]) {
+                    return [System.Windows.Automation.OrientationType]::$Value
+                } else {
+                    return $Value
+                }
+            } catch {
+                Write-Verbose "Invalid OrientationType: $Value"
+                return $Value
+            }
+        }
+
+        '^CultureProperty$' {
+            try {
+                if ($Value -is [string]) {
+                    return [System.Globalization.CultureInfo]::new($Value)
+                } else {
+                    return $Value
+                }
+            } catch {
+                Write-Verbose "Invalid CultureInfo: $Value"
+                return $Value
+            }
+        }
+
+        '^RuntimeIdProperty$' {
+            try {
+                if ($Value -is [string]) {
+                    return ($Value -split '[,; ]+' | ForEach-Object { [int]$_ })
+                } elseif ($Value -is [int[]]) {
+                    return $Value
+                } else {
+                    return @([int]$Value)
+                }
+            } catch {
+                Write-Verbose "Invalid RuntimeId: $Value"
+                return $Value
+            }
+        }
+
+        # --- Default (leave as-is) ---
+        default {
+            return $Value
+        }
+    }
 }
 
 # ==================================================================================
@@ -6267,14 +6370,33 @@ function Get-PatternType {
 	return $PatternType
 }
 
-function Get-PatternStateType {
-	param([string]$PatternName)
+<#
+# Still under development
+# Get the type of the value of an element Pattern Property 
+function Get-UIAPropertyValueType {
+	param(
+	[string]$PatternProperty 					#Pattern Value Name
+	)
+	
+	switch ($PatternValueName) {
+		"OrientationType"        { $PatternValueName = [System.Windows.Automation.OrientationType] }
+        "ToggleState"            { $PatternValueName = [System.Windows.Automation.ToggleState] }
+        "ExpandCollapseState"    { $PatternValueName = [System.Windows.Automation.ExpandCollapseState] }
+        "WindowVisualState"      { $PatternValueName = [System.Windows.Automation.WindowVisualState] }
+        "WindowInteractionState" { $PatternValueName = [System.Windows.Automation.WindowInteractionState] }
+        "DockPosition"           { $PatternValueName = [System.Windows.Automation.DockPosition] }
+        "ScrollAmount"           { $PatternValueName = [System.Windows.Automation.ScrollAmount] }
+        "TextUnit"               { $PatternValueName = [System.Windows.Automation.TextUnit] }
+        "SynchronizedInputType"  { $PatternValueName = [System.Windows.Automation.SynchronizedInputType] }
+		default {
+			$StrExp = '$UIAPropertyValueType = [System.Windows.Automation.' + $PatternValueName + ']'
+			Invoke-Expression -Command $StrEx
+		}
+	}
 
-	$StrExp = '$PatternStateType = [System.Windows.Automation.' + $PatternName + 'State]'
-	Invoke-Expression -Command $StrExp
-
-	return $PatternStateType
+	return $UIAPropertyValueType
 }
+#>
 
 # ==================================================================================
 # Function: Wait-WindowReady
