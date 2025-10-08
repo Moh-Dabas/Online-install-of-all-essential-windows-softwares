@@ -5495,6 +5495,7 @@ function Interact-UIA {
 		[switch]$ControlExist,            				# Check if control exists and return existence status with element(s)
 		[switch]$ChildExist,							# Check if child control exists and return existence status with element(s)
 		[switch]$MultiElements,							# Process all elements that match the conditions (not just first match)
+		[switch]$ChildrenOnly,							# Search for Direct children only not the entire Descendants in the tree
 		[switch]$NoWarn,								# Suppress warning if window or element isn't found (useful for retry scenarios)
 		[switch]$DebugSwitch
 	)
@@ -5607,8 +5608,8 @@ function Interact-UIA {
 	# ----------------------------------------------------------------
 	if ($ListWindows) {
 		if ($DebugSwitch) { Write-Host "Listing Windows" }
-		$out = @()
 		$allWindows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+		$out = @()
 		foreach ($win in $allWindows) {
 			$out += [pscustomobject] @{
 				Name          = $win.Current.Name
@@ -5837,7 +5838,7 @@ function Interact-UIA {
 	$ListChildren -or $ControlExist -or $ChildExist
 
 	if (-not $hasControlOperation) {
-		Write-Host "✅ Successfully launched and prepared window for operations" -ForegroundColor Green
+		if ($DebugSwitch) { Write-Host "✅ Successfully launched and prepared window for operations" -ForegroundColor Green }
 		return $true
 	}
 
@@ -5847,47 +5848,36 @@ function Interact-UIA {
 	$PureWindowOperation = -not ($ControlProperty.Count -gt 0 -or $ChildProperty.Count -gt 0 -or $ListControls -or $ListChildren)
 	if ($PureWindowOperation) {
 		if ($DebugSwitch) { Write-Host "Window Operation" }
-		$control = $appWin
+		$ElementsForAction = @()
+		$ElementsForAction = $appWin
 	}
 
 	# ----------------------------------------------------------------
-	# Section 5: Control Discovery and Listing
+	# Section 5: Control Listing
 	# ----------------------------------------------------------------
 	if ($ListControls) {
-		if ($DebugSwitch) { Write-Host "Listing Controls" }
-		$ctrlconditions = @()
-
-		# Build control search conditions from dynamic property arrays
-		if ($ControlProperty -and $ControlProperty.Count -gt 0) {
+		$ElementsForAction = @()
+		if (($ControlProperty -and $ControlProperty.Count -gt 0) -or ($ControlValue -and $ControlValue.Count -gt 0)) {
 			if ($ControlProperty.Count -ne $ControlValue.Count) {
 				Write-Warning "⚠️ ControlProperty and ControlValue arrays must have the same number of elements"
 				return $false
-			}
+			} elseif ($DebugSwitch) { Write-Host "Listing Controls" }
 
-			for ($i = 0; $i -lt $ControlProperty.Count; $i++) {
-				$ControlProperty[$i] = $ControlProperty[$i] + "Property"
-				if ($ControlProperty[$i] -eq "ControlTypeProperty") {
-					$ControlTypeValue = ([System.Windows.Automation.ControlType]::($ControlValue[$i]))
-					$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ControlProperty[$i]), $ControlTypeValue)
-				} else {
-					$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ControlProperty[$i]), $ControlValue[$i])
-				}
-			}
+			# Execute Control listing with conditions
+			$ElementsForAction = UIAElementSearch -source $appWin -ElementProperty $ControlProperty -ElementSearchValue $ControlValue -MultiElements -ChildrenOnly:$ChildrenOnly -NoWarn:$NoWarn -DebugSwitch:$DebugSwitch
+			# Execute Control listing without conditions
+			$ElementsForAction = UIAElementSearch -source $appWin -MultiElements -ChildrenOnly:$ChildrenOnly -NoWarn:$NoWarn -DebugSwitch:$DebugSwitch
 		}
 
-		if ($ctrlconditions.Count -gt 0) {
-			if ($ctrlconditions.Count -gt 1) {
-				$ctrlCondition = New-Object System.Windows.Automation.AndCondition($ctrlconditions)
-			} else {
-				$ctrlCondition = $ctrlconditions[0]
-			}
-			$allctrls = $appWin.FindAll([System.Windows.Automation.TreeScope]::Descendants, $ctrlCondition)
+		if ($ElementsForAction.Count -gt 0) {
+			if ($DebugSwitch) { Write-Host "Control(s) found" }
 		} else {
-			$allctrls = $appWin.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
+			if (-not $NoWarn) { Write-Warning "⚠️ Control(s) Not found" }
+			return $false
 		}
 
 		$out = @()
-		foreach ($ctrl in $allctrls) {
+		foreach ($ctrl in $ElementsForAction) {
 			$out += [pscustomobject] @{
 				AutomationId	= $ctrl.Current.AutomationId
 				ClassName    = $ctrl.Current.ClassName
@@ -5902,154 +5892,85 @@ function Interact-UIA {
 	}
 
 	# ----------------------------------------------------------------
-	# Section 6: Control Search and Verification
+	# Section 6: Controls Search and Verification
 	# ----------------------------------------------------------------
 	# Search for parent control(s) using specified property conditions
-	$ctrlconditions = @()
 
-	# Build control search conditions from dynamic property arrays
-	if ($ControlProperty -and $ControlProperty.Count -gt 0) {
-		if ($DebugSwitch) { Write-Host "Searching for control" }
+	if (($ControlProperty -and $ControlProperty.Count -gt 0) -or ($ControlValue -and $ControlValue.Count -gt 0)) {
+		$ElementsForAction = @()
 		if ($ControlProperty.Count -ne $ControlValue.Count) {
 			Write-Warning "⚠️ ControlProperty and ControlValue arrays must have the same number of elements"
 			return $false
-		}
+		} elseif ($DebugSwitch) { Write-Host "Searching for control" }
 
-		for ($i = 0; $i -lt $ControlProperty.Count; $i++) {
-			$ControlProperty[$i] = $ControlProperty[$i] + "Property"
-			if ($ControlProperty[$i] -eq "ControlTypeProperty") {
-				$ControlTypeValue = ([System.Windows.Automation.ControlType]::($ControlValue[$i]))
-				$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ControlProperty[$i]), $ControlTypeValue)
-			} else {
-				$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ControlProperty[$i]), $ControlValue[$i])
+		# Execute Control search with conditions
+		$ElementsForAction = UIAElementSearch -source $appWin -ElementProperty $ControlProperty -ElementSearchValue $ControlValue -MultiElements:$MultiElements -ChildrenOnly:$ChildrenOnly -NoWarn:$NoWarn -DebugSwitch:$DebugSwitch
+
+		if ($ControlExist) {
+			# Return control existence check with element references
+			return [PSCustomObject]@{
+				Exists   = [bool] ($ElementsForAction.Count -gt 0)
+				Elements = $ElementsForAction
 			}
-		}
-
-
-		# Create search condition from individual conditions
-		if ($ctrlconditions.Count -gt 1) {
-			$ctrlCondition = New-Object System.Windows.Automation.AndCondition($ctrlconditions)
-		} elseif ($ctrlconditions.Count -eq 1) {
-			$ctrlCondition = $ctrlconditions[0]
+		} elseif ($ElementsForAction.Count -gt 0) {
+			if ($DebugSwitch) { Write-Host "Control(s) found" }
 		} else {
-			$ctrlCondition = [System.Windows.Automation.Condition]::TrueCondition
-		}
-
-		# Execute search for single or multiple elements based on MultiElements switch
-		if ($MultiElements) {
-			$controls = $appWin.FindAll([System.Windows.Automation.TreeScope]::Descendants, $ctrlCondition)
-		} else {
-			$control = $appWin.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $ctrlCondition)
-		}
-		if ($DebugSwitch) { if ($control) { Write-Host "Control found" } else { Write-Warning "⚠️ Control Not found" } }
-	}
-
-	# Return control existence check with element references
-	if ($ControlExist) {
-		$foundElements = if ($MultiElements) { $controls } else { @($control) }
-		if (($control.Count -gt 0) -or ($controls.Count -gt 0)) { $exists = $true } else { $exists = $false }
-
-		return [PSCustomObject]@{
-			Exists   = $exists
-			Elements = $foundElements
-		}
-	}
-
-	# ----------------------------------------------------------------
-	# Section 7: Child Control Search and Operations
-	# ----------------------------------------------------------------
-	# Search for child controls within found parent control(s)
-	if ($ChildProperty -and $ChildProperty.Count -gt 0) {
-		if ($DebugSwitch) { Write-Host "Searching for child" }
-		if (-not $control -and -not $controls) {
-			if (-not $NoWarn) { Write-Warning "⚠️ Parent control not found for child search" }
+			if (-not $NoWarn) { Write-Warning "⚠️ Control(s) Not found" }
 			return $false
 		}
-
-		$childConditions = @()
-
-		# Build child control search conditions from dynamic property arrays
-		if ($ChildProperty -and $ChildProperty.Count -gt 0) {
-			if ($ChildProperty.Count -ne $ChildValue.Count) {
-				Write-Warning "⚠️ ChildProperty and ChildValue arrays must have the same number of elements"
-				return $false
-			}
-
-			for ($i = 0; $i -lt $ChildProperty.Count; $i++) {
-				$ChildProperty[$i] = $ChildProperty[$i] + "Property"
-				if ($ChildProperty[$i] -eq "ControlTypeProperty") {
-					$ControlTypeValue = ([System.Windows.Automation.ControlType]::($ChildValue[$i]))
-					$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ChildProperty[$i]), $ControlTypeValue)
-				} else {
-					$childConditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($ChildProperty[$i]), $ChildValue[$i])
-				}
-			}
-		}
-
-		# Create search condition from individual conditions
-		if ($childConditions.Count -gt 1) {
-			$childCondition = New-Object System.Windows.Automation.AndCondition($childConditions)
-		} elseif ($childConditions.Count -eq 1) {
-			$childCondition = $childConditions[0]
-		} else {
-			$childCondition = [System.Windows.Automation.Condition]::TrueCondition
-		}
-
-		# Store parent references and search for children
-		$parentControls = @()
-		if ($MultiElements) {
-			$parentControls = $controls
-			$controls = @()
-		} else {
-			$parentControl = $control
-			$control = $null
-		}
-
-		# Execute child search
-		if ($MultiElements) {
-			$controls = @()
-			foreach ($parent in $parentControls) {
-				$foundChildren = $parent.FindAll([System.Windows.Automation.TreeScope]::Descendants, $childCondition)
-				$controls += $foundChildren
-			}
-		} else {
-			$control = $parentControl.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $childCondition)
-		}
 	}
 
-	# Return child existence check with element references
-	if ($ChildExist) {
-		$foundElements = if ($MultiElements) { $controls } else { @($control) }
-		$exists = [bool]$foundElements -and $foundElements.Count -gt 0 -and $foundElements[0] -ne $null
-
-		return [PSCustomObject]@{
-			Exists   = $exists
-			Elements = $foundElements
-		}
-	}
+	# ----------------------------------------------------------------
+	# Section 7: Child Listing
+	# ----------------------------------------------------------------
 
 	# List children operation - display all direct child controls of found parent(s)
 	if ($ListChildren) {
-		if ($DebugSwitch) { Write-Host "Listing Children" }
-		if (-not $control -and -not $controls) {
-			if (-not $NoWarn) { Write-Warning "⚠️ Parent control not found for listing children" }
-			return $false
+
+		if (($ChildProperty -and $ChildProperty.Count -gt 0) -or ($ChildValue -and $ChildValue.Count -gt 0)) {
+			if ($ChildProperty.Count -ne $ChildValue.Count) {
+				Write-Warning "⚠️ ChildProperty and ChildValue arrays must have the same number of elements"
+				return $false
+			} elseif ($DebugSwitch) { Write-Host "Listing Children" }
+
+			if (-not $ElementsForAction) {
+				if (-not $NoWarn) { Write-Warning "⚠️ Parent control(s) not found for listing children" }
+				return $false
+			}
+
+			# Store parent references
+			$parentControls = $ElementsForAction
+			# Execute child search with conditions
+			$ElementsForAction = @()
+			foreach ($parent in $parentControls) {
+				$foundChildren = UIAElementSearch -source $parent -ElementProperty $ChildProperty -ElementSearchValue $ChildValue -MultiElements:$MultiElements -ChildrenOnly:$ChildrenOnly -NoWarn:$NoWarn -DebugSwitch:$DebugSwitch
+				$ElementsForAction += $foundChildren
+			}
+
+		} else {
+
+			# Store parent references
+			$parentControls = $ElementsForAction
+			# Execute child search without conditions
+			foreach ($parent in $parentControls) {
+				$foundChildren = UIAElementSearch -source $parent -MultiElements:$MultiElements -ChildrenOnly:$ChildrenOnly -NoWarn:$NoWarn -DebugSwitch:$DebugSwitch
+				$ElementsForAction += $foundChildren
+			}
+
 		}
 
-		$parentElements = if ($MultiElements) { $controls } else { @($control) }
-		$allChildren = @()
-
-		# Find all direct children of parent elements
-		foreach ($parent in $parentElements) {
-			$children = $parent.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
-			$allChildren += $children
+		if ($ElementsForAction.Count -gt 0) {
+			if ($DebugSwitch) { Write-Host "Children found" }
+		} else {
+			if (-not $NoWarn) { Write-Warning "⚠️ Children Not found" }
+			return $false
 		}
 
 		# Format and return child control information
 		$out = @()
-		foreach ($child in $allChildren) {
+		foreach ($child in $ElementsForAction) {
 			$out += [pscustomobject] @{
-				AutomationId	= $child.Current.AutomationId
+				AutomationId = $child.Current.AutomationId
 				ClassName    = $child.Current.ClassName
 				ControlType  = $child.Current.ControlType.ProgrammaticName -replace '^ControlType\.', ''
 				Name         = $child.Current.Name
@@ -6061,21 +5982,57 @@ function Interact-UIA {
 		return $out
 	}
 
-	# Validate controls were found for pattern operations
-	if ((-not $control -and -not $controls) -and ($ChildProperty.Count -eq 0)) {
-		if (-not $NoWarn) { Write-Warning "⚠️ Control not found with specified properties" }
-		return $false
+	# ----------------------------------------------------------------
+	# Section 8: Child Controls Search and Verification
+	# ----------------------------------------------------------------
+	# Search for child controls within found parent control(s)
+	if (($ChildProperty -and $ChildProperty.Count -gt 0) -or ($ChildValue -and $ChildValue.Count -gt 0)) {
+		if ($ChildProperty.Count -ne $ChildValue.Count) {
+			Write-Warning "⚠️ ChildProperty and ChildValue arrays must have the same number of elements"
+			return $false
+		} elseif ($DebugSwitch) { Write-Host "Searching for child" }
+
+		if (-not $ElementsForAction) {
+			if (-not $NoWarn) { Write-Warning "⚠️ Parent control(s) not found for child search" }
+			return $false
+		}
+
+		# Store parent references
+		$parentControls = $ElementsForAction
+		# Execute child search
+		$ElementsForAction = @()
+		foreach ($parent in $parentControls) {
+			$foundChildren = UIAElementSearch -source $parent -ElementProperty $ChildProperty -ElementSearchValue $ChildValue -MultiElements:$MultiElements -ChildrenOnly:$ChildrenOnly -NoWarn:$NoWarn -DebugSwitch:$DebugSwitch
+			$ElementsForAction += $foundChildren
+		}
+
+		if ($ChildExist) {
+			# Return child existence check with element references
+			return [PSCustomObject]@{
+				Exists   = [bool]($ElementsForAction.Count -gt 0)
+				Elements = $ElementsForAction
+			}
+		} elseif ($ElementsForAction.Count -gt 0) {
+			if ($DebugSwitch) { Write-Host "Children found" }
+		} else {
+			if (-not $NoWarn) { Write-Warning "⚠️ Children Not found" }
+			return $false
+		}
 	}
 
 	# ----------------------------------------------------------------
-	# Section 8: Pattern Operations - Generic UI Automation Pattern Support
+	# Section 9: Pattern Operations - Generic UI Automation Pattern Support
 	# ----------------------------------------------------------------
+	
+	# Validate Elements were found for pattern operations
+	if (-not $ElementsForAction) {
+		if (-not $NoWarn) { Write-Warning "⚠️ Elements not found with specified properties" }
+		return $false
+	}
+	
 	try {
-		# Determine which elements to process (single or multiple)
-		if ($MultiElements) { $elementsToProcess = $controls } else { $elementsToProcess = @($control) }
 		$results = @()
-
-		foreach ($element in $elementsToProcess) {
+		foreach ($element in $ElementsForAction) {
 			# Pattern support verification
 			if ($CheckPatternSupported) {
 				$patternType = Get-PatternType -PatternName $Pattern
@@ -6161,12 +6118,15 @@ function Interact-UIA {
 # ==================================================================================
 # Helper function for Dynamic Conditions Search (UIA Element Finder Function)
 # ==================================================================================
-function DynamicConditionsSearch {
+function UIAElementSearch {
 	param(
-		[array]$ElementProperty = @(),													# Element property names to filter by e.g. ("ClassName", "Name", "AutomationId", "ControlType", "FrameworkId")
-		[array]$ElementSearchValue = @(),												# Element property search condition values corresponding to Element Property array
-		[object]$source = ([System.Windows.Automation.AutomationElement]::RootElement),	# The Starting point of the search, Default is desktop.
-		[switch]$MultiElements,															# Process all elements that match the conditions (not just first match)
+		[object]$source = `
+		([System.Windows.Automation.AutomationElement]::RootElement),	# The Starting point of the search, Default is desktop.
+		[array]$ElementProperty = @(),									# Element property names to filter by e.g. ("ClassName", "Name", "AutomationId", "ControlType", "FrameworkId")
+		[array]$ElementSearchValue = @(),								# Element property search condition values corresponding to Element Property array
+		[switch]$MultiElements,											# Process all elements that match the conditions (not just first match)
+		[switch]$ChildrenOnly,											# Search for Direct children only not the entire Descendants in the tree
+		[switch]$NoWarn,												# Suppress warning if window or element isn't found (useful for retry scenarios)
 		[switch]$DebugSwitch
 	)
 
@@ -6178,7 +6138,7 @@ function DynamicConditionsSearch {
 	# Build Element search conditions from dynamic property arrays
 	if ($ElementProperty -and $ElementProperty.Count -gt 0) {
 		if ($DebugSwitch) { Write-Host "Searching for Element" }
-		if ($ElementProperty.Count -ne $ElementValue.Count) {
+		if ($ElementProperty.Count -ne $ElementSearchValue.Count) {
 			Write-Warning "⚠️ Element properties and Element Search Values arrays must have the same number of elements"
 			return $false
 		}
@@ -6192,22 +6152,30 @@ function DynamicConditionsSearch {
 
 	# Create search condition from individual conditions
 	if ($Elementconditions.Count -gt 1) {
-		$ElementCondition = New-Object System.Windows.Automation.AndCondition($ctrlconditions)
+		$ElementCondition = New-Object System.Windows.Automation.AndCondition($Elementconditions)
 	} elseif ($Elementconditions.Count -eq 1) {
-		$ElementCondition = $ctrlconditions[0]
+		$ElementCondition = $Elementconditions[0]
 	} else {
 		$ElementCondition = [System.Windows.Automation.Condition]::TrueCondition
 	}
 
 	# Execute search for single or multiple elements based on MultiElements switch
 	if ($MultiElements) {
-		$Elements = $source.FindAll([System.Windows.Automation.TreeScope]::Descendants, $ctrlCondition)
+		if ($ChildrenOnly) {
+			$Elements = $source.FindAll([System.Windows.Automation.TreeScope]::Children, $ElementCondition)
+		} else {
+			$Elements = $source.FindAll([System.Windows.Automation.TreeScope]::Descendants, $ElementCondition)
+		}
 	} else {
-		$Element = $source.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $ctrlCondition)
+		if ($ChildrenOnly) {
+			$Elements = $source.FindFirst([System.Windows.Automation.TreeScope]::Children, $ElementCondition)
+		} else {
+			$Elements = $source.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $ElementCondition)
+		}
 	}
-	if ($DebugSwitch) { if ($Element -or $Elements) { Write-Host "Element(s) Found" } else { Write-Warning "⚠️ Element(s) Not found" } }
+	if ($Elements) { if ($DebugSwitch) { Write-Host "Element(s) Found" } } else { if (-not $NoWarn) { Write-Warning "⚠️ Element(s) Not found" } }
 
-	return
+	return $Elements
 }
 
 # ==================================================================================
@@ -6217,7 +6185,7 @@ function Convert-UIAConditionType {
 		<#
         .SYNOPSIS
         Normalizes AutomationElement property values to their proper .NET types
-        so DynamicConditionsSearch and Interact-UIA can safely create conditions.
+        so UIAElementSearch and Interact-UIA can safely create conditions.
 
         .DESCRIPTION
         This handles the most common AutomationElement properties that throw
@@ -7487,7 +7455,8 @@ function Update-MSStoreApps {
 	-fallBackInOrder `
 	-ControlProperty @("AutomationId", "ClassName", "ControlType", "Name") `
 	-ControlValue @("Ring", "Microsoft.UI.Xaml.Controls.ProgressRing", "ProgressBar", "Busy") `
-	-ControlExist
+	-ControlExist `
+	-NoWarn
 	if ($ringFound.Exists) { Write-Output "✅ Succefully initiated Microsoft Store check for updates" }
 
 	# ----------------------------------------------------------------
@@ -7508,7 +7477,6 @@ function Update-MSStoreApps {
 		-Pattern "Invoke" `
 		-PatternMethod "Invoke" `
 		-NoWarn
-
 		if ($updateAllResult) {
 			Write-Host "✅ 'Update all' clicked" -ForegroundColor Green
 			$updatesHappened = $true
@@ -7537,15 +7505,17 @@ function Update-MSStoreApps {
 		-fallBackInOrder `
 		-ControlProperty @("AutomationId", "ClassName", "ControlType", "Name") `
 		-ControlValue @("ProgressRing", "Microsoft.UI.Xaml.Controls.ProgressRing", "ProgressBar", "Busy") `
-		-ControlExist
-
+		-ControlExist `
+		-NoWarn
+		
 		$progressBackground = Interact-UIA `
 		-ProcessName "WinStore.App" `
 		-partAppId "Microsoft.WindowsStore" `
 		-fallBackInOrder `
 		-ControlProperty @("AutomationId", "ClassName", "ControlType", "Name") `
 		-ControlValue @("BackgroundProgressRing", "Microsoft.UI.Xaml.Controls.ProgressRing", "ProgressBar", "Busy") `
-		-ControlExist
+		-ControlExist `
+		-NoWarn
 
 		if ($progressRing.Exists -or $progressBackground.Exists) {
 			$progressDetected = $true
@@ -7621,6 +7591,7 @@ function Update-MSStoreApps {
 	}
 	return $updatesHappened
 }
+
 
 
 
