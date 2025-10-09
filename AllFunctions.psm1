@@ -5488,6 +5488,7 @@ function Interact-UIA {
 		[switch]$CheckPatternSupported,					# Check if specified pattern is supported by the control
 
 		# Discovery and verification operations
+		[switch]$EnumListAllWindows,					# List all windows using Enum
 		[switch]$ListWindows,							# List all windows matching criteria with their properties
 		[switch]$ListControls,			  				# List all controls in target window matching criteria
 		[switch]$ListChildren,							# List all child controls of found parent control(s)
@@ -5604,11 +5605,20 @@ function Interact-UIA {
 	$root = [System.Windows.Automation.AutomationElement]::RootElement
 
 	# ----------------------------------------------------------------
-	# Section 3: List Windows: Shows a list of all Open windows found and their properties
+	# Section 3: List Windows: Shows a list of all Open windows found matching conditions and their properties
 	# ----------------------------------------------------------------
 	if ($ListWindows) {
 		if ($DebugSwitch) { Write-Host "Listing Windows" }
-		$allWindows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition)
+		if (-not $appWin -and ($WinProperty.Count -gt 0 -or $WinValue.Count -gt 0)) {
+			if ($WinProperty.Count -ne $WinValue.Count) {
+				Write-Warning "⚠️ WinProperty and WinValue arrays must have the same number of elements"
+				return $false
+			} elseif ($DebugSwitch) { Write-Host "🔍 Searching for window with specified conditions..." -ForegroundColor Yellow }
+
+			$allWindows = UIAElementSearch -source $root -ElementProperty $WinProperty -ElementSearchValue $WinValue -MultiElements:$true -ChildrenOnly:$true -NoWarn:$NoWarn -DebugSwitch:$DebugSwitch
+
+		} else { $allWindows = UIAElementSearch -source $root -MultiElements:$true -ChildrenOnly:$true -NoWarn:$NoWarn -DebugSwitch:$DebugSwitch }
+
 		$out = @()
 		foreach ($win in $allWindows) {
 			$out += [pscustomobject] @{
@@ -5620,6 +5630,10 @@ function Interact-UIA {
 			}
 		}
 		return $out
+	}
+
+	if ($EnumListAllWindows) {
+		return Get-AllTopWindows
 	}
 
 	# ----------------------------------------------------------------
@@ -5659,6 +5673,7 @@ function Interact-UIA {
 			if ($DebugSwitch) { Write-Warning "⚠️ Error accessing window handle: 0x$($WindowHandle.ToString('X8')) - $($_.Exception.Message)" }
 			return $false
 		}
+
 		$appFrameHwnd = Get-UWPPairedWindow -SourceHWnd $WindowHandle -Direction "ToAppFrame"
 		if ($appFrameHwnd -eq [IntPtr]::Zero) { $appFrameHwnd = $WindowHandle }
 		$coreWindowHwnd = Get-UWPPairedWindow -SourceHWnd $WindowHandle -Direction "ToCoreWindow"
@@ -5708,36 +5723,16 @@ function Interact-UIA {
 	}
 
 	# Case 5: Search & wait for window by specified conditions
-	if (-not $appWin -and $WinProperty.Count -gt 0) {
-		$WinConditions = @()
-
-		# Build window conditions from dynamic property arrays
+	if (-not $appWin -and ($WinProperty.Count -gt 0 -or $WinValue.Count -gt 0)) {
 		if ($WinProperty.Count -ne $WinValue.Count) {
-			if ($DebugSwitch) { Write-Warning "⚠️ WinProperty and WinValue arrays must have the same number of elements" }
+			Write-Warning "⚠️ WinProperty and WinValue arrays must have the same number of elements"
 			return $false
-		}
+		} elseif ($DebugSwitch) { Write-Host "🔍 Searching for window with specified conditions..." -ForegroundColor Yellow }
 
-		for ($i = 0; $i -lt $WinProperty.Count; $i++) {
-			$WinProperty[$i] = $WinProperty[$i] + "Property"
-			if ($WinProperty[$i] -eq "ControlTypeProperty") {
-				$ControlTypeValue = ([System.Windows.Automation.ControlType]::($WinValue[$i]))
-				$ctrlconditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($WinProperty[$i]), $ControlTypeValue)
-			} else {
-				$WinConditions += New-Object System.Windows.Automation.PropertyCondition ([System.Windows.Automation.AutomationElement]::($WinProperty[$i]), $WinValue[$i])
-			}
-		}
-
-		# Create search condition from individual conditions
-		if ($WinConditions.Count -gt 1) {
-			$WinCondition = New-Object System.Windows.Automation.AndCondition($WinConditions)
-		} elseif ($WinConditions.Count -eq 1) {
-			$WinCondition = $WinConditions[0]
-		}
-
-		# Execute search with timeout
-		if ($DebugSwitch) { Write-Host "🔍 Searching for window with specified conditions..." -ForegroundColor Yellow }
+		# Execute Window search with conditions during timeout
+		$elapsed = 0
 		while ($elapsed -lt $Timeout -and $null -eq $appWin) {
-			$appWin = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $WinCondition)
+			$appWin = UIAElementSearch -source $root -ElementProperty $WinProperty -ElementSearchValue $WinValue -MultiElements:$false -ChildrenOnly:$true -NoWarn:$NoWarn -DebugSwitch:$DebugSwitch
 			if (-not $appWin) {
 				Start-Sleep -Milliseconds 200; $elapsed += 200
 			} else {
@@ -5745,6 +5740,7 @@ function Interact-UIA {
 				break
 			}
 		}
+
 		$NativeHwnd = $appWin.Current.NativeWindowHandle
 		$appFrameHwnd = Get-UWPPairedWindow -SourceHWnd $NativeHwnd -Direction "ToAppFrame"
 		if ($appFrameHwnd -eq [IntPtr]::Zero) { $appFrameHwnd = $NativeHwnd }
@@ -6023,13 +6019,13 @@ function Interact-UIA {
 	# ----------------------------------------------------------------
 	# Section 9: Pattern Operations - Generic UI Automation Pattern Support
 	# ----------------------------------------------------------------
-	
+
 	# Validate Elements were found for pattern operations
 	if (-not $ElementsForAction) {
 		if (-not $NoWarn) { Write-Warning "⚠️ Elements not found with specified properties" }
 		return $false
 	}
-	
+
 	try {
 		$results = @()
 		foreach ($element in $ElementsForAction) {
@@ -7507,7 +7503,7 @@ function Update-MSStoreApps {
 		-ControlValue @("ProgressRing", "Microsoft.UI.Xaml.Controls.ProgressRing", "ProgressBar", "Busy") `
 		-ControlExist `
 		-NoWarn
-		
+
 		$progressBackground = Interact-UIA `
 		-ProcessName "WinStore.App" `
 		-partAppId "Microsoft.WindowsStore" `
@@ -7591,6 +7587,7 @@ function Update-MSStoreApps {
 	}
 	return $updatesHappened
 }
+
 
 
 
