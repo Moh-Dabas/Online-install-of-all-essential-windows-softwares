@@ -7113,7 +7113,7 @@ function Set-IdleLock {
 	# Step 2: Expand the combo box using AutomationId
 	Write-Host "Searching for control"
 	$elapsed = 0
-	while ($elapsed -lt 200) {
+	while ($elapsed -lt 500) {
 		$expandResult = Interact-UIA `
 		-ProcessName "SystemSettings" `
 		-partAppId "windows.immersivecontrolpanel" `
@@ -7310,8 +7310,8 @@ function Disable-DefenderRealtimeProtection {
 
 	Write-Host "Searching for control"
 	$elapsed = 0
-	while ($elapsed -lt 200) {
-		$RealtimeToggleState = Interact-UIA `
+	while ($elapsed -lt 500) {
+		$RealtimeToggleCheck = Interact-UIA `
 		-ProcessName "SecHealthUI" `
 		-partAppId "Microsoft.SecHealthUI" `
 		-fallBackInOrder `
@@ -7322,7 +7322,19 @@ function Disable-DefenderRealtimeProtection {
 		-PatternProperty "Current.ToggleState" `
 		-CheckPatternSupported `
 		-NoWarn
-		if ($RealtimeToggleState ) { Write-Host "Real-time protection Toggle found after $elapsed ms "; break }
+		
+		$RealtimeToggleState = Interact-UIA `
+		-ProcessName "SecHealthUI" `
+		-partAppId "Microsoft.SecHealthUI" `
+		-fallBackInOrder `
+		-ControlProperty @("AutomationId", "ClassName", "Name") `
+		-ControlValue @("settingToggle", "ToggleSwitch", "Real-time protection") `
+		-Pattern "Toggle" `
+		-PatternMethod "Toggle" `
+		-PatternProperty "Current.ToggleState" `
+		-GetPatternPropertyValue `
+		-NoWarn
+		if ($RealtimeToggleCheck -and $RealtimeToggleState ) { Write-Host "Real-time protection Toggle found after $elapsed ms with state $RealtimeToggleState"; break }
 		Start-Sleep -Milliseconds 100; $elapsed += 100
 	}
 
@@ -7341,7 +7353,32 @@ function Disable-DefenderRealtimeProtection {
 	-ConditionOperator "Equals" `
 	-ConditionValue "On"
 	if (-not $TampertoggleResult) {
-		Write-Warning "⚠️ Tamper protection is already off"
+		$TampertoggleState = Interact-UIA `
+		-ProcessName "SecHealthUI" `
+		-partAppId "Microsoft.SecHealthUI" `
+		-fallBackInOrder `
+		-ControlProperty @("AutomationId", "ClassName", "Name") `
+		-ControlValue @("settingToggle", "ToggleSwitch", "Real-time protection") `
+		-Pattern "Toggle" `
+		-PatternMethod "Toggle" `
+		-PatternProperty "Current.ToggleState" `
+		-GetPatternPropertyValue
+		$TampertoggleState
+		if ($TampertoggleState -eq "On") {
+			Write-Host "Trying Aggressive method"
+			$AlltoggleResult = Interact-UIA `
+			-ProcessName "SecHealthUI" `
+			-partAppId "Microsoft.SecHealthUI" `
+			-fallBackInOrder `
+			-ControlProperty @("ClassName") `
+			-ControlValue @("ToggleSwitch") `
+			-Pattern "Toggle" `
+			-PatternMethod "Toggle" `
+			-PatternProperty "Current.ToggleState" `
+			-ConditionOperator "Equals" `
+			-ConditionValue "On" `
+			-MultiElements
+		} else {Write-Warning "⚠️ Tamper protection is already off"}
 	} else { Write-Host "✅ Successfully toggled Tamper protection" -ForegroundColor Green }
 
 	Start-Sleep -Milliseconds 100
@@ -7413,7 +7450,7 @@ function Update-MSStoreApps {
 	Write-Host "Checking for updates..." -ForegroundColor Yellow
 	Write-Host "Searching for control"
 	$elapsed = 0
-	while ($elapsed -lt 200) {
+	while ($elapsed -lt 500) {
 		$individualUpdates = Interact-UIA `
 		-ProcessName "WinStore.App" `
 		-partAppId "Microsoft.WindowsStore" `
