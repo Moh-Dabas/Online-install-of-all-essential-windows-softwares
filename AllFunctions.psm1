@@ -1723,7 +1723,7 @@ function Ins-arSALang {
 	WCap Speech $Lang
 	WCap TextToSpeech $Lang
 	WCap Handwriting $Lang
-	WCap Handwriting ar-EG # Unified
+	# WCap Handwriting ar-EG # Unified #Gets Stuck
 	Add-WindowsCapability -Online -Name Language.Fonts.Arab~~~und-ARAB~0.0.1.0 -EA SilentlyContinue
 
 	if (Get-Command -Name Install-Language -EA SilentlyContinue) { Install-Language -Language ar-SA -EA SilentlyContinue }
