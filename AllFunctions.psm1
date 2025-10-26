@@ -2633,12 +2633,12 @@ function Invoke-AcrobatFix {
 	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\AdobeARMservice" -Name "Start" -Type "DWord" -Value 4
 
 	# Delete registry values related to trial mode and licensing
-	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bInTrialMode"
-	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "bInTrialMode"
-	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "iDayPassUserState"
-	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "iLicenseDaysRemaining"
-	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "uDayPassExpiryTime"
-	Add-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bShowTrialNag"
+	Remove-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bInTrialMode"
+	Remove-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "bInTrialMode"
+	Remove-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "iDayPassUserState"
+	Remove-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "iLicenseDaysRemaining"
+	Remove-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVEntitlement" -Name "uDayPassExpiryTime"
+	Remove-RegEntry -Path "HKCU:\Software\Adobe\Adobe Acrobat\DC\AVGeneral" -Name "bShowTrialNag"
 
 	# Delete entire registry keys
 	$registryKeyDeletes = @(
@@ -2734,7 +2734,7 @@ function Invoke-AcrobatFix {
 			# Check if the path exists before trying to access it
 			if (Test-Path $runPath) {
 				$properties = Get-ItemProperty -Path $runPath -EA SilentlyContinue
-				if ($properties) { $properties.PSObject.Properties | Where-Object { $_.Name -match 'Adobe' -or $_.Name -match 'Acrobat' } | ForEach-Object { Remove-RegEntry -Path $runPath -Name $_.Name -Force -EA SilentlyContinue } }
+				if ($properties) { $properties.PSObject.Properties | Where-Object { $_.Name -match 'Adobe' -or $_.Name -match 'Acrobat' } | ForEach-Object { Remove-RegEntry -Path $runPath -Name $_.Name } }
 			}
 		} catch { Write-Warning "Error!" } # Silently continue if registry operations fail
 	}
@@ -3331,10 +3331,10 @@ function Registry-Tweaks {
 	Add-RegEntry 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' 'DisableLogonBackgroundImage' '0' 'DWord'
 	# Keep logon background image (0=use image, 1=solid color).
 
-	Remove-RegEntry -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticecaption' -Force -EA SilentlyContinue | Out-Null
+	Remove-RegEntry -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticecaption'
 	# Remove legal notice caption (if exists).
 
-	Remove-RegEntry -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticetext' -Force -EA SilentlyContinue | Out-Null
+	Remove-RegEntry -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'legalnoticetext'
 	# Remove legal notice text (if exists).
 
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'dontdisplaylastusername' '0' 'DWord'
@@ -3446,7 +3446,7 @@ function Registry-Tweaks {
 	Add-RegEntry 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' 'NumberOfSIUFInPeriod' '0' 'DWord'
 	# Feedback frequency count (0 = never prompt).
 
-	Remove-RegEntry -LiteralPath 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' -Name 'PeriodInNanoSeconds' -Force -EA SilentlyContinue | Out-Null
+	Remove-RegEntry -LiteralPath 'HKCU:\SOFTWARE\Microsoft\Siuf\Rules' -Name 'PeriodInNanoSeconds'
 	# Remove feedback timing window (reset).
 
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\System' 'AllowCommercialDataPipeline' '0' 'DWord'
@@ -4342,7 +4342,7 @@ function Uninstall-MicrosoftOffice {
 	)
 
 	# Find all Microsoft Office installations
-	$officePrograms = Get-ItemProperty $uninstallPaths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*Microsoft Office*" }
+	$officePrograms = Get-ItemProperty $uninstallPaths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*Microsoft Office*" } | Sort-Object -Property DisplayName -Descending 
 
 	if (-not $officePrograms) {
 		Write-Host "No Microsoft Office installations found."
@@ -4991,6 +4991,9 @@ function Ins-ExtraFonts {
 	if (choco list -l -e -r montserrat.font) { Choco upgrade montserrat.font -y } else { Choco install montserrat.font -y }
 	if (choco list -l -e -r opensans) { Choco upgrade opensans -y } else { Choco install opensans -y }
 	if (choco list -l -e -r cascadiafonts) { Choco upgrade cascadiafonts -y } else { Choco install cascadiafonts -y }
+	if (choco list -l -e -r amiri) { Choco upgrade amiri -y } else { Choco install amiri -y }
+	if (choco list -l -e -r vazir-font) { Choco upgrade vazir-font -y } else { Choco install vazir-font -y }
+	if (choco list -l -e -r vazir-code-font) { Choco upgrade vazir-code-font -y } else { Choco install vazir-code-font -y }
 }
 
 function Pin-WhatsappWebChrome {
