@@ -4613,6 +4613,101 @@ function Config-Office {
 	foreach ($Printer in $Printers) { Set-PrintConfiguration -PrinterName $Printer.Name -PaperSize A4 -DuplexingMode OneSided }
 }
 
+function Add-WordRTLButton {
+    <#
+    .SYNOPSIS
+        Adds the "Right-to-Left Text Direction" button to the Word Quick Access Toolbar (QAT).
+    .DESCRIPTION
+        Detects the active Word configuration file (Word.officeUI or Word.qat),
+        backs it up, and merges the control <mso:control idQ="mso:RightToLeftRun" visible="true"/>.
+    .PARAMETER FilePath
+        Optional custom path to the Word.officeUI or Word.qat file.
+    .PARAMETER IncludeLTR
+        Optionally also adds the Left-to-Right Text Direction control.
+    .EXAMPLE
+        Add-WordRTLButton
+        Add-WordRTLButton -IncludeLTR
+        Add-WordRTLButton -FilePath "C:\Users\User\AppData\Local\Microsoft\Office\Word.officeUI"
+    #>
+
+    param(
+        [string]$FilePath,
+        [switch]$IncludeLTR
+    )
+
+    # --- Locate configuration file ---
+    if (-not $FilePath) {
+        $candidates = @(
+            "$env:LOCALAPPDATA\Microsoft\Office\Word.officeUI",
+            "$env:APPDATA\Microsoft\Office\Word.officeUI",
+            "$env:APPDATA\Microsoft\Office\Word.qat",
+            "$env:LOCALAPPDATA\Microsoft\Office\Word.qat"
+        )
+        $FilePath = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    }
+
+    if (-not (Test-Path $FilePath)) {
+        Write-Host "❌ Could not find Word.officeUI or Word.qat. Open Word once and close it, then retry." -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "✅ Using file: $FilePath"
+
+    # --- Backup existing file ---
+    $backup = "$FilePath.bak_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+    Copy-Item $FilePath $backup -Force
+    Write-Host "💾 Backup saved to: $backup"
+
+    # --- Load and parse XML ---
+    [xml]$xml = Get-Content -Raw -Path $FilePath
+    $nsUri = $xml.DocumentElement.GetNamespaceOfPrefix("mso")
+    if (-not $nsUri) { $nsUri = "http://schemas.microsoft.com/office/2009/07/customui" }
+
+    $nsMgr = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+    $nsMgr.AddNamespace("mso", $nsUri)
+
+    # --- Ensure required structure exists ---
+    $shared = $xml.SelectSingleNode("//mso:sharedControls", $nsMgr)
+    if (-not $shared) {
+        $ribbon = $xml.SelectSingleNode("//mso:ribbon", $nsMgr)
+        if (-not $ribbon) {
+            $ribbon = $xml.CreateElement("mso", "ribbon", $nsUri)
+            $xml.DocumentElement.AppendChild($ribbon) | Out-Null
+        }
+
+        $qat = $ribbon.SelectSingleNode("mso:qat", $nsMgr)
+        if (-not $qat) {
+            $qat = $xml.CreateElement("mso", "qat", $nsUri)
+            $ribbon.AppendChild($qat) | Out-Null
+        }
+
+        $shared = $xml.CreateElement("mso", "sharedControls", $nsUri)
+        $qat.AppendChild($shared) | Out-Null
+    }
+
+    # --- Helper to add control safely ---
+    function Add-Control($ParentNode, $IdQ, $nsUri) {
+        $existing = $ParentNode.SelectSingleNode("mso:control[@idQ='$IdQ']", $nsMgr)
+        if (-not $existing) {
+            $ctrl = $xml.CreateElement("mso", "control", $nsUri)
+            $ctrl.SetAttribute("idQ", $IdQ)
+            $ctrl.SetAttribute("visible", "true")
+            $ParentNode.AppendChild($ctrl) | Out-Null
+            Write-Host "➕ Added control: $IdQ"
+        } else {
+            Write-Host "ℹ️ Already exists: $IdQ"
+        }
+    }
+
+    # --- Add RTL and optionally LTR ---
+    Add-Control -ParentNode $shared -IdQ "mso:RightToLeftRun" -nsUri $nsUri
+    if ($IncludeLTR) { Add-Control -ParentNode $shared -IdQ "mso:LeftToRightRun" -nsUri $nsUri }
+
+    # --- Save back to file ---
+    $xml.Save($FilePath)
+    Write-Host "✅ Update complete. Restart Microsoft Word to see the change." -ForegroundColor Green
+}
+
 function Deploy-Office {
 	Write-Host -f C "`r`n *** Downloading & extracting Office Deployment Tool *** `r`n"
 	for ($i = 1; $i -le 10; $i++) {
@@ -4836,9 +4931,10 @@ function Ins-Office21PP {
 	uninsSara-Office
 	configurationFile21PP
 	Deploy-Office
-	# ActivateOfficeKMS
 	Config-Office
 	New-OfficeShortcuts
+	Add-WordRTLButton
+	# ActivateOfficeKMS
 	ActOffice
 }
 
@@ -4850,9 +4946,10 @@ function Ins-Office24PP {
 	uninsSara-Office
 	configurationFile24PP
 	Deploy-Office
-	# ActivateOfficeKMS
 	Config-Office
 	New-OfficeShortcuts
+	Add-WordRTLButton
+	# ActivateOfficeKMS
 	ActOffice
 }
 
