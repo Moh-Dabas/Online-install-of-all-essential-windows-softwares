@@ -953,13 +953,6 @@ function InitializeCommands {
 	Write-Host -f C "`r`n======================================================================================================================"
 	Write-Host -f C "***************************** Initializing *****************************"
 	Write-Host -f C "======================================================================================================================`r`n"
-	if (Check-Internet) {
-		Write-Host "Removing old PSReadLine module"
-		Get-Module PSReadLine -ListAvailable | ForEach-Object { Uninstall-Module -Name PSReadLine -RequiredVersion $_.Version -Force }
-		Write-Host "Installing latest version of PSReadLine..."
-		Install-Module -Name PSReadLine -Force -AllowClobber -Scope AllUsers
-	}
-	Import-Module PSReadLine
 	Disable-DefenderRealtimeProtection
 	#UAC
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableLUA' '1' 'DWord'
@@ -1210,6 +1203,13 @@ function Ins-Nuget {
 		Write-Host -f C "Nuget Module already exists"
 	} else { Install-Module -Name NuGet -Repository PSGallery -Confirm:$False -SkipPublisherCheck -AllowClobber -Force -EA SilentlyContinue | Out-Null }
 	Import-Module NuGet -Force -EA SilentlyContinue | Out-Null
+	if (Check-Internet) {
+		Write-Host "Removing old PSReadLine module"
+		Get-Module PSReadLine -ListAvailable | ForEach-Object { Uninstall-Module -Name PSReadLine -RequiredVersion $_.Version -Force }
+		Write-Host "Installing latest version of PSReadLine..."
+		Install-Module -Name PSReadLine -Force -AllowClobber -Scope AllUsers
+	}
+	Import-Module PSReadLine
 }
 
 function Ins-Choco {
@@ -7201,7 +7201,7 @@ function Set-IdleLock {
 	-partAppId "windows.immersivecontrolpanel" `
 	-fallBackInOrder `
 	-Timeout 15000 `
-	-ExtraDelay 100 `
+	-ExtraDelay 2000 `
 	-WaitWindowReady
 	if (-not $settingsResult) {
 		Write-Warning "⚠️ Failed to access Settings window"
@@ -7401,7 +7401,7 @@ function Disable-DefenderRealtimeProtection {
 	-partAppId "Microsoft.SecHealthUI" `
 	-fallBackInOrder `
 	-Timeout 15000 `
-	-ExtraDelay 100 `
+	-ExtraDelay 5000 `
 	-WaitWindowReady
 	if (-not $SecurityResult) {
 		Write-Warning "⚠️ Failed to access Windows Security window"
@@ -7540,7 +7540,7 @@ function Update-MSStoreApps {
 	-partAppId "Microsoft.WindowsStore" `
 	-fallBackInOrder `
 	-Timeout 15000 `
-	-ExtraDelay 100 `
+	-ExtraDelay 10000 `
 	-WaitWindowReady
 	if (-not $StoreResult) {
 		Write-Warning "⚠️ Failed to access Microsoft Store window"
