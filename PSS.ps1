@@ -36,13 +36,13 @@ try {
 	Import-Module -Name $ScriptDirectory\AllFunctions.psm1 -DisableNameChecking -Global -Force
 } catch { Write-Host "AllFunctions.psm1 file not found or failed to Import it"; Start-Sleep 5; exit }
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
+Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
+Registry-Tweaks #Applye Registry Tweaks
+DeepTweaks
 InitializeCommands
 Set-Personalization
 Set-IdleLock # Set Idle look using UIA
 WinWallpaper
-Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
-Registry-Tweaks #Applye Registry Tweaks
-DeepTweaks
 MaxPowerPlan #Activate Max Performance Power Plan
 Ins-Nuget #Install Nuget provider
 Ins-Choco #Install Chocolatey
