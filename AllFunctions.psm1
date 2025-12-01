@@ -2777,7 +2777,7 @@ function Ins-AcrobatPro {
 	# Acrobat 2025
 	$URL = "https://drive.google.com/file/d/12JLKxAPZEadisRBhw7iXR9Kx2qfdFO1h/view"
 	# Acrobat 2024
-	$URL = "https://drive.google.com/file/d/1pHMRUoBq2_wSsfXQaOKWGaVcbnA4drrm/view"
+	$URL = "https://drive.google.com/file/d/14bSC5atAebHB-Mg7IFFeITfMvKBGVniU/view"
 	$Key = "AIzaSyBjpiLnU2lhQG4uBq0jJDogcj0pOIR9TQ8"
 	$DDURL = Convert-GoogleDriveUrl -URL $URL -Key $Key
 	if ($DDURL) { Write-Host "Downloading..."; Start-BitsTransfer -Source $DDURL -Destination "$env:TEMP\AdobeAcrobatProDCx64.exe"  -EA SilentlyContinue | Out-Null }
