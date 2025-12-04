@@ -1149,15 +1149,15 @@ function MaxPowerPlan {
 	}
 	# Unhide "Require a password on wakeup"
 	powercfg -attributes SUB_SLEEP $RequirePassword -ATTRIB_HIDE
-	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
+	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
 		-Name "Attributes" -Value 0 -Force
 	# Unhide console lock display off timeout
 	powercfg -attributes SUB_VIDEO 8ec4b3a5-6868-48c2-be75-4f3044be88a7 -ATTRIB_HIDE
 	# Set default plan values at the metadata level
 	# (Windows sometimes clones these into custom plans)
-	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
+	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
 		-Name "DefaultPowerSchemeACValueIndex" -Value 1 -Force
-	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
+	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
 		-Name "DefaultPowerSchemeDCValueIndex" -Value 1 -Force
 	# Apply correct values to ALL existing plans
 	foreach ($s in $schemes) {
@@ -1168,12 +1168,12 @@ function MaxPowerPlan {
 	}
 	# FORCE WINDOWS SECURITY POLICY (Registry)
 	# Require password on wake policy
-	New-ItemProperty -Path "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" `
+	Add-RegEntry -Path "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" `
 		-Name "InactivityTimeoutSecs" -Value 0 -PropertyType DWord -Force | Out-Null
 	# These keys override GPO settings
-	New-ItemProperty -Path "HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51" `
+	Add-RegEntry -Path "HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51" `
 		-Name "ACSettingIndex" -Value 1 -PropertyType DWord -Force | Out-Null
-	New-ItemProperty -Path "HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51" `
+	Add-RegEntry -Path "HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51" `
 		-Name "DCSettingIndex" -Value 1 -PropertyType DWord -Force | Out-Null
 	# Set Timeout to 1 minute for all schemes
 	foreach ($s in $schemes) {
