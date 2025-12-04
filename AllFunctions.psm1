@@ -1055,9 +1055,6 @@ function MaxPowerPlan {
 	# Specifies the policy for devices powering down while the system is running # setting_GUID: '4faab71a-92e5-4726-b531-224559672d19' - Alias: DEVICEIDLE #0 Performance ,1 Power savings
 	powercfg /setacvalueindex $MaxPlanGUID 'SUB_NONE' 'DEVICEIDLE' '0x00000000' | Out-Null
 	powercfg /setdcvalueindex $MaxPlanGUID 'SUB_NONE' 'DEVICEIDLE' '0x00000000' | Out-Null
-	# Require a password on wakeup # setting_GUID: '0e796bdb-100d-47d6-a2d5-f7d2daa51f51' - Alias: CONSOLELOCK #0 No ,1 Yes
-	powercfg /setacvalueindex $MaxPlanGUID 'SUB_NONE' 'CONSOLELOCK' '0x00000001' | Out-Null
-	powercfg /setdcvalueindex $MaxPlanGUID 'SUB_NONE' 'CONSOLELOCK' '0x00000001' | Out-Null
 	########################### Hard disc management sub_GUID: '0012ee47-9041-4b5d-9b77-535fba8b1442' - Alias: SUB_DISK ####################################
 	# The harddisk may power down after the specified time of inactivity is detected. (Turn off hard disc after) # setting_GUID: '6738e2c4-e8a5-4a42-b16a-e040e769756e' - Alias: DISKIDLE # Seconds - Never
 	powercfg /setacvalueindex $MaxPlanGUID 'SUB_DISK' 'DISKIDLE' '0x00000000' | Out-Null
@@ -1069,9 +1066,6 @@ function MaxPowerPlan {
 	# System idle timeout before the system enters a low power hibernation state (hibernate after) # setting_GUID: '9d7815a6-7ee4-497e-8888-515a05f02364' - Alias: HIBERNATEIDLE # Seconds - Never
 	powercfg /setacvalueindex $MaxPlanGUID 'SUB_SLEEP' 'HIBERNATEIDLE' '0x00000000' | Out-Null
 	powercfg /setdcvalueindex $MaxPlanGUID 'SUB_SLEEP' 'HIBERNATEIDLE' '0x00000000' | Out-Null
-	# Unattended Sleep Timeout # setting_GUID: '7bc4a2f9-d8fc-4469-b07b-33eb785aaca0' - Alias: UNATTENDSLEEP # Seconds - Never
-	powercfg /setacvalueindex $MaxPlanGUID 'SUB_SLEEP' 'UNATTENDSLEEP' '0x00000000' | Out-Null
-	powercfg /setdcvalueindex $MaxPlanGUID 'SUB_SLEEP' 'UNATTENDSLEEP' '0x00000000' | Out-Null
 	########################### Display management sub_GUID: '7516b95f-f776-4464-8c53-06167f40cc99' - Alias: SUB_VIDEO ####################################
 	# Specifies Console lock display off timeout # setting_GUID: '8EC4B3A5-6868-48c2-BE75-4F3044BE88A7' - Alias: VIDEOCONLOCK # Seconds - Never
 	powercfg /setacvalueindex $MaxPlanGUID 'SUB_VIDEO' 'VIDEOCONLOCK' '0x00000000' | Out-Null
@@ -1135,6 +1129,58 @@ function MaxPowerPlan {
 		powercfg /setacvalueindex $MaxPlanGUID 'e276e160-7cb0-43c6-b20b-73f5dce39954' 'a1662ab2-9d34-4e53-ba8b-2639b9e20857' '0x00000003' | Out-Null
 		powercfg /setdcvalueindex $MaxPlanGUID 'e276e160-7cb0-43c6-b20b-73f5dce39954' 'a1662ab2-9d34-4e53-ba8b-2639b9e20857' '0x00000003' | Out-Null
 	}
+	# Unattended Sleep Timeout # setting_GUID: '7bc4a2f9-d8fc-4469-b07b-33eb785aaca0' - Alias: UNATTENDSLEEP # Seconds - Never
+	powercfg /setacvalueindex $MaxPlanGUID 'SUB_SLEEP' 'UNATTENDSLEEP' '0x00000000' | Out-Null
+	powercfg /setdcvalueindex $MaxPlanGUID 'SUB_SLEEP' 'UNATTENDSLEEP' '0x00000000' | Out-Null
+	
+	# ----------------------------
+	# Set Lock PC after sleep
+	# ----------------------------
+	########################### No subgroup sub_GUID 'fea3413e-7e05-4911-9a71-700331f1c294' - Alias: SUB_NONE ####################################
+	# Require a password on wakeup # setting_GUID: '0e796bdb-100d-47d6-a2d5-f7d2daa51f51' - Alias: CONSOLELOCK #0 No ,1 Yes
+	powercfg /setacvalueindex $MaxPlanGUID 'SUB_NONE' 'CONSOLELOCK' '0x00000001' | Out-Null
+	powercfg /setdcvalueindex $MaxPlanGUID 'SUB_NONE' 'CONSOLELOCK' '0x00000001' | Out-Null
+	# GUIDs
+	$SubSleep = "238C9FA8-0AAD-41ED-83F4-97BE242C8F20"
+	$RequirePassword = "5CA83367-6E45-459F-A27B-476B1D01C936"
+	# ALL existing plans
+	$schemes = powercfg -list | Select-String "GUID" | ForEach-Object {
+		($_ -split '\s+')[3]
+	}
+	# Unhide "Require a password on wakeup"
+	powercfg -attributes SUB_SLEEP $RequirePassword -ATTRIB_HIDE
+	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
+		-Name "Attributes" -Value 0 -Force
+	# Unhide console lock display off timeout
+	powercfg -attributes SUB_VIDEO 8ec4b3a5-6868-48c2-be75-4f3044be88a7 -ATTRIB_HIDE
+	# Set default plan values at the metadata level
+	# (Windows sometimes clones these into custom plans)
+	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
+		-Name "DefaultPowerSchemeACValueIndex" -Value 1 -Force
+	Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
+		-Name "DefaultPowerSchemeDCValueIndex" -Value 1 -Force
+	# Apply correct values to ALL existing plans
+	foreach ($s in $schemes) {
+		powercfg -setacvalueindex $s $SubSleep $RequirePassword 1
+		powercfg -setdcvalueindex $s $SubSleep $RequirePassword 1
+		powercfg -setacvalueindex $s SUB_SLEEP $RequirePassword 1
+		powercfg -setdcvalueindex $s SUB_SLEEP $RequirePassword 1
+	}
+	# FORCE WINDOWS SECURITY POLICY (Registry)
+	# Require password on wake policy
+	New-ItemProperty -Path "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" `
+		-Name "InactivityTimeoutSecs" -Value 0 -PropertyType DWord -Force | Out-Null
+	# These keys override GPO settings
+	New-ItemProperty -Path "HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51" `
+		-Name "ACSettingIndex" -Value 1 -PropertyType DWord -Force | Out-Null
+	New-ItemProperty -Path "HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51" `
+		-Name "DCSettingIndex" -Value 1 -PropertyType DWord -Force | Out-Null
+	# Set Timeout to 1 minute for all schemes
+	foreach ($s in $schemes) {
+		powercfg -setacvalueindex $s SUB_VIDEO 8ec4b3a5-6868-48c2-be75-4f3044be88a7 200
+		powercfg -setdcvalueindex $s SUB_VIDEO 8ec4b3a5-6868-48c2-be75-4f3044be88a7 200
+	}
+
 	# ----------------------------
 	# Set battery LEVEL thresholds
 	# ----------------------------
