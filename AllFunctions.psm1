@@ -1893,6 +1893,28 @@ function Unins-enGBLang {
 	Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile System Backup\en-GB"  -Recurse -Force -EA SilentlyContinue | Out-Null
 }
 
+function FixLanguageSwitch
+{
+	$RegPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Keyboard Layout"
+	
+	# Make Right Alt become Left Alt
+	# Scancode Map:
+	# Right Alt (E0 38) → Left Alt (38)
+	$ScancodeMap = [byte[]](
+    0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,
+    0x02,0x00,0x00,0x00,
+    0x38,0x00,0x38,0xE0,
+    0x00,0x00,0x00,0x00
+	)
+
+	New-Item -Path $RegPath -Force | Out-Null
+	Set-ItemProperty -Path $RegPath -Name "Scancode Map" -Value $ScancodeMap -Type Binary
+
+	Write-Host "Right Alt successfully remapped to Left Alt."
+	Write-Host "Please restart Windows for the change to take effect."
+}
+
 function Tweak-Language {
 	Add-RegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowAutoCorrection' '1' 'DWord'
 	Add-RegEntry 'HKCU:\Control Panel\International\User Profile' 'ShowCasing' '1' 'DWord'
@@ -1904,6 +1926,7 @@ function Tweak-Language {
 	Add-RegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'ShowTextPrediction' '1' 'DWord'
 	Add-RegEntry 'HKCU:\Control Panel\Input Method' 'EnableHexNumpad' '1' 'DWord'
 	Add-RegEntry 'HKCU:\Software\Microsoft\Input\Settings' 'EnableHwkbTextPrediction' '1' 'DWord'
+	FixLanguageSwitch
 }
 
 function Ins-LatestPowershell {
