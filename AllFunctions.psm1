@@ -3959,7 +3959,11 @@ function Registry-Tweaks {
 
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowDevelopmentWithoutDevLicense' '1' 'DWord'
 	# Allow developer mode for sideloading without Dev license.
-
+	
+	$Binary = [byte[]] (0x00, 0x00, 0x00, 0x00)
+	Add-RegEntry -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer' -Name 'link' -Value $Binary -Type Binary
+	# Fix shortcut names.
+	
 	# ===============================
 	# NOTIFICATIONS
 	# ===============================
@@ -5550,7 +5554,7 @@ function Adjust-Desktop {
 	# Desktop view flags (auto-arrange/align/show icons etc.). Composite flag value.
 
 	Add-RegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" '1' 'DWord'
-	# Hide Microsoft Edge desktop icon (CLSID).
+	# Hide spotlight "Learn more about this picture" Microsoft Edge desktop icon (CLSID).
 
 	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{018D5C66-4533-4307-9B53-224DE2ED1FE6}" '1' 'DWord'
 	# Hide OneDrive icon on desktop (CLSID). 0=show, 1=hide.
@@ -5566,6 +5570,7 @@ function Adjust-Desktop {
 
 	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}" '0' 'DWord'
 	# Show "Control Panel" icon on desktop.
+	
 }
 
 function Set-Personalization {
