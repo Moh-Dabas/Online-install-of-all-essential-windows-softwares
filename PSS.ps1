@@ -30,6 +30,8 @@ if ($ScriptDebug) {
 $global:ConfirmPreference = 'None'
 $global:Force = $true
 
+Set-Location -Path $PSScriptRoot
+
 # Try Importing AllFunctions.psm1
 $ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 try {
@@ -101,5 +103,6 @@ Create-RLMCopyShortcut
 Update-MSStoreApps # Update MS Store apps using UIA
 Fix-MSWindows #Fix Windows
 Clean-up
+
 
 

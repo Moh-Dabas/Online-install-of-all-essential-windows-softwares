@@ -1132,7 +1132,7 @@ function MaxPowerPlan {
 	# Unattended Sleep Timeout # setting_GUID: '7bc4a2f9-d8fc-4469-b07b-33eb785aaca0' - Alias: UNATTENDSLEEP # Seconds - Never
 	powercfg /setacvalueindex $MaxPlanGUID 'SUB_SLEEP' 'UNATTENDSLEEP' '0x00000000' | Out-Null
 	powercfg /setdcvalueindex $MaxPlanGUID 'SUB_SLEEP' 'UNATTENDSLEEP' '0x00000000' | Out-Null
-	
+
 	# ----------------------------
 	# Set Lock PC after sleep
 	# ----------------------------
@@ -1150,15 +1150,15 @@ function MaxPowerPlan {
 	# Unhide "Require a password on wakeup"
 	powercfg -attributes SUB_SLEEP $RequirePassword -ATTRIB_HIDE
 	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
-		-Name "Attributes" -Value 0 -Force
+	-Name "Attributes" -Value 0 -Force
 	# Unhide console lock display off timeout
 	powercfg -attributes SUB_VIDEO 8ec4b3a5-6868-48c2-be75-4f3044be88a7 -ATTRIB_HIDE
 	# Set default plan values at the metadata level
 	# (Windows sometimes clones these into custom plans)
 	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
-		-Name "DefaultPowerSchemeACValueIndex" -Value 1 -Force
+	-Name "DefaultPowerSchemeACValueIndex" -Value 1 -Force
 	Add-RegEntry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings\$SubSleep\$RequirePassword" `
-		-Name "DefaultPowerSchemeDCValueIndex" -Value 1 -Force
+	-Name "DefaultPowerSchemeDCValueIndex" -Value 1 -Force
 	# Apply correct values to ALL existing plans
 	foreach ($s in $schemes) {
 		powercfg -setacvalueindex $s $SubSleep $RequirePassword 1
@@ -1169,12 +1169,12 @@ function MaxPowerPlan {
 	# FORCE WINDOWS SECURITY POLICY (Registry)
 	# Require password on wake policy
 	Add-RegEntry -Path "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" `
-		-Name "InactivityTimeoutSecs" -Value 0 -PropertyType DWord -Force | Out-Null
+	-Name "InactivityTimeoutSecs" -Value 0 -PropertyType DWord -Force | Out-Null
 	# These keys override GPO settings
 	Add-RegEntry -Path "HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51" `
-		-Name "ACSettingIndex" -Value 1 -PropertyType DWord -Force | Out-Null
+	-Name "ACSettingIndex" -Value 1 -PropertyType DWord -Force | Out-Null
 	Add-RegEntry -Path "HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51" `
-		-Name "DCSettingIndex" -Value 1 -PropertyType DWord -Force | Out-Null
+	-Name "DCSettingIndex" -Value 1 -PropertyType DWord -Force | Out-Null
 	# Set Timeout to 1 minute for all schemes
 	foreach ($s in $schemes) {
 		powercfg -setacvalueindex $s SUB_VIDEO 8ec4b3a5-6868-48c2-be75-4f3044be88a7 200
@@ -1743,12 +1743,239 @@ function Install-Winget {
 	winget source reset --force
 }
 
+function Restart-ExplorerSilently {
+	Write-Host -f C "Restarting Explorer to apply system-wide changes..."
+	Add-RegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "RestorePreviousFolderOpenState" '0' 'DWORD'
+	Add-RegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "PersistBrowsers" '0' 'DWORD'
+	Add-RegEntry "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWORD'
+	Add-RegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
+
+	# Force terminate Explorer processes
+	try {
+		Write-Host -f C "Force terminating all Explorer processes..."
+		taskkill /f /im explorer.exe
+	} catch { Write-Warning "`n Failed to terminate Explorer processes: $($_.Exception.Message)" }
+
+	# Brief pause to ensure complete termination
+	Start-Sleep -Milliseconds 1000
+	# Restart Windows Explorer
+	try {
+		Write-Host -f C "Restarting Windows Explorer..."
+		Start-Process explorer.exe "$env:SystemRoot\System32\userinit.exe"
+		# Just in case, close all explorer windows
+		$shell = New-Object -ComObject Shell.Application
+		for ($i = 1; $i -le 500; $i++) {
+			$shell.Windows() | ForEach-Object { $_.Quit() }
+			Start-Sleep -Milliseconds 1
+		}
+	} catch { Write-Error "Failed to restart Windows Explorer: $($_.Exception.Message)" }
+	Write-Host -f C "Windows Explorer restarted successfully."
+	return
+}
+
+function Ins-WCap {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CapabilityName,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$Source,
+        
+        [Parameter(Mandatory = $false)]
+        [int]$TimeoutSeconds = 300,
+        
+        [Parameter(Mandatory = $false)]
+        [switch]$Force,
+        
+        [Parameter(Mandatory = $false)]
+        [switch]$SkipWUReset
+    )
+    
+    Write-Verbose "Starting unattended installation of capability: $CapabilityName"
+    
+    # 1. Check for pending reboot (warning only, no interactive prompt)
+    Write-Verbose "Checking for pending reboots..."
+    $rebootPendingPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending",
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired",
+        "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\PendingFileRenameOperations"
+    )
+    
+    $pendingReboot = $false
+    foreach ($path in $rebootPendingPaths) {
+        if (Test-Path $path) {
+            Write-Warning "Pending reboot detected at registry path: $path"
+            $pendingReboot = $true
+        }
+    }
+    
+    # Check via CIM
+    try {
+        $cimSession = New-CimSession -ErrorAction SilentlyContinue
+        $pendingRebootCim = Get-CimInstance -ClassName Win32_OperatingSystem -CimSession $cimSession | 
+                           Select-Object -ExpandProperty RebootRequired -ErrorAction SilentlyContinue
+        if ($cimSession) { Remove-CimSession -CimSession $cimSession }
+        
+        if ($pendingRebootCim) {
+            Write-Warning "System indicates a reboot is required (CIM check)"
+            $pendingReboot = $true
+        }
+    }
+    catch {
+        # CIM check failed, continue
+    }
+    
+    if ($pendingReboot -and -not $Force) {
+        Write-Error "System has pending reboot. Use -Force to bypass or reboot system first."
+        return $false
+    }
+    elseif ($pendingReboot -and $Force) {
+        Write-Warning "Proceeding with installation despite pending reboot (Force flag used)"
+    }
+    
+    # 2. Reset Windows Update components if not skipped
+    if (-not $SkipWUReset) {
+        Write-Verbose "Resetting Windows Update components..."
+        try {
+            Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
+            if (Test-Path "C:\Windows\SoftwareDistribution") {
+                Remove-Item "C:\Windows\SoftwareDistribution\*" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            Start-Service -Name wuauserv -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+        }
+        catch {
+            Write-Warning "Failed to reset Windows Update components: $_"
+        }
+    }
+    
+    # 3. Check if capability is already installed
+    Write-Verbose "Checking if capability is already installed..."
+    try {
+        $existingCaps = Get-WindowsCapability -Online -Name "*$CapabilityName*" -ErrorAction SilentlyContinue
+        
+        if ($existingCaps) {
+            foreach ($cap in $existingCaps) {
+                if ($cap.State -eq "Installed") {
+                    Write-Verbose "Capability '$($cap.Name)' is already installed"
+                    if (-not $Force) {
+                        return $true  # Already installed, success
+                    }
+                    Write-Verbose "Force flag set, will reinstall"
+                }
+                elseif ($cap.State -eq "Installing") {
+                    Write-Warning "Capability '$($cap.Name)' appears stuck in 'Installing' state"
+                }
+            }
+        }
+    }
+    catch {
+        # Continue if check fails
+    }
+    
+    # 4. Prepare DISM command
+    Write-Verbose "Building DISM command..."
+    $dismArgs = @("/Online", "/Add-Capability", "/CapabilityName:$CapabilityName", "/NoRestart")
+    
+    if ($Source) {
+        $dismArgs += "/Source:`"$Source`""
+        Write-Verbose "Using source: $Source"
+    }
+    
+    # Add logging
+    $logPath = "$env:TEMP\DISM_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+    $dismArgs += "/LogPath:`"$logPath`""
+    $dismArgs += "/LogLevel:1"  # Errors only for unattended
+    
+    # 5. Execute DISM
+    Write-Verbose "Starting DISM installation with timeout: ${TimeoutSeconds}s"
+    
+    try {
+        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $processInfo.FileName = "dism.exe"
+        $processInfo.Arguments = ($dismArgs -join ' ')
+        $processInfo.UseShellExecute = $false
+        $processInfo.RedirectStandardOutput = $true
+        $processInfo.RedirectStandardError = $true
+        $processInfo.CreateNoWindow = $true
+        
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $processInfo
+        
+        # Start the process
+        if ($process.Start()) {
+            # Read output asynchronously
+            $stdOutTask = $process.StandardOutput.ReadToEndAsync()
+            $stdErrTask = $process.StandardError.ReadToEndAsync()
+            
+            # Wait with timeout
+            if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+                Write-Error "Installation timed out after $TimeoutSeconds seconds"
+                $process.Kill()
+                return $false
+            }
+            
+            # Get output
+            $stdOut = $stdOutTask.GetAwaiter().GetResult()
+            $stdErr = $stdErrTask.GetAwaiter().GetResult()
+            $exitCode = $process.ExitCode
+            
+            # Check results
+            if ($exitCode -eq 0) {
+                Write-Verbose "Installation completed successfully"
+                Write-Verbose "Log file: $logPath"
+                
+                # Quick verification
+                try {
+                    $installed = Get-WindowsCapability -Online -Name "*$CapabilityName*" -ErrorAction SilentlyContinue | 
+                                Where-Object {$_.State -eq "Installed"}
+                    if ($installed) {
+                        Write-Verbose "Verified: $($installed.Name) is installed"
+                    }
+                }
+                catch {
+                    # Verification optional
+                }
+                
+                return $true
+            }
+            else {
+                Write-Error "DISM failed with exit code: $exitCode"
+                if ($stdErr) {
+                    Write-Verbose "Error output: $stdErr"
+                }
+                Write-Verbose "Log file: $logPath"
+                return $false
+            }
+        }
+        else {
+            Write-Error "Failed to start DISM process"
+            return $false
+        }
+    }
+    catch {
+        Write-Error "Exception during DISM execution: $_"
+        return $false
+    }
+}
+
 function Ins-arSALang {
 	Write-Host -f C "`r`n *** 📥 Installing Arabic-SA language *** `r`n"
 	Write-Host "📥 Installing Arabic (Saudi Arabia) language pack..." -ForegroundColor Cyan
+	
+	Ins-WCap -CapabilityName "Language.Basic~~~ar-SA~0.0.1.0"
+	Ins-WCap -CapabilityName "Language.OCR~~~ar-SA~0.0.1.0"
+	# Ins-WCap -CapabilityName "Language.Speech~~~ar-SA~0.0.1.0"
+	Ins-WCap -CapabilityName "Language.TextToSpeech~~~ar-SA~0.0.1.0"
+	# Ins-WCap -CapabilityName "Language.Handwriting~~~ar-SA~0.0.1.0"
+	Ins-WCap -CapabilityName "Language.Handwriting~~~ar-EG~0.0.1.0"
+	Ins-WCap -CapabilityName "Language.Fonts.Arab~~~und-ARAB~0.0.1.0"
+
+<#
 	$Lang = "ar-SA"
 	$LCID = 1025    # Arabic (Saudi Arabia)
-
+	
 	function WCap {
 		param(
 			[Parameter(Mandatory = $true, Position = 1)]
@@ -1762,15 +1989,15 @@ function Ins-arSALang {
 		} else { Write-Host -f C "$Lang $Cap Windows Capability already installed `n" }
 		return
 	}
-
+		
 	WCap Basic $Lang
-	WCap Handwriting $Lang
 	WCap OCR $Lang
 	WCap Speech $Lang
 	WCap TextToSpeech $Lang
-	WCap Handwriting $Lang
+	# WCap Handwriting $Lang #Gets Stuck
 	# WCap Handwriting ar-EG # Unified #Gets Stuck
 	Add-WindowsCapability -Online -Name Language.Fonts.Arab~~~und-ARAB~0.0.1.0 -EA SilentlyContinue
+#>
 
 	if (Get-Command -Name Install-Language -EA SilentlyContinue) { Install-Language -Language ar-SA -EA SilentlyContinue }
 	Set-WinHomeLocation 0xcd
@@ -1806,36 +2033,6 @@ function Ins-arSALang {
 	Add-RegEntry "HKCU:\Software\Microsoft\Office\16.0\Common\ProofingTools\ar-SA" "ArabicStrictAlefHamza" '1' 'DWord'
 	Add-RegEntry "HKCU:\Software\Microsoft\Office\16.0\Common\ProofingTools\ar-SA" "ArabicStrictFinalYaa" '1' 'DWord'
 	Add-RegEntry "HKCU:\Software\Microsoft\Office\16.0\Common\ProofingTools\ar-SA" "ArabicStrictTaaMarboota" '1' 'DWord'
-}
-
-function Restart-ExplorerSilently {
-	Write-Host -f C "Restarting Explorer to apply system-wide changes..."
-	Add-RegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "RestorePreviousFolderOpenState" '0' 'DWORD'
-	Add-RegEntry "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" "PersistBrowsers" '0' 'DWORD'
-	Add-RegEntry "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWORD'
-	Add-RegEntry "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" 'AutoRestartShell' '1' 'DWord'
-
-	# Force terminate Explorer processes
-	try {
-		Write-Host -f C "Force terminating all Explorer processes..."
-		taskkill /f /im explorer.exe
-	} catch { Write-Warning "`n Failed to terminate Explorer processes: $($_.Exception.Message)" }
-
-	# Brief pause to ensure complete termination
-	Start-Sleep -Milliseconds 1000
-	# Restart Windows Explorer
-	try {
-		Write-Host -f C "Restarting Windows Explorer..."
-		Start-Process explorer.exe "$env:SystemRoot\System32\userinit.exe"
-		# Just in case, close all explorer windows
-		$shell = New-Object -ComObject Shell.Application
-		for ($i = 1; $i -le 500; $i++) {
-			$shell.Windows() | ForEach-Object { $_.Quit() }
-			Start-Sleep -Milliseconds 1
-		}
-	} catch { Write-Error "Failed to restart Windows Explorer: $($_.Exception.Message)" }
-	Write-Host -f C "Windows Explorer restarted successfully."
-	return
 }
 
 function Set-en-US-Culture {
@@ -1883,6 +2080,13 @@ function Ins-enUSLang {
 	Add-RegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Locale' 'Default' '00000409' 'String'
 	Add-RegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'Languages' '@ "en-US"' 'MultiString'
 	Add-RegEntry 'HKCU:\Control Panel\International\User Profile System Backup\en-US' '0409:00000409' '1' 'DWord'
+	
+	Ins-WCap -CapabilityName "Language.Basic~~~en-US~0.0.1.0"
+	Ins-WCap -CapabilityName "Language.OCR~~~en-US~0.0.1.0"
+	Ins-WCap -CapabilityName "Language.Speech~~~en-US~0.0.1.0"
+	Ins-WCap -CapabilityName "Language.TextToSpeech~~~en-US~0.0.1.0"
+	Ins-WCap -CapabilityName "Language.Handwriting~~~en-US~0.0.1.0"
+	Ins-WCap -CapabilityName "Language.Fonts.PanEuropeanSupplementalFonts~~~~0.0.1.0"
 }
 
 function Unins-enGBLang {
@@ -1893,19 +2097,18 @@ function Unins-enGBLang {
 	Remove-Item -LiteralPath "HKCU:\Control Panel\International\User Profile System Backup\en-GB"  -Recurse -Force -EA SilentlyContinue | Out-Null
 }
 
-function FixLanguageSwitch
-{
+function FixLanguageSwitch {
 	$RegPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Keyboard Layout"
-	
+
 	# Make Right Alt become Left Alt
 	# Scancode Map:
 	# Right Alt (E0 38) → Left Alt (38)
 	$ScancodeMap = [byte[]](
-    0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,
-    0x02,0x00,0x00,0x00,
-    0x38,0x00,0x38,0xE0,
-    0x00,0x00,0x00,0x00
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x02, 0x00, 0x00, 0x00,
+		0x38, 0x00, 0x38, 0xE0,
+		0x00, 0x00, 0x00, 0x00
 	)
 
 	New-Item -Path $RegPath -Force | Out-Null
@@ -3959,11 +4162,11 @@ function Registry-Tweaks {
 
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock' 'AllowDevelopmentWithoutDevLicense' '1' 'DWord'
 	# Allow developer mode for sideloading without Dev license.
-	
+
 	$Binary = [byte[]] (0x00, 0x00, 0x00, 0x00)
 	Add-RegEntry -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer' -Name 'link' -Value $Binary -Type Binary
 	# Fix shortcut names.
-	
+
 	# ===============================
 	# NOTIFICATIONS
 	# ===============================
@@ -4415,7 +4618,7 @@ function Uninstall-MicrosoftOffice {
 	)
 
 	# Find all Microsoft Office installations
-	$officePrograms = Get-ItemProperty $uninstallPaths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*Microsoft Office*" } | Sort-Object -Property DisplayName -Descending 
+	$officePrograms = Get-ItemProperty $uninstallPaths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*Microsoft Office*" } | Sort-Object -Property DisplayName -Descending
 
 	if (-not $officePrograms) {
 		Write-Host "No Microsoft Office installations found."
@@ -4687,7 +4890,7 @@ function Config-Office {
 }
 
 function Add-WordRTLButton {
-    <#
+	<#
     .SYNOPSIS
         Adds the "Right-to-Left Text Direction" button to the Word Quick Access Toolbar (QAT).
     .DESCRIPTION
@@ -4703,82 +4906,82 @@ function Add-WordRTLButton {
         Add-WordRTLButton -FilePath "C:\Users\User\AppData\Local\Microsoft\Office\Word.officeUI"
     #>
 
-    param(
-        [string]$FilePath,
-        [switch]$IncludeLTR
-    )
+	param(
+		[string]$FilePath,
+		[switch]$IncludeLTR
+	)
 
-    # --- Locate configuration file ---
-    if (-not $FilePath) {
-        $candidates = @(
-            "$env:LOCALAPPDATA\Microsoft\Office\Word.officeUI",
-            "$env:APPDATA\Microsoft\Office\Word.officeUI",
-            "$env:APPDATA\Microsoft\Office\Word.qat",
-            "$env:LOCALAPPDATA\Microsoft\Office\Word.qat"
-        )
-        $FilePath = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-    }
+	# --- Locate configuration file ---
+	if (-not $FilePath) {
+		$candidates = @(
+			"$env:LOCALAPPDATA\Microsoft\Office\Word.officeUI",
+			"$env:APPDATA\Microsoft\Office\Word.officeUI",
+			"$env:APPDATA\Microsoft\Office\Word.qat",
+			"$env:LOCALAPPDATA\Microsoft\Office\Word.qat"
+		)
+		$FilePath = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+	}
 
-    if (-not (Test-Path $FilePath)) {
-        Write-Host "❌ Could not find Word.officeUI or Word.qat. Open Word once and close it, then retry." -ForegroundColor Yellow
-        return
-    }
+	if (-not (Test-Path $FilePath)) {
+		Write-Host "❌ Could not find Word.officeUI or Word.qat. Open Word once and close it, then retry." -ForegroundColor Yellow
+		return
+	}
 
-    Write-Host "✅ Using file: $FilePath"
+	Write-Host "✅ Using file: $FilePath"
 
-    # --- Backup existing file ---
-    $backup = "$FilePath.bak_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-    Copy-Item $FilePath $backup -Force
-    Write-Host "💾 Backup saved to: $backup"
+	# --- Backup existing file ---
+	$backup = "$FilePath.bak_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+	Copy-Item $FilePath $backup -Force
+	Write-Host "💾 Backup saved to: $backup"
 
-    # --- Load and parse XML ---
-    [xml]$xml = Get-Content -Raw -Path $FilePath
-    $nsUri = $xml.DocumentElement.GetNamespaceOfPrefix("mso")
-    if (-not $nsUri) { $nsUri = "http://schemas.microsoft.com/office/2009/07/customui" }
+	# --- Load and parse XML ---
+	[xml]$xml = Get-Content -Raw -Path $FilePath
+	$nsUri = $xml.DocumentElement.GetNamespaceOfPrefix("mso")
+	if (-not $nsUri) { $nsUri = "http://schemas.microsoft.com/office/2009/07/customui" }
 
-    $nsMgr = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
-    $nsMgr.AddNamespace("mso", $nsUri)
+	$nsMgr = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+	$nsMgr.AddNamespace("mso", $nsUri)
 
-    # --- Ensure required structure exists ---
-    $shared = $xml.SelectSingleNode("//mso:sharedControls", $nsMgr)
-    if (-not $shared) {
-        $ribbon = $xml.SelectSingleNode("//mso:ribbon", $nsMgr)
-        if (-not $ribbon) {
-            $ribbon = $xml.CreateElement("mso", "ribbon", $nsUri)
-            $xml.DocumentElement.AppendChild($ribbon) | Out-Null
-        }
+	# --- Ensure required structure exists ---
+	$shared = $xml.SelectSingleNode("//mso:sharedControls", $nsMgr)
+	if (-not $shared) {
+		$ribbon = $xml.SelectSingleNode("//mso:ribbon", $nsMgr)
+		if (-not $ribbon) {
+			$ribbon = $xml.CreateElement("mso", "ribbon", $nsUri)
+			$xml.DocumentElement.AppendChild($ribbon) | Out-Null
+		}
 
-        $qat = $ribbon.SelectSingleNode("mso:qat", $nsMgr)
-        if (-not $qat) {
-            $qat = $xml.CreateElement("mso", "qat", $nsUri)
-            $ribbon.AppendChild($qat) | Out-Null
-        }
+		$qat = $ribbon.SelectSingleNode("mso:qat", $nsMgr)
+		if (-not $qat) {
+			$qat = $xml.CreateElement("mso", "qat", $nsUri)
+			$ribbon.AppendChild($qat) | Out-Null
+		}
 
-        $shared = $xml.CreateElement("mso", "sharedControls", $nsUri)
-        $qat.AppendChild($shared) | Out-Null
-    }
+		$shared = $xml.CreateElement("mso", "sharedControls", $nsUri)
+		$qat.AppendChild($shared) | Out-Null
+	}
 
-    # --- Helper to add control safely ---
-    function Add-Control($ParentNode, $IdQ, $nsUri) {
-        $existing = $ParentNode.SelectSingleNode("mso:control[@idQ='$IdQ']", $nsMgr)
-        if (-not $existing) {
-            $ctrl = $xml.CreateElement("mso", "control", $nsUri)
-            $ctrl.SetAttribute("idQ", $IdQ)
-            $ctrl.SetAttribute("visible", "true")
-            $ParentNode.AppendChild($ctrl) | Out-Null
-            Write-Host "➕ Added control: $IdQ"
-        } else {
-            Write-Host "ℹ️ Already exists: $IdQ"
-        }
-    }
+	# --- Helper to add control safely ---
+	function Add-Control($ParentNode, $IdQ, $nsUri) {
+		$existing = $ParentNode.SelectSingleNode("mso:control[@idQ='$IdQ']", $nsMgr)
+		if (-not $existing) {
+			$ctrl = $xml.CreateElement("mso", "control", $nsUri)
+			$ctrl.SetAttribute("idQ", $IdQ)
+			$ctrl.SetAttribute("visible", "true")
+			$ParentNode.AppendChild($ctrl) | Out-Null
+			Write-Host "➕ Added control: $IdQ"
+		} else {
+			Write-Host "ℹ️ Already exists: $IdQ"
+		}
+	}
 
-    # --- Add RTL and optionally LTR ---
-    Add-Control -ParentNode $shared -IdQ "mso:RightToLeftRun" -nsUri $nsUri
-    if ($IncludeLTR) { Add-Control -ParentNode $shared -IdQ "mso:LeftToRightRun" -nsUri $nsUri }
+	# --- Add RTL and optionally LTR ---
+	Add-Control -ParentNode $shared -IdQ "mso:RightToLeftRun" -nsUri $nsUri
+	if ($IncludeLTR) { Add-Control -ParentNode $shared -IdQ "mso:LeftToRightRun" -nsUri $nsUri }
 
-    # --- Save back to file ---
-    $xml.Save($FilePath)
-    Write-Host "✅ Update complete. Restart Microsoft Word to see the change." -ForegroundColor Green
+	# --- Save back to file ---
+	$xml.Save($FilePath)
+	Write-Host "✅ Update complete. Restart Microsoft Word to see the change." -ForegroundColor Green
 }
 
 function Deploy-Office {
@@ -5570,7 +5773,7 @@ function Adjust-Desktop {
 
 	Add-RegEntry 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel' "{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}" '0' 'DWord'
 	# Show "Control Panel" icon on desktop.
-	
+
 }
 
 function Set-Personalization {
@@ -7496,7 +7699,7 @@ function Disable-DefenderRealtimeProtection {
 		-PatternProperty "Current.ToggleState" `
 		-CheckPatternSupported `
 		-NoWarn
-		
+
 		$RealtimeToggleState = Interact-UIA `
 		-ProcessName "SecHealthUI" `
 		-partAppId "Microsoft.SecHealthUI" `
@@ -7552,7 +7755,7 @@ function Disable-DefenderRealtimeProtection {
 			-ConditionOperator "Equals" `
 			-ConditionValue "On" `
 			-MultiElements
-		} else {Write-Warning "⚠️ Tamper protection is already off"}
+		} else { Write-Warning "⚠️ Tamper protection is already off" }
 	} else { Write-Host "✅ Successfully toggled Tamper protection" -ForegroundColor Green }
 
 	Start-Sleep -Milliseconds 100
@@ -7800,6 +8003,7 @@ function Update-MSStoreApps {
 	}
 	return $updatesHappened
 }
+
 
 
 
