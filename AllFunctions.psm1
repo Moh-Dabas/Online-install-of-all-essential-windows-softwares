@@ -4798,6 +4798,10 @@ function Config-Office {
 	Add-RegEntry 'HKCU:\software\policies\microsoft\office\16.0\excel\options' 'recognizesmarttags' '2' 'DWord'
 	# VBA force Loading
 	Add-RegEntry 'HKCU:\SOFTWARE\Microsoft\Office\16.0\Excel\options' 'ForceVBALoadFromSource' '1' 'DWord'
+	# Disable Hardware Graphics Acceleration
+	Add-RegEntry "HKCU:\Software\Microsoft\Office\16.0\Common\Graphics"  "DisableHardwareAcceleration" '1' 'DWord'
+	# Disable Office Animations
+	Add-RegEntry "HKCU:\Software\Microsoft\Office\16.0\Common\UI" "DisableAnimations" '1' 'DWord'
 
 
 	# -----------------------------
@@ -4879,7 +4883,6 @@ function Config-Office {
 	# Trust all UNC paths
 	Add-RegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location93' 'Path' '//' 'String'
 	Add-RegEntry 'HKCU:\Software\Microsoft\Office\16.0\Excel\Security\Trusted Locations\Location93' 'AllowSubfolders' '1' 'DWord'
-
 
 	# -----------------------------
 	# Printer Configuration
