@@ -1774,196 +1774,187 @@ function Restart-ExplorerSilently {
 }
 
 function Ins-WCap {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$CapabilityName,
-        
-        [Parameter(Mandatory = $false)]
-        [string]$Source,
-        
-        [Parameter(Mandatory = $false)]
-        [int]$TimeoutSeconds = 300,
-        
-        [Parameter(Mandatory = $false)]
-        [switch]$Force,
-        
-        [Parameter(Mandatory = $false)]
-        [switch]$SkipWUReset
-    )
-    
-    Write-Verbose "Starting unattended installation of capability: $CapabilityName"
-    
-    # 1. Check for pending reboot (warning only, no interactive prompt)
-    Write-Verbose "Checking for pending reboots..."
-    $rebootPendingPaths = @(
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending",
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired",
-        "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\PendingFileRenameOperations"
-    )
-    
-    $pendingReboot = $false
-    foreach ($path in $rebootPendingPaths) {
-        if (Test-Path $path) {
-            Write-Warning "Pending reboot detected at registry path: $path"
-            $pendingReboot = $true
-        }
-    }
-    
-    # Check via CIM
-    try {
-        $cimSession = New-CimSession -ErrorAction SilentlyContinue
-        $pendingRebootCim = Get-CimInstance -ClassName Win32_OperatingSystem -CimSession $cimSession | 
-                           Select-Object -ExpandProperty RebootRequired -ErrorAction SilentlyContinue
-        if ($cimSession) { Remove-CimSession -CimSession $cimSession }
-        
-        if ($pendingRebootCim) {
-            Write-Warning "System indicates a reboot is required (CIM check)"
-            $pendingReboot = $true
-        }
-    }
-    catch {
-        # CIM check failed, continue
-    }
-    
-    if ($pendingReboot -and -not $Force) {
-        Write-Error "System has pending reboot. Use -Force to bypass or reboot system first."
-        return $false
-    }
-    elseif ($pendingReboot -and $Force) {
-        Write-Warning "Proceeding with installation despite pending reboot (Force flag used)"
-    }
-    
-    # 2. Reset Windows Update components if not skipped
-    if (-not $SkipWUReset) {
-        Write-Verbose "Resetting Windows Update components..."
-        try {
-            Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
-            if (Test-Path "C:\Windows\SoftwareDistribution") {
-                Remove-Item "C:\Windows\SoftwareDistribution\*" -Recurse -Force -ErrorAction SilentlyContinue
-            }
-            Start-Service -Name wuauserv -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
-        }
-        catch {
-            Write-Warning "Failed to reset Windows Update components: $_"
-        }
-    }
-    
-    # 3. Check if capability is already installed
-    Write-Verbose "Checking if capability is already installed..."
-    try {
-        $existingCaps = Get-WindowsCapability -Online -Name "*$CapabilityName*" -ErrorAction SilentlyContinue
-        
-        if ($existingCaps) {
-            foreach ($cap in $existingCaps) {
-                if ($cap.State -eq "Installed") {
-                    Write-Verbose "Capability '$($cap.Name)' is already installed"
-                    if (-not $Force) {
-                        return $true  # Already installed, success
-                    }
-                    Write-Verbose "Force flag set, will reinstall"
-                }
-                elseif ($cap.State -eq "Installing") {
-                    Write-Warning "Capability '$($cap.Name)' appears stuck in 'Installing' state"
-                }
-            }
-        }
-    }
-    catch {
-        # Continue if check fails
-    }
-    
-    # 4. Prepare DISM command
-    Write-Verbose "Building DISM command..."
-    $dismArgs = @("/Online", "/Add-Capability", "/CapabilityName:$CapabilityName", "/NoRestart")
-    
-    if ($Source) {
-        $dismArgs += "/Source:`"$Source`""
-        Write-Verbose "Using source: $Source"
-    }
-    
-    # Add logging
-    $logPath = "$env:TEMP\DISM_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
-    $dismArgs += "/LogPath:`"$logPath`""
-    $dismArgs += "/LogLevel:1"  # Errors only for unattended
-    
-    # 5. Execute DISM
-    Write-Verbose "Starting DISM installation with timeout: ${TimeoutSeconds}s"
-    
-    try {
-        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-        $processInfo.FileName = "dism.exe"
-        $processInfo.Arguments = ($dismArgs -join ' ')
-        $processInfo.UseShellExecute = $false
-        $processInfo.RedirectStandardOutput = $true
-        $processInfo.RedirectStandardError = $true
-        $processInfo.CreateNoWindow = $true
-        
-        $process = New-Object System.Diagnostics.Process
-        $process.StartInfo = $processInfo
-        
-        # Start the process
-        if ($process.Start()) {
-            # Read output asynchronously
-            $stdOutTask = $process.StandardOutput.ReadToEndAsync()
-            $stdErrTask = $process.StandardError.ReadToEndAsync()
-            
-            # Wait with timeout
-            if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-                Write-Error "Installation timed out after $TimeoutSeconds seconds"
-                $process.Kill()
-                return $false
-            }
-            
-            # Get output
-            $stdOut = $stdOutTask.GetAwaiter().GetResult()
-            $stdErr = $stdErrTask.GetAwaiter().GetResult()
-            $exitCode = $process.ExitCode
-            
-            # Check results
-            if ($exitCode -eq 0) {
-                Write-Verbose "Installation completed successfully"
-                Write-Verbose "Log file: $logPath"
-                
-                # Quick verification
-                try {
-                    $installed = Get-WindowsCapability -Online -Name "*$CapabilityName*" -ErrorAction SilentlyContinue | 
-                                Where-Object {$_.State -eq "Installed"}
-                    if ($installed) {
-                        Write-Verbose "Verified: $($installed.Name) is installed"
-                    }
-                }
-                catch {
-                    # Verification optional
-                }
-                
-                return $true
-            }
-            else {
-                Write-Error "DISM failed with exit code: $exitCode"
-                if ($stdErr) {
-                    Write-Verbose "Error output: $stdErr"
-                }
-                Write-Verbose "Log file: $logPath"
-                return $false
-            }
-        }
-        else {
-            Write-Error "Failed to start DISM process"
-            return $false
-        }
-    }
-    catch {
-        Write-Error "Exception during DISM execution: $_"
-        return $false
-    }
+	[CmdletBinding()]
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$CapabilityName,
+
+		[Parameter(Mandatory = $false)]
+		[string]$Source,
+
+		[Parameter(Mandatory = $false)]
+		[int]$TimeoutSeconds = 300,
+
+		[Parameter(Mandatory = $false)]
+		[switch]$Force,
+
+		[Parameter(Mandatory = $false)]
+		[switch]$SkipWUReset
+	)
+
+	Write-Verbose "Starting unattended installation of capability: $CapabilityName"
+
+	# 1. Check for pending reboot (warning only, no interactive prompt)
+	Write-Verbose "Checking for pending reboots..."
+	$rebootPendingPaths = @(
+		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending",
+		"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired",
+		"HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\PendingFileRenameOperations"
+	)
+
+	$pendingReboot = $false
+	foreach ($path in $rebootPendingPaths) {
+		if (Test-Path $path) {
+			Write-Warning "Pending reboot detected at registry path: $path"
+			$pendingReboot = $true
+		}
+	}
+
+	# Check via CIM
+	try {
+		$cimSession = New-CimSession -ErrorAction SilentlyContinue
+		$pendingRebootCim = Get-CimInstance -ClassName Win32_OperatingSystem -CimSession $cimSession |
+		Select-Object -ExpandProperty RebootRequired -ErrorAction SilentlyContinue
+		if ($cimSession) { Remove-CimSession -CimSession $cimSession }
+
+		if ($pendingRebootCim) {
+			Write-Warning "System indicates a reboot is required (CIM check)"
+			$pendingReboot = $true
+		}
+	} catch {
+		# CIM check failed, continue
+	}
+
+	if ($pendingReboot -and -not $Force) {
+		Write-Error "System has pending reboot. Use -Force to bypass or reboot system first."
+		return $false
+	} elseif ($pendingReboot -and $Force) {
+		Write-Warning "Proceeding with installation despite pending reboot (Force flag used)"
+	}
+
+	# 2. Reset Windows Update components if not skipped
+	if (-not $SkipWUReset) {
+		Write-Verbose "Resetting Windows Update components..."
+		try {
+			Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
+			if (Test-Path "C:\Windows\SoftwareDistribution") {
+				Remove-Item "C:\Windows\SoftwareDistribution\*" -Recurse -Force -ErrorAction SilentlyContinue
+			}
+			Start-Service -Name wuauserv -ErrorAction SilentlyContinue
+			Start-Sleep -Seconds 2
+		} catch {
+			Write-Warning "Failed to reset Windows Update components: $_"
+		}
+	}
+
+	# 3. Check if capability is already installed
+	Write-Verbose "Checking if capability is already installed..."
+	try {
+		$existingCaps = Get-WindowsCapability -Online -Name "*$CapabilityName*" -ErrorAction SilentlyContinue
+
+		if ($existingCaps) {
+			foreach ($cap in $existingCaps) {
+				if ($cap.State -eq "Installed") {
+					Write-Verbose "Capability '$($cap.Name)' is already installed"
+					if (-not $Force) {
+						return $true  # Already installed, success
+					}
+					Write-Verbose "Force flag set, will reinstall"
+				} elseif ($cap.State -eq "Installing") {
+					Write-Warning "Capability '$($cap.Name)' appears stuck in 'Installing' state"
+				}
+			}
+		}
+	} catch {
+		# Continue if check fails
+	}
+
+	# 4. Prepare DISM command
+	Write-Verbose "Building DISM command..."
+	$dismArgs = @("/Online", "/Add-Capability", "/CapabilityName:$CapabilityName", "/NoRestart")
+
+	if ($Source) {
+		$dismArgs += "/Source:`"$Source`""
+		Write-Verbose "Using source: $Source"
+	}
+
+	# Add logging
+	$logPath = "$env:TEMP\DISM_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+	$dismArgs += "/LogPath:`"$logPath`""
+	$dismArgs += "/LogLevel:1"  # Errors only for unattended
+
+	# 5. Execute DISM
+	Write-Verbose "Starting DISM installation with timeout: ${TimeoutSeconds}s"
+
+	try {
+		$processInfo = New-Object System.Diagnostics.ProcessStartInfo
+		$processInfo.FileName = "dism.exe"
+		$processInfo.Arguments = ($dismArgs -join ' ')
+		$processInfo.UseShellExecute = $false
+		$processInfo.RedirectStandardOutput = $true
+		$processInfo.RedirectStandardError = $true
+		$processInfo.CreateNoWindow = $true
+
+		$process = New-Object System.Diagnostics.Process
+		$process.StartInfo = $processInfo
+
+		# Start the process
+		if ($process.Start()) {
+			# Read output asynchronously
+			$stdOutTask = $process.StandardOutput.ReadToEndAsync()
+			$stdErrTask = $process.StandardError.ReadToEndAsync()
+
+			# Wait with timeout
+			if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+				Write-Error "Installation timed out after $TimeoutSeconds seconds"
+				$process.Kill()
+				return $false
+			}
+
+			# Get output
+			$stdOut = $stdOutTask.GetAwaiter().GetResult()
+			$stdErr = $stdErrTask.GetAwaiter().GetResult()
+			$exitCode = $process.ExitCode
+
+			# Check results
+			if ($exitCode -eq 0) {
+				Write-Verbose "Installation completed successfully"
+				Write-Verbose "Log file: $logPath"
+
+				# Quick verification
+				try {
+					$installed = Get-WindowsCapability -Online -Name "*$CapabilityName*" -ErrorAction SilentlyContinue |
+					Where-Object { $_.State -eq "Installed" }
+					if ($installed) {
+						Write-Verbose "Verified: $($installed.Name) is installed"
+					}
+				} catch {
+					# Verification optional
+				}
+
+				return $true
+			} else {
+				Write-Error "DISM failed with exit code: $exitCode"
+				if ($stdErr) {
+					Write-Verbose "Error output: $stdErr"
+				}
+				Write-Verbose "Log file: $logPath"
+				return $false
+			}
+		} else {
+			Write-Error "Failed to start DISM process"
+			return $false
+		}
+	} catch {
+		Write-Error "Exception during DISM execution: $_"
+		return $false
+	}
 }
 
 function Ins-arSALang {
 	Write-Host -f C "`r`n *** 📥 Installing Arabic-SA language *** `r`n"
 	Write-Host "📥 Installing Arabic (Saudi Arabia) language pack..." -ForegroundColor Cyan
-	
+
 	Ins-WCap -CapabilityName "Language.Basic~~~ar-SA~0.0.1.0"
 	Ins-WCap -CapabilityName "Language.OCR~~~ar-SA~0.0.1.0"
 	# Ins-WCap -CapabilityName "Language.Speech~~~ar-SA~0.0.1.0"
@@ -1972,10 +1963,10 @@ function Ins-arSALang {
 	Ins-WCap -CapabilityName "Language.Handwriting~~~ar-EG~0.0.1.0"
 	Ins-WCap -CapabilityName "Language.Fonts.Arab~~~und-ARAB~0.0.1.0"
 
-<#
+	<#
 	$Lang = "ar-SA"
 	$LCID = 1025    # Arabic (Saudi Arabia)
-	
+
 	function WCap {
 		param(
 			[Parameter(Mandatory = $true, Position = 1)]
@@ -1989,7 +1980,7 @@ function Ins-arSALang {
 		} else { Write-Host -f C "$Lang $Cap Windows Capability already installed `n" }
 		return
 	}
-		
+
 	WCap Basic $Lang
 	WCap OCR $Lang
 	WCap Speech $Lang
@@ -2080,7 +2071,7 @@ function Ins-enUSLang {
 	Add-RegEntry 'HKLM:\SYSTEM\CurrentControlSet\Control\Nls\Locale' 'Default' '00000409' 'String'
 	Add-RegEntry 'HKCU:\Control Panel\International\User Profile System Backup' 'Languages' '@ "en-US"' 'MultiString'
 	Add-RegEntry 'HKCU:\Control Panel\International\User Profile System Backup\en-US' '0409:00000409' '1' 'DWord'
-	
+
 	Ins-WCap -CapabilityName "Language.Basic~~~en-US~0.0.1.0"
 	Ins-WCap -CapabilityName "Language.OCR~~~en-US~0.0.1.0"
 	Ins-WCap -CapabilityName "Language.Speech~~~en-US~0.0.1.0"
@@ -8006,6 +7997,8 @@ function Update-MSStoreApps {
 	}
 	return $updatesHappened
 }
+
+
 
 
 
