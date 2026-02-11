@@ -34,9 +34,13 @@ Set-Location -Path $PSScriptRoot
 
 # Try Importing AllFunctions.psm1
 $ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
+If (-not (Test-Path $ScriptDirectory\AllFunctions.psm1 -ea SilentlyContinue)) {Write-Host "Functions file not found at: $ScriptDirectory";$ScriptDirectory = $PSScriptRoot}
+if (-not (Test-Path $ScriptDirectory\AllFunctions.psm1 -ea SilentlyContinue)) {Write-Host "Functions file not found at: $ScriptDirectory";Start-Sleep 10; exit}
+
 try {
 	Import-Module -Name $ScriptDirectory\AllFunctions.psm1 -DisableNameChecking -Global -Force
-} catch { Write-Host "AllFunctions.psm1 file not found or failed to Import it"; Start-Sleep 5; exit }
+} catch { Write-Host "AllFunctions.psm1 file not found or failed to Import it"; Start-Sleep 10; exit }
+
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
 Registry-Tweaks #Applye Registry Tweaks
@@ -71,7 +75,7 @@ Ins-WScan #Install Windows Scan
 Ins-HpSmart #Install Hp Smart App
 Ins-NotepadPP #Install Notepad++
 Ins-Chrome #Install Google Chrome
-Tweak-Edge
+Tweak-Edge #Tweak MS Edge
 #Ins-AcrobatRdr #Install Adobe Acrobat Reader DC
 Ins-AcrobatPro #Install Adobe Acrobat Pro DC
 #Ins-Foxit #Install Foxit PDF Reader
