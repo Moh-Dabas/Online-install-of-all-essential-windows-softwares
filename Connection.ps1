@@ -42,13 +42,8 @@ try {
 } catch { Write-Host "AllFunctions.psm1 file not found or failed to Import it"; Start-Sleep 10; exit }
 
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
-
 InitializeCommands
-
 Fix-Share #Fix Windows file sharing
-
+Clear-PrintQueue
 Clean-up
-
 temp-clean
-
-
