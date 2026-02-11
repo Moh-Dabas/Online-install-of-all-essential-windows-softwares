@@ -953,7 +953,7 @@ function InitializeCommands {
 	Write-Host -f C "`r`n======================================================================================================================"
 	Write-Host -f C "***************************** Initializing *****************************"
 	Write-Host -f C "======================================================================================================================`r`n"
-	Disable-DefenderRealtimeProtection
+	
 	#UAC
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'EnableLUA' '1' 'DWord'
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' 'ValidateAdminCodeSignatures' '0' 'DWord'
@@ -5403,11 +5403,12 @@ function Clean-up {
 		Receive-Job -Job $_
 		Remove-Job -Job $_
 	}
-	Clear-PrintQueue
 	Restart-ExplorerSilently
 	Start-Sleep 1
 	Refresh-Desktop
-	Change_computer_name
+}
+
+Function temp-clean {
 	Remove-Item -LiteralPath "$env:TEMP\IA" -Force -Recurse -EA SilentlyContinue | Out-Null
 	Remove-Item -LiteralPath "$env:TEMP" -Force -Recurse -EA SilentlyContinue | Out-Null
 }

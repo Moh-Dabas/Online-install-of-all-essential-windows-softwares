@@ -45,6 +45,7 @@ Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
 Registry-Tweaks #Applye Registry Tweaks
 DeepTweaks
+Disable-DefenderRealtimeProtection
 InitializeCommands
 Set-Personalization
 Set-IdleLock # Set Idle look using UIA
@@ -106,7 +107,10 @@ Ins-ExtraFonts #Install Extra Fonts
 Create-RLMCopyShortcut
 Update-MSStoreApps # Update MS Store apps using UIA
 Fix-MSWindows #Fix Windows
+Clear-PrintQueue
 Clean-up
+Change_computer_name
+temp-clean
 
 
 
