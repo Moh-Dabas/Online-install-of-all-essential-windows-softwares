@@ -3051,7 +3051,7 @@ function Ins-AcrobatPro {
 	Add-RegEntry 'HKCR:\.pdf\ShellEx\{BB2E617C-0920-11d1-9A0B-00C04FC2D6C1}' "(default)" "{F9DB5320-233E-11D1-9F84-707F02C10627}" 'String'
 	# Preview handler (IPreviewHandler)
 	Add-RegEntry 'HKCR:\.pdf\ShellEx\{8895b1c6-b41f-4c1c-a562-0d564250836f}' "(default)" "{DC6EFB56-9CFA-464D-8880-44885D7DC193}" 'String'
-	Ins-Foxit
+	#Ins-Foxit
 	# Invoke-ShellAssocChanged
 	$printer = Get-CimInstance -Class Win32_Printer -Filter "Name='Adobe PDF'"
 	Invoke-CimMethod -InputObject $printer -MethodName SetDefaultPrinter
