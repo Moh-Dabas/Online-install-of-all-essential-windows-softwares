@@ -1,5 +1,49 @@
 ﻿# All functions Module
 
+function Start-FunctionWindow {
+    param(
+        [Parameter(Mandatory)]
+        [string]$FunctionName,
+
+        [object[]]$Arguments = @()
+    )
+
+    $cmd = Get-Command $FunctionName -CommandType Function -ErrorAction Stop
+    $funcBody = $cmd.Definition
+
+    $argText = ($Arguments | ForEach-Object {
+        if ($_ -is [string]) {
+            "'" + ($_.Replace("'", "''")) + "'"
+        }
+        elseif ($null -eq $_) {
+            '$null'
+        }
+        else {
+            "$_"
+        }
+    }) -join ', '
+
+    $script = @"
+function $FunctionName {
+$funcBody
+}
+
+$FunctionName $argText
+"@
+
+    $file = Join-Path $env:TEMP ($FunctionName + "-" + [guid]::NewGuid().ToString() + ".ps1")
+    Set-Content -Path $file -Value $script -Encoding UTF8
+
+    Start-Process powershell.exe `
+		-Verb RunAs `
+		-ArgumentList @(
+			'-NoProfile'
+			'-ExecutionPolicy', 'Bypass'
+			'-File', $file
+		) `
+        -PassThru
+}
+
 function Check-RunAsAdministrator {
 	#Get current user context
 	$currentUser = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
