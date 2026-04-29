@@ -41,15 +41,6 @@ try {
 	Import-Module -Name $ScriptDirectory\Tasks.psm1 -DisableNameChecking -Global -Force
 } catch { Write-Host "Tasks.psm1 file not found or failed to Import it"; Start-Sleep 10; exit }
 
-# Try Importing Common.psm1
-$ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
-If (-not (Test-Path $ScriptDirectory\Common.psm1 -ea SilentlyContinue)) {Write-Host "Common.psm1 file not found at: $ScriptDirectory";$ScriptDirectory = $PSScriptRoot}
-if (-not (Test-Path $ScriptDirectory\Common.psm1 -ea SilentlyContinue)) {Write-Host "Common.psm1 file not found at: $ScriptDirectory";Start-Sleep 10; exit}
-
-try {
-	Import-Module -Name $ScriptDirectory\Common.psm1 -DisableNameChecking -Global -Force
-} catch { Write-Host "Common.psm1 file not found or failed to Import it"; Start-Sleep 10; exit }
-
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 Start-FunctionWindow -FunctionName Registry-Tweaks #Applye Registry Tweaks
 Start-FunctionWindow -FunctionName Tweak-schtasks #Disable scheduled tasks that are considered unnecessary

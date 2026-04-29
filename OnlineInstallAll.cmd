@@ -39,21 +39,16 @@ Powershell -NoProfile -InputFormat None -ExecutionPolicy Bypass -nologo -NonInte
 :: --- Files ---
 set Run_URL='https://raw.githubusercontent.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/refs/heads/main/Run.ps1'
 set Tasks_URL='https://raw.githubusercontent.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/refs/heads/main/Tasks.psm1'
-set Common_URL='https://raw.githubusercontent.com/Moh-Dabas/Online-install-of-all-essential-windows-softwares/refs/heads/main/Common.psm1'
 set Run_FILE='%TEMP%\Run.ps1'
 set Tasks_FILE='%TEMP%\Tasks.psm1'
-set Common_FILE='%TEMP%\Common.psm1'
 set "Run=!Run_FILE:~1!"
 set "Run=!PS1:~0,-1!"
 set "Tasks=!Tasks_FILE:~1!"
 set "Tasks=!PSM1:~0,-1!"
-set "Common=!Common_FILE:~1!"
-set "Common=!PSM1:~0,-1!"
 
 Echo Deleting old files...
 del /f /q "%Run%" >nul 2>&1
 del /f /q "%Tasks%" >nul 2>&1
-del /f /q "%Common%" >nul 2>&1
 
 :: --- Ensure BITS is running ---
 echo Ensuring BITS service is running...
@@ -76,8 +71,6 @@ echo Downloading %Run% from %Run_URL% using Bits (attempt !RETRIES!) >> "%LOG%"
 powershell -NoProfile -ExecutionPolicy Bypass -nologo -Command "Start-BitsTransfer -Source %Run_URL% -Destination %Run_FILE%" >> "%LOG%" 2>>&1
 echo Downloading %Tasks% from %Tasks_URL% using Bits (attempt !RETRIES!) >> "%LOG%"
 powershell -NoProfile -ExecutionPolicy Bypass -nologo -Command "Start-BitsTransfer -Source %Tasks_URL% -Destination %Tasks_FILE%" >> "%LOG%" 2>>&1
-echo Downloading %Common% from %Common_URL% using Bits (attempt !RETRIES!) >> "%LOG%"
-powershell -NoProfile -ExecutionPolicy Bypass -nologo -Command "Start-BitsTransfer -Source %Common_URL% -Destination %Common_FILE%" >> "%LOG%" 2>>&1
 
 call :Verify
 if "%Verify%"=="Success" goto :DownloadOK
@@ -87,8 +80,6 @@ echo Downloading %Run% from %Run_URL% using IWR (attempt !RETRIES!) >> "%LOG%"
 powershell -NoProfile -ExecutionPolicy Bypass -nologo -Command "Invoke-WebRequest -Uri %Run_URL% -OutFile %Run_FILE%" >> "%LOG%" 2>>&1
 echo Downloading %Tasks% from %Tasks_FILE% using IWR (attempt !RETRIES!) >> "%LOG%"
 powershell -NoProfile -ExecutionPolicy Bypass -nologo -Command "Invoke-WebRequest -Uri %Tasks_URL% -OutFile %Tasks_FILE%" >> "%LOG%" 2>>&1
-echo Downloading %Common% from %Common_FILE% using IWR (attempt !RETRIES!) >> "%LOG%"
-powershell -NoProfile -ExecutionPolicy Bypass -nologo -Command "Invoke-WebRequest -Uri %Common_URL% -OutFile %Common_FILE%" >> "%LOG%" 2>>&1
 
 call :Verify
 if "%Verify%"=="Success" goto :DownloadOK
@@ -127,6 +118,7 @@ exit /b 1
 
 :Verify
 :: --- Verify files exist ---
+Set Verify=Success
 if not exist "%Run%" (
     echo ERROR: %Run% missing after download.
     echo  ERROR: %Run% missing. >> "%LOG%"
@@ -137,11 +129,5 @@ if not exist "%Tasks%" (
     echo ERROR: %Tasks% missing. >> "%LOG%"
     Set Verify=Failed
 )
-if not exist "%Common%" (
-    echo ERROR: %Common% missing after download.
-    echo ERROR: %Common% missing. >> "%LOG%"
-    Set Verify=Failed
-)
-Set Verify=Success
 goto :eof
 
