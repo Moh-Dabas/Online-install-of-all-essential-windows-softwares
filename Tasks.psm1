@@ -3,9 +3,7 @@
 function Start-FunctionWindow {
     param(
         [Parameter(Mandatory)]
-        [string]$FunctionName,
-
-        [object[]]$Arguments = @()
+        [array]$Functions
     )
 
     $modulePath = Join-Path $PSScriptRoot 'Tasks.psm1'
@@ -14,18 +12,67 @@ function Start-FunctionWindow {
         throw "Tasks.psm1 not found at: $modulePath"
     }
 
-    # Safely serialize arguments
-    $argText = ($Arguments | ForEach-Object {
-        if ($_ -is [string]) {
-            "'" + ($_.Replace("'", "''")) + "'"
-        }
-        elseif ($null -eq $_) {
-            '$null'
+    $functionCalls = foreach ($item in $Functions) {
+
+        # Support:
+        # "FunctionName"
+        # @{ Name = "FunctionName"; Arguments = @("arg1", 123) }
+
+        if ($item -is [string]) {
+
+            [PSCustomObject]@{
+                Name      = $item
+                Arguments = @()
+            }
+
         }
         else {
-            "$_"
+
+            [PSCustomObject]@{
+                Name      = $item.Name
+                Arguments = $item.Arguments
+            }
         }
-    }) -join ', '
+    }
+
+    $callLines = foreach ($func in $functionCalls) {
+
+        $argText = ($func.Arguments | ForEach-Object {
+
+            if ($_ -is [string]) {
+                "'" + ($_.Replace("'", "''")) + "'"
+            }
+            elseif ($null -eq $_) {
+                '$null'
+            }
+            elseif ($_ -is [bool]) {
+                if ($_){ '$true' } else { '$false' }
+            }
+            else {
+                "$_"
+            }
+
+        }) -join ', '
+
+@"
+Write-Host ""
+Write-Host "==================================================" -ForegroundColor DarkGray
+Write-Host "Running: $($func.Name)" -ForegroundColor Cyan
+Write-Host "==================================================" -ForegroundColor DarkGray
+
+try {
+    & $($func.Name) $argText
+
+    Write-Host ""
+    Write-Host "Completed: $($func.Name)" -ForegroundColor Green
+}
+catch {
+    Write-Host ""
+    Write-Host "FAILED: $($func.Name)" -ForegroundColor Red
+    Write-Host `$_ -ForegroundColor Red
+}
+"@
+    }
 
     $script = @"
 `$ErrorActionPreference = 'Continue'
@@ -35,22 +82,15 @@ Set-Location '$PSScriptRoot'
 
 Import-Module '$modulePath' -Force -DisableNameChecking -Global
 
-Write-Host "Running function: $FunctionName" -ForegroundColor Cyan
+$($callLines -join "`r`n")
 
-try {
-    & $FunctionName $argText
+Write-Host ""
+Write-Host "All tasks completed." -ForegroundColor Green
 
-    Write-Host "Completed: $FunctionName" -ForegroundColor Green
-}
-catch {
-    Write-Host "FAILED: $FunctionName" -ForegroundColor Red
-    Write-Host `$_
-
-    Read-Host 'Press Enter to close'
-}
+Read-Host 'Press Enter to close'
 "@
 
-    $tempFile = Join-Path $env:TEMP "$FunctionName-$([guid]::NewGuid()).ps1"
+    $tempFile = Join-Path $env:TEMP "Tasks-$([guid]::NewGuid()).ps1"
 
     Set-Content -Path $tempFile -Value $script -Encoding UTF8
 

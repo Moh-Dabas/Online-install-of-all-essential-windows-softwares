@@ -42,37 +42,41 @@ try {
 } catch { Write-Host "Tasks.psm1 file not found or failed to Import it"; Start-Sleep 10; exit }
 
 Check-RunAsAdministrator #Check Script is running with Elevated Privileges
-Start-FunctionWindow -FunctionName Registry-Tweaks #Applye Registry Tweaks
-Start-FunctionWindow -FunctionName Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
-Start-FunctionWindow -FunctionName DeepTweaks
-Start-FunctionWindow -FunctionName Disable-DefenderRealtimeProtection
+Start-FunctionWindow @('Registry-Tweaks') #Applye Registry Tweaks
+Start-FunctionWindow @('Tweak-schtasks') #Disable scheduled tasks that are considered unnecessary
+Start-FunctionWindow @('DeepTweaks')
+Start-FunctionWindow @('Disable-DefenderRealtimeProtection')
 InitializeCommands
-Start-FunctionWindow -FunctionName Set-Personalization
-Start-FunctionWindow -FunctionName Set-IdleLock # Set Idle look using UIA
-Start-FunctionWindow -FunctionName WinWallpaper
-Start-FunctionWindow -FunctionName MaxPowerPlan #Activate Max Performance Power Plan
-Start-FunctionWindow -FunctionName Ins-WindowsFeatures #Install Windows Features use DISM
-Start-FunctionWindow -FunctionName Windows-Update #Start Install Windows Updates
-Start-FunctionWindow -FunctionName Ins-arSALang #Install Arabic-SA language
-Start-FunctionWindow -FunctionName Ins-enUSLang #Install en-US language
-Start-FunctionWindow -FunctionName Set-en-US-Culture # Make regional format en-GB with AM/PM
-Start-FunctionWindow -FunctionName Unins-enGBLang #remove en-GB language
-Start-FunctionWindow -FunctionName Tweak-Language
-Start-FunctionWindow -FunctionName FixLanguageSwitch
-Start-FunctionWindow -FunctionName Fix-Share #Fix Windows file sharing
-Start-FunctionWindow -FunctionName Tweak-Edge #Tweak MS Edge
-Start-FunctionWindow -FunctionName Dis-BitLocker #Disable BitLocker
-Start-FunctionWindow -FunctionName D-ScanFolder #Create Drive D (If not found)& Create shared Scan folder in it
-Start-FunctionWindow -FunctionName Adj-Hosts #Adjust Hosts file
-Start-FunctionWindow -FunctionName Create-RLMCopyShortcut
-Start-FunctionWindow -FunctionName Update-MSStoreApps # Update MS Store apps using UIA
-Start-FunctionWindow -FunctionName Clear-PrintQueue
+Start-FunctionWindow @('Set-Personalization')
+Start-FunctionWindow @('Set-IdleLock') # Set Idle look using UIA
+Start-FunctionWindow @('WinWallpaper')
+Start-FunctionWindow @('MaxPowerPlan') #Activate Max Performance Power Plan
+Start-FunctionWindow @('Ins-WindowsFeatures') #Install Windows Features use DISM
 
-Start-FunctionWindow -FunctionName Ins-Office24PP #Start Install Office 2024 Pro Plus & remove old versions
-# Start-FunctionWindow -FunctionName Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions
+Start-FunctionWindow @(
+'Ins-arSALang' #Install Arabic-SA language
+'Ins-enUSLang' #Install en-US language
+'Set-en-US-Culture' # Make regional format en-GB with AM/PM
+'Unins-enGBLang' #remove en-GB language
+'Tweak-Language'
+'FixLanguageSwitch'
+'Windows-Update' #Start Install Windows Updates
+)
 
-Start-FunctionWindow -FunctionName Ins-AcrobatPro #Install Adobe Acrobat Pro DC
-#Ins-AcrobatRdr #Install Adobe Acrobat Reader DC
+Start-FunctionWindow @('Fix-Share') #Fix Windows file sharing
+Start-FunctionWindow @('Tweak-Edge') #Tweak MS Edge
+Start-FunctionWindow @('Dis-BitLocker') #Disable BitLocker
+Start-FunctionWindow @('D-ScanFolder') #Create Drive D (If not found)& Create shared Scan folder in it
+Start-FunctionWindow @('Adj-Hosts') #Adjust Hosts file
+Start-FunctionWindow @('Create-RLMCopyShortcut')
+Start-FunctionWindow @('Update-MSStoreApps') # Update MS Store apps using UIA
+Start-FunctionWindow @('Clear-PrintQueue')
+
+Start-FunctionWindow @('Ins-Office24PP') #Start Install Office 2024 Pro Plus & remove old versions
+# Start-FunctionWindow @('Ins-Office21PP') #Start Install Office 2021 Pro Plus & remove old versions
+
+Start-FunctionWindow @('Ins-AcrobatPro') #Install Adobe Acrobat Pro DC
+#Start-FunctionWindow @('Ins-AcrobatRdr') #Install Adobe Acrobat Reader DC
 
 # The Installers
 Ins-Nuget #Install Nuget provider
