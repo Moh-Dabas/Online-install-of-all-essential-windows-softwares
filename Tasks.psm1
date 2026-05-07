@@ -1,5 +1,66 @@
 ﻿# All Tasks Module
 
+function Start-FunctionWindow {
+    param(
+        [Parameter(Mandatory)]
+        [string]$FunctionName,
+
+        [object[]]$Arguments = @()
+    )
+
+    $modulePath = Join-Path $PSScriptRoot 'Tasks.psm1'
+
+    if (-not (Test-Path $modulePath)) {
+        throw "Tasks.psm1 not found at: $modulePath"
+    }
+
+    # Safely serialize arguments
+    $argText = ($Arguments | ForEach-Object {
+        if ($_ -is [string]) {
+            "'" + ($_.Replace("'", "''")) + "'"
+        }
+        elseif ($null -eq $_) {
+            '$null'
+        }
+        else {
+            "$_"
+        }
+    }) -join ', '
+
+    $script = @"
+`$ErrorActionPreference = 'Continue'
+`$ProgressPreference = 'Continue'
+
+Set-Location '$PSScriptRoot'
+
+Import-Module '$modulePath' -Force -DisableNameChecking -Global
+
+Write-Host "Running function: $FunctionName" -ForegroundColor Cyan
+
+try {
+    & $FunctionName $argText
+
+    Write-Host "Completed: $FunctionName" -ForegroundColor Green
+}
+catch {
+    Write-Host "FAILED: $FunctionName" -ForegroundColor Red
+    Write-Host `$_
+
+    Read-Host 'Press Enter to close'
+}
+"@
+
+    $tempFile = Join-Path $env:TEMP "$FunctionName-$([guid]::NewGuid()).ps1"
+
+    Set-Content -Path $tempFile -Value $script -Encoding UTF8
+
+    Start-Process powershell.exe -ArgumentList @(
+        '-NoProfile'
+        '-ExecutionPolicy', 'Bypass'
+        '-File', "`"$tempFile`""
+    ) -Verb RunAs
+}
+
 # Common Functions
 
 function Check-RunAsAdministrator {

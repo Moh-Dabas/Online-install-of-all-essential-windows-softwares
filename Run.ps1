@@ -32,53 +32,6 @@ $global:Force = $true
 
 Set-Location -Path $PSScriptRoot
 
-function Start-FunctionWindow {
-    param(
-        [Parameter(Mandatory)]
-        [string]$FunctionName,
-
-        [object[]]$Arguments = @()
-    )
-		
-    # Build all functions in current session
-    $allFunctions = Get-ChildItem Function: | ForEach-Object {
-        "function $($_.Name) {`n$($_.Definition)`n}"
-    } -join "`n`n"
-
-    # Format arguments safely
-    $argText = ($Arguments | ForEach-Object {
-        if ($_ -is [string]) {
-            "'" + ($_.Replace("'", "''")) + "'"
-        }
-        elseif ($null -eq $_) {
-            '$null'
-        }
-        else {
-            "$_"
-        }
-    }) -join ', '
-
-    # Build child script
-    $script = @"
-`$ErrorActionPreference = 'Stop'
-
-$allFunctions
-
-$FunctionName $argText
-"@
-
-    # Save to temp file
-    $file = Join-Path $env:TEMP "$FunctionName-$([guid]::NewGuid()).ps1"
-    Set-Content -Path $file -Value $script -Encoding UTF8
-
-    # Run in new window
-    Start-Process powershell.exe -ArgumentList @(
-        '-NoProfile'
-        '-ExecutionPolicy','Bypass'
-        '-File', $file
-    )
-}
-
 # Try Importing Tasks.psm1
 $ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 If (-not (Test-Path $ScriptDirectory\Tasks.psm1 -ea SilentlyContinue)) {Write-Host "Tasks.psm1 file not found at: $ScriptDirectory";$ScriptDirectory = $PSScriptRoot}
@@ -94,7 +47,7 @@ Start-FunctionWindow -FunctionName Tweak-schtasks #Disable scheduled tasks that 
 Start-FunctionWindow -FunctionName DeepTweaks
 Start-FunctionWindow -FunctionName Disable-DefenderRealtimeProtection
 InitializeCommands
-Start-FunctionWindow -FunctionName Set-Personalization -HelperFunctions Adjust-Desktop
+Start-FunctionWindow -FunctionName Set-Personalization
 Start-FunctionWindow -FunctionName Set-IdleLock # Set Idle look using UIA
 Start-FunctionWindow -FunctionName WinWallpaper
 Start-FunctionWindow -FunctionName MaxPowerPlan #Activate Max Performance Power Plan
