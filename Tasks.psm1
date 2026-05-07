@@ -1,52 +1,5 @@
 ﻿# All Tasks Module
 
-function Start-FunctionWindow {
-    param(
-        [Parameter(Mandatory)]
-        [string]$FunctionName,
-
-        [object[]]$Arguments = @()
-    )
-
-    # Build all functions in current session
-    $allFunctions = Get-ChildItem Function: | ForEach-Object {
-        "function $($_.Name) {`n$($_.Definition)`n}"
-    } -join "`n`n"
-
-    # Format arguments safely
-    $argText = ($Arguments | ForEach-Object {
-        if ($_ -is [string]) {
-            "'" + ($_.Replace("'", "''")) + "'"
-        }
-        elseif ($null -eq $_) {
-            '$null'
-        }
-        else {
-            "$_"
-        }
-    }) -join ', '
-
-    # Build child script
-    $script = @"
-`$ErrorActionPreference = 'Stop'
-
-$allFunctions
-
-$FunctionName $argText
-"@
-
-    # Save to temp file
-    $file = Join-Path $env:TEMP "$FunctionName-$([guid]::NewGuid()).ps1"
-    Set-Content -Path $file -Value $script -Encoding UTF8
-
-    # Run in new window
-    Start-Process powershell.exe -ArgumentList @(
-        '-NoProfile'
-        '-ExecutionPolicy','Bypass'
-        '-File', $file
-    )
-}
-
 # Common Functions
 
 function Check-RunAsAdministrator {

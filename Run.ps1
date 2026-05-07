@@ -32,6 +32,53 @@ $global:Force = $true
 
 Set-Location -Path $PSScriptRoot
 
+function Start-FunctionWindow {
+    param(
+        [Parameter(Mandatory)]
+        [string]$FunctionName,
+
+        [object[]]$Arguments = @()
+    )
+		
+    # Build all functions in current session
+    $allFunctions = Get-ChildItem Function: | ForEach-Object {
+        "function $($_.Name) {`n$($_.Definition)`n}"
+    } -join "`n`n"
+
+    # Format arguments safely
+    $argText = ($Arguments | ForEach-Object {
+        if ($_ -is [string]) {
+            "'" + ($_.Replace("'", "''")) + "'"
+        }
+        elseif ($null -eq $_) {
+            '$null'
+        }
+        else {
+            "$_"
+        }
+    }) -join ', '
+
+    # Build child script
+    $script = @"
+`$ErrorActionPreference = 'Stop'
+
+$allFunctions
+
+$FunctionName $argText
+"@
+
+    # Save to temp file
+    $file = Join-Path $env:TEMP "$FunctionName-$([guid]::NewGuid()).ps1"
+    Set-Content -Path $file -Value $script -Encoding UTF8
+
+    # Run in new window
+    Start-Process powershell.exe -ArgumentList @(
+        '-NoProfile'
+        '-ExecutionPolicy','Bypass'
+        '-File', $file
+    )
+}
+
 # Try Importing Tasks.psm1
 $ScriptDirectory = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
 If (-not (Test-Path $ScriptDirectory\Tasks.psm1 -ea SilentlyContinue)) {Write-Host "Tasks.psm1 file not found at: $ScriptDirectory";$ScriptDirectory = $PSScriptRoot}
@@ -45,12 +92,12 @@ Check-RunAsAdministrator #Check Script is running with Elevated Privileges
 Start-FunctionWindow -FunctionName Registry-Tweaks #Applye Registry Tweaks
 Start-FunctionWindow -FunctionName Tweak-schtasks #Disable scheduled tasks that are considered unnecessary
 Start-FunctionWindow -FunctionName DeepTweaks
-Start-FunctionWindow -FunctionName Disable-DefenderRealtimeProtection -HelperFunctions Test-WindowsDefenderStatus
+Start-FunctionWindow -FunctionName Disable-DefenderRealtimeProtection
 InitializeCommands
 Start-FunctionWindow -FunctionName Set-Personalization -HelperFunctions Adjust-Desktop
 Start-FunctionWindow -FunctionName Set-IdleLock # Set Idle look using UIA
 Start-FunctionWindow -FunctionName WinWallpaper
-Start-FunctionWindow -FunctionName MaxPowerPlan -HelperFunctions Set-Hibernate #Activate Max Performance Power Plan
+Start-FunctionWindow -FunctionName MaxPowerPlan #Activate Max Performance Power Plan
 Start-FunctionWindow -FunctionName Ins-WindowsFeatures #Install Windows Features use DISM
 Start-FunctionWindow -FunctionName Windows-Update #Start Install Windows Updates
 Start-FunctionWindow -FunctionName Ins-arSALang #Install Arabic-SA language
@@ -59,19 +106,19 @@ Start-FunctionWindow -FunctionName Set-en-US-Culture # Make regional format en-G
 Start-FunctionWindow -FunctionName Unins-enGBLang #remove en-GB language
 Start-FunctionWindow -FunctionName Tweak-Language
 Start-FunctionWindow -FunctionName FixLanguageSwitch
-Start-FunctionWindow -FunctionName Fix-Share CLUA,Del-WinDomainCred,EnableSMB1Protocol-Client #Fix Windows file sharing
+Start-FunctionWindow -FunctionName Fix-Share #Fix Windows file sharing
 Start-FunctionWindow -FunctionName Tweak-Edge #Tweak MS Edge
 Start-FunctionWindow -FunctionName Dis-BitLocker #Disable BitLocker
-Start-FunctionWindow -FunctionName D-ScanFolder -HelperFunctions ShrinkC-MakeNew #Create Drive D (If not found)& Create shared Scan folder in it
+Start-FunctionWindow -FunctionName D-ScanFolder #Create Drive D (If not found)& Create shared Scan folder in it
 Start-FunctionWindow -FunctionName Adj-Hosts #Adjust Hosts file
 Start-FunctionWindow -FunctionName Create-RLMCopyShortcut
 Start-FunctionWindow -FunctionName Update-MSStoreApps # Update MS Store apps using UIA
 Start-FunctionWindow -FunctionName Clear-PrintQueue
 
-#Start-FunctionWindow -FunctionName Ins-Office24PP -HelperFunctions configurationFile24PP,uninsSara-Office,Stop-OfficeProcess,Uninstall-MicrosoftOffice,ActOffice,Config-Office,Add-WordRTLButton,Deploy-Office,New-OfficeShortcuts #Start Install Office 2024 Pro Plus & remove old versions
-Start-FunctionWindow -FunctionName Ins-Office21PP -HelperFunctions configurationFile21PP,uninsSara-Office,Stop-OfficeProcess,Uninstall-MicrosoftOffice,ActOffice,Config-Office,Add-WordRTLButton,Deploy-Office,New-OfficeShortcuts #Start Install Office 2021 Pro Plus & remove old versions
+Start-FunctionWindow -FunctionName Ins-Office24PP #Start Install Office 2024 Pro Plus & remove old versions
+# Start-FunctionWindow -FunctionName Ins-Office21PP #Start Install Office 2021 Pro Plus & remove old versions
 
-Start-FunctionWindow -FunctionName Ins-AcrobatPro -HelperFunctions Unins-Acrobat,Disable-DefenderRealtimeProtection,Test-WindowsDefenderStatus,Invoke-AcrobatFix,Fix-AdobeAcrobatProPdfThumbnails #Install Adobe Acrobat Pro DC
+Start-FunctionWindow -FunctionName Ins-AcrobatPro #Install Adobe Acrobat Pro DC
 #Ins-AcrobatRdr #Install Adobe Acrobat Reader DC
 
 # The Installers
@@ -117,3 +164,4 @@ Fix-MSWindows #Fix Windows
 Clean-up
 Change_computer_name
 temp-clean
+
