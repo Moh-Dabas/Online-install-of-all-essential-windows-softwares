@@ -78,7 +78,7 @@ $($callLines -join "`r`n")
 Write-Host ""
 Write-Host "All tasks completed." -ForegroundColor Green
 
-Read-Host 'Press Enter to close'
+# Read-Host 'Press Enter to close'
 "@
 
     $tempFile = Join-Path $env:TEMP "Tasks-$([guid]::NewGuid()).ps1"
