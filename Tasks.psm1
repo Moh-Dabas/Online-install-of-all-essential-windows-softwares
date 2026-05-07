@@ -6228,6 +6228,15 @@ function Fix-Share {
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device' 'DevicePasswordLessBuildVersion' '0' 'DWord'
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device' 'DevicePasswordLessUpdateType' '1' 'DWord'
 	Add-RegEntry 'HKLM:\SOFTWARE\Microsoft\PolicyManager\default\Settings\AllowSignInOptions' 'value' '1' 'DWord'
+	
+	# Wait for all background jobs to finish
+	Wait-Job -State Running
+	# Optionally receive and display the results of all jobs
+	Get-Job | ForEach-Object {
+		Write-Output "Result from job $($_.Id):"
+		Receive-Job -Job $_
+		Remove-Job -Job $_
+	}
 }
 
 function ShrinkC-MakeNew {
@@ -6531,16 +6540,38 @@ function Adj-Hosts {
 }
 
 function uninsSara-Office {
-	Write-Host -f C "`r`n *** Removing currently installed MS office products using SaraCmd *** `r`n"
-	# Run SaraCMD
-	New-Item -Path "$env:TEMP\IA\office" -ItemType Directory -EA SilentlyContinue | Out-Null
-	Start-BitsTransfer -Source "https://aka.ms/SaRA_EnterpriseVersionFiles" -Destination "$env:TEMP\IA\office\SaraCmd.zip"
-	Expand-Archive -LiteralPath "$env:TEMP\IA\office\SaraCmd.zip" -DestinationPath "$env:TEMP\IA\office" -Force -EA SilentlyContinue | Out-Null
-	$SARAFile = "$env:TEMP\IA\office\DONE\SaRACmd.exe"
-	$SaraScenarioArgument = "-S OfficeScrubScenario -Script -AcceptEula -OfficeVersion All"
-	Start-Process $SARAFile -ArgumentList $SaraScenarioArgument -Verb RunAs -Wait
-	# $ResetOfficeActivation = "-S ResetOfficeActivation -Script -AcceptEula -CloseOffice"
-	# Start-Process $SARAFile -ArgumentList $ResetOfficeActivation -Verb RunAs -Wait
+
+    Write-Host -f C "`r`n *** Removing currently installed MS office products using SaraCmd *** `r`n"
+
+    $OfficeTemp = "$env:TEMP\IA\office"
+
+    New-Item -Path $OfficeTemp -ItemType Directory -Force | Out-Null
+
+    $ZipFile = Join-Path $OfficeTemp "SaraCmd.zip"
+
+    Start-BitsTransfer `
+        -Source "https://aka.ms/SaRA_EnterpriseVersionFiles" `
+        -Destination $ZipFile
+
+    Expand-Archive -LiteralPath $ZipFile -DestinationPath $OfficeTemp -Force
+
+    # البحث عن الملف بدل افتراض المسار
+    $SARAFile = Get-ChildItem -Path $OfficeTemp -Recurse -Filter "SaRACmd.exe" |
+        Select-Object -First 1 -ExpandProperty FullName
+
+    if (-not $SARAFile) {
+        throw "SaRACmd.exe was not found after extraction."
+    }
+
+    Write-Host "Using: $SARAFile"
+
+    $SaraScenarioArgument = "-S OfficeScrubScenario -Script -AcceptEula -OfficeVersion All"
+
+    Start-Process `
+        -FilePath $SARAFile `
+        -ArgumentList $SaraScenarioArgument `
+        -Verb RunAs `
+        -Wait
 }
 
 function Stop-OfficeProcess {

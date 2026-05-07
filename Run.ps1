@@ -88,7 +88,7 @@ Write-Host -F Cyan "***************************** Installing programs **********
 Write-Host -F Cyan "======================================================================================================================`r`n"
 
 Ins-WhatsApp #Install WhatsApp
-#Pin-WhatsappWebChrome #Pin Chrome whatsapp web to taskbar
+Pin-WhatsappWebChrome #Pin Chrome whatsapp web to taskbar
 Ins-NotepadPP #Install Notepad++
 Ins-Chrome #Install Google Chrome
 Ins-WinRAR #Install WinRAR
