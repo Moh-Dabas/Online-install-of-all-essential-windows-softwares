@@ -7192,7 +7192,7 @@ function Ins-Office21PP {
 	Write-Host -f C "***************************** Start Installing Office 2021 Pro Plus *****************************"
 	Write-Host -f C "======================================================================================================================`r`n"
 	Uninstall-MicrosoftOffice
-	uninsSara-Office
+	# uninsSara-Office
 	configurationFile21PP
 	Deploy-Office
 	Config-Office
@@ -7207,7 +7207,7 @@ function Ins-Office24PP {
 	Write-Host -f C "***************************** Start Installing Office 2024 Pro Plus *****************************"
 	Write-Host -f C "======================================================================================================================`r`n"
 	Uninstall-MicrosoftOffice
-	uninsSara-Office
+	# uninsSara-Office
 	configurationFile24PP
 	Deploy-Office
 	Config-Office
