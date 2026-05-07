@@ -60,23 +60,14 @@ Write-Host "==================================================" -ForegroundColor
 Write-Host "Running: $($func.Name)" -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor DarkGray
 
-try {
-    & $($func.Name) $argText
+& $($func.Name) $argText
 
-    Write-Host ""
-    Write-Host "Completed: $($func.Name)" -ForegroundColor Green
-}
-catch {
-    Write-Host ""
-    Write-Host "FAILED: $($func.Name)" -ForegroundColor Red
-    Write-Host `$_ -ForegroundColor Red
-}
 "@
     }
 
     $script = @"
-`$ErrorActionPreference = 'Continue'
-`$ProgressPreference = 'Continue'
+`$ErrorActionPreference = 'SilentlyContinue'
+`$ProgressPreference = 'SilentlyContinue'
 
 Set-Location '$PSScriptRoot'
 
